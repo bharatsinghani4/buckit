@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  transpilePackages: ["firebase-admin", "jwks-rsa", "jose"],
   async headers() {
     return [{
       source: "/:path*",
