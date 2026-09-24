@@ -6,7 +6,7 @@ import { getFirebaseClientAuth, isFirebaseConfigured } from "@/lib/firebase/clie
 import { api, friendlyError, ClientError } from "@/lib/api/client";
 import type { Profile } from "./contracts";
 
-type AuthContextValue = { user: User | null; profile: Profile | null; loading: boolean; error: string; configured: boolean; refresh: () => Promise<void>; logout: () => Promise<void> };
+type AuthContextValue = { user: User | null; profile: Profile | null; loading: boolean; error: string; configured: boolean; syncProfile: (profile: Profile) => void; refresh: () => Promise<void>; logout: () => Promise<void> };
 const Context = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null); const [profile, setProfile] = useState<Profile | null>(null);
@@ -42,9 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     apply(); query.addEventListener("change", apply); return () => query.removeEventListener("change", apply);
   }, [profile]);
   const refresh = useCallback(async () => { const current = getFirebaseClientAuth().currentUser; if (current) await load(current); }, [load]);
+  const syncProfile = useCallback((updated: Profile) => {
+    setProfile((current) => current?.id === updated.id && updated.revision >= current.revision ? updated : current);
+  }, []);
   const logout = useCallback(async () => {
     generation.current++; await signOut(getFirebaseClientAuth()); setProfile(null); setUser(null); document.documentElement.removeAttribute("data-theme"); router.push("/sign-in");
   }, [router]);
-  return <Context value={{ user, profile, loading, error, configured, refresh, logout }}>{children}</Context>;
+  return <Context value={{ user, profile, loading, error, configured, syncProfile, refresh, logout }}>{children}</Context>;
 }
 export function useAuth() { const context = useContext(Context); if (!context) throw new Error("AuthProvider is required"); return context; }

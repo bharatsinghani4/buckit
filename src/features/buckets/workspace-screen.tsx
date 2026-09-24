@@ -18,7 +18,8 @@ function Workspace() {
   const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<"invite" | "profile" | "tour" | null>(null);
   const [invite, setInvite] = useState<Invitation | null>(null); const [copied, setCopied] = useState(false);
-  const [step, setStep] = useState(profile.tour.lastStep); const [revision, setRevision] = useState(profile.revision);
+  const [step, setStep] = useState(profile.tour.lastStep);
+  const tourPrompted = useRef(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const inviteKey = useRef<{ body: string; key: string } | null>(null); const profileKey = useRef<{ body: string; key: string } | null>(null);
   const bucketQuery = params.get("bucket");
@@ -39,10 +40,26 @@ function Workspace() {
     finally { setLoading(false); }
   }, [bucketQuery, profile.lastBucketId, router]);
   useEffect(() => { queueMicrotask(() => { void load(); }); const onFocus = () => { void load(); }; window.addEventListener("focus", onFocus); return () => window.removeEventListener("focus", onFocus); }, [load]);
-  useEffect(() => { if (selected && profile.tour.state === "not_started") queueMicrotask(() => setModal("tour")); }, [selected, profile.tour.state]);
+  useEffect(() => {
+    if (selected && profile.tour.state === "not_started" && !tourPrompted.current) {
+      tourPrompted.current = true;
+      queueMicrotask(() => setModal("tour"));
+    }
+  }, [selected, profile.tour.state]);
   async function patchProfile(body: object) {
-    const result = await api<Profile>("me", { method: "PATCH", body, revision, key: operationKey(profileKey, body) });
-    setRevision(result.data.revision); profileKey.current = null; return result.data;
+    try {
+      const result = await api<Profile>("me", { method: "PATCH", body, revision: profile.revision, key: operationKey(profileKey, body) });
+      auth.syncProfile(result.data); profileKey.current = null; return result.data;
+    } catch (e) {
+      if (e instanceof ClientError && e.status === 412) {
+        profileKey.current = null;
+        // Refresh in place so the dialog and its unsaved inputs remain available.
+        const latest = await api<Profile>("me");
+        auth.syncProfile(latest.data);
+        throw new ClientError("Your profile changed in another session. The latest version is loaded; review your changes and try again, or close this dialog.", 412, "REVISION_MISMATCH");
+      }
+      throw e;
+    }
   }
   async function selectBucket(id: string) {
     setBusy(true); setError("");
@@ -61,17 +78,17 @@ function Workspace() {
   }
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); const form = new FormData(event.currentTarget);
-    try { await patchProfile({ displayName: String(form.get("displayName")).trim(), timezone: String(form.get("timezone")), theme: String(form.get("theme")) }); setModal(null); await auth.refresh(); }
+    try { await patchProfile({ displayName: String(form.get("displayName")).trim(), timezone: String(form.get("timezone")), theme: String(form.get("theme")) }); setModal(null); }
     catch (e) { setError(friendlyError(e)); } finally { setBusy(false); }
   }
   const steps = [{ title: "Your bucket, your space", text: "The bucket selector keeps each part of your life separate. Switch between the spaces you belong to, or create a new one.", icon: FolderOpen }, ...(selected?.isOwner ? [{ title: "Bring your people", text: "Use Invite people to copy a seven-day link, show its QR code, or share it through WhatsApp. People join only after signing in and confirming.", icon: Users }] : []), { title: "Make yourself at home", text: "Your profile menu holds your name, timezone, and appearance. You can replay this tour from Help whenever you need.", icon: Settings2 }];
   const currentStep = Math.min(step, steps.length - 1);
   async function tour(nextStep: number, state: Tour["state"] = "in_progress") {
     setBusy(true); setError("");
-    try { await patchProfile({ tour: { version: 1, state, lastStep: nextStep } }); setStep(nextStep); if (state === "completed" || state === "skipped") { setModal(null); await auth.refresh(); } }
+    try { await patchProfile({ tour: { version: 1, state, lastStep: nextStep } }); setStep(nextStep); if (state === "completed" || state === "skipped") setModal(null); }
     catch (e) { setError(friendlyError(e)); } finally { setBusy(false); }
   }
-  function closeModal() { if (busy) return; if (modal === "tour") void tour(currentStep, "skipped"); else { setModal(null); setError(""); } }
+  function closeModal() { if (busy) return; if (modal === "tour" && !error) void tour(currentStep, "skipped"); else { setModal(null); setError(""); } }
   return <div className="workspace-layout"><aside className="sidebar"><Brand /><div className="sidebar-section"><span className="eyebrow">YOUR SPACE</span><label className="sr-only" htmlFor="bucket-picker">Current bucket</label><select id="bucket-picker" value={selected?.id ?? ""} disabled={busy || loading} onChange={(e) => selectBucket(e.target.value)}>{!selected && <option value="">Choose a bucket</option>}{buckets.map((b) => <option key={b.id} value={b.id}>{b.name}{b.status === "archived" ? " (archived)" : ""}</option>)}</select>{cursor && <button className="text-link" onClick={moreBuckets} disabled={busy}>Load more buckets</button>}<Link className="sidebar-create" href="/buckets/new"><Plus size={15} /> Create a bucket</Link></div>
     <nav aria-label="Workspace"><Link href="/workspace" className="nav-item active"><LayoutDashboard size={18} /> Overview</Link><div className="nav-item unavailable"><Wallet size={18} /> Expenses <small>Coming next</small></div><div className="nav-item unavailable"><BookOpen size={18} /> Budgets <small>Later</small></div></nav><div className="sidebar-bottom"><button className="nav-item" onClick={() => { setStep(0); setModal("tour"); }} disabled={!selected}><HelpCircle size={18} /> Help & tour</button><button className="nav-item" onClick={() => setModal("profile")}><Settings2 size={18} /> Profile & appearance</button><button className="nav-item" onClick={() => auth.logout()}><LogOut size={18} /> Sign out</button></div></aside>
     <div className="workspace-main"><header className="workspace-header"><span>{selected?.name ?? "Your workspace"}</span><button className="profile-chip" onClick={() => setModal("profile")}><span>{profile.displayName.charAt(0).toUpperCase()}</span>{profile.displayName}</button></header><main id="main" className="workspace-content">
