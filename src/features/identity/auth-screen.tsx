@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { applyActionCode, confirmPasswordReset, createUserWithEmailAndPassword, GoogleAuthProvider, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, updateProfile, verifyPasswordResetCode } from "firebase/auth";
 import { ArrowLeft, ArrowRight, LockKeyhole, Mail, ShieldCheck, Wallet } from "lucide-react";
 import { Brand, Wordmark } from "@/components/brand";
-import { Notice, PasswordField } from "@/components/ui";
+import { Notice, PasswordField, Pending } from "@/components/ui";
 import { getFirebaseClientAuth } from "@/lib/firebase/client";
 import { friendlyError } from "@/lib/api/client";
 import { useAuth } from "./auth-provider";
@@ -14,6 +14,10 @@ import { authHref, safeNext } from "./contracts";
 export type AuthMode = "sign-in" | "sign-up" | "forgot-password" | "verify-email" | "auth-action";
 export function AuthScreen({ mode }: { mode: AuthMode }) {
   const auth = useAuth(); const router = useRouter(); const params = useSearchParams();
+  const authPage = mode === "sign-in" || mode === "sign-up";
+  useEffect(() => {
+    if (authPage && !auth.loading && auth.user) router.replace("/workspace");
+  }, [authPage, auth.loading, auth.user, router]);
   const [inviteFragment, setInviteFragment] = useState("");
   useEffect(() => { const read = () => setInviteFragment(window.location.hash); read(); window.addEventListener("hashchange", read); return () => window.removeEventListener("hashchange", read); }, []);
   const destination = safeNext(params.get("next"));
@@ -77,6 +81,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
   const title = signup ? "Create your account" : mode === "forgot-password" ? "Forgot your password?" : mode === "verify-email" ? "Check your inbox" : mode === "auth-action" ? action === "resetPassword" ? "A fresh start" : "Verify your email" : <>Sign in to <Wordmark /></>;
   const subtitle = signup ? "A little more clarity starts here." : mode === "forgot-password" ? "We’ll send you a link to reset it." : mode === "verify-email" ? `Open the verification link sent to ${auth.user?.email ?? "your email address"}.` : mode === "auth-action" ? "Finish securely setting up your account." : "Welcome back to your everyday spending.";
   const emailForm = ["sign-in", "sign-up", "forgot-password"].includes(mode);
+  if (authPage && (auth.loading || auth.user)) return <main id="main"><Pending label="Checking your session…" /></main>;
   return <main id="main" className="auth-page"><div className="auth-card"><section className="auth-form-panel"><Brand />
     {next.startsWith("/join") && <Notice kind="info"><Mail size={16} /> Sign in to continue to your invitation.</Notice>}
     <div className="form-heading"><h1>{title}</h1><p>{subtitle}</p></div>
