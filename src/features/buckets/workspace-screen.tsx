@@ -39,7 +39,7 @@ function Workspace() {
     } catch (e) { setBuckets([]); setSelected(null); setError(friendlyError(e)); }
     finally { setLoading(false); }
   }, [bucketQuery, profile.lastBucketId, router]);
-  useEffect(() => { queueMicrotask(() => { void load(); }); const onFocus = () => { void load(); }; window.addEventListener("focus", onFocus); return () => window.removeEventListener("focus", onFocus); }, [load]);
+  useEffect(() => { queueMicrotask(() => { void load(); }); }, [load]);
   useEffect(() => {
     if (selected && profile.tour.state === "not_started" && !tourPrompted.current) {
       tourPrompted.current = true;
