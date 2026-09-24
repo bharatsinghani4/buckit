@@ -2,7 +2,7 @@
 
 Folders reserve the domain boundaries from the design documents. Add UI, input contracts, policies, and services here as each feature is implemented. Server services must import `server-only`; keep browser-safe types separate. Route handlers should validate and delegate to these services.
 
-No models, API endpoints, authorization policies, financial operations, or background workers are implemented in this foundation.
+Phase 1 now implements authentication UI, profile and bucket services, invitation creation/joining, and the initial workspace. See `docs/PHASE_1_IMPLEMENTATION.md` for the implemented API subset, setup and verification. Financial operations and background workers remain in later phases.
 
 - `identity`: profile/bootstrap and account access
 - `buckets`: membership, invitations, archive and ownership

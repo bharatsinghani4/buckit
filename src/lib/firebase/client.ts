@@ -4,6 +4,10 @@ import { getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { requireConfig } from "@/lib/config/required";
 
+export function isFirebaseConfigured() {
+  return !!(process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && process.env.NEXT_PUBLIC_FIREBASE_APP_ID && process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID);
+}
+
 export function getFirebaseClientApp() {
   if (typeof window === "undefined") {
     throw new Error("Firebase client initialization requires a browser.");

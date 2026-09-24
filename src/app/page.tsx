@@ -1,12 +1,18 @@
+import Link from "next/link";
+import { ArrowRight, BookOpen, FolderOpen, Users, Home, Coffee, Sun, Check } from "lucide-react";
+import { Brand, Wordmark } from "@/components/brand";
+
 export default function HomePage() {
-  return (
-    <main>
-      <p className="brand">Buckit</p>
-      <h1>A little clarity for everyday spending.</h1>
-      <p className="description">
-        A shared space to record, understand, and plan spending, one bucket at a time.
-      </p>
-      <p className="status">Buckit is taking shape. The app is not available yet.</p>
-    </main>
-  );
+  return <>
+    <header className="site-header"><Brand /><nav aria-label="Main navigation"><a href="#philosophy">Philosophy</a><a href="#how-it-works">How it works</a></nav><div className="header-actions"><Link href="/sign-in">Sign in</Link><Link href="/sign-up" className="button primary small">Get started <ArrowRight size={15} /></Link></div></header>
+    <main id="main"><section className="hero"><div className="eyebrow"><span className="status-dot" /> PRIVATE SPACES. SHARED CLARITY.</div><h1>A little clarity for<br />everyday spending.</h1><p>A shared space to record, understand, and plan spending,<br className="desktop-break" /> one bucket at a time.</p><div className="hero-actions"><Link className="button primary" href="/sign-up">Get started <ArrowRight size={17} /></Link><a className="text-link" href="#how-it-works">Learn how it works <ArrowRight size={16} /></a></div>
+      <div className="bucket-showcase" aria-label="Illustrative bucket examples"><article className="sample-bucket"><div className="sample-top"><span className="tile-icon"><Home size={21} /></span><span className="avatar-pair"><i>Y</i><i>P</i></span></div><h2>House Expenses</h2><p>Shared with Priya</p><strong>₹64,280<span>recorded this month</span></strong><div className="sample-tags"><span>Groceries</span><span>Utilities</span><span>Rent</span></div></article>
+      <article className="sample-bucket featured"><div className="sample-top"><span className="tile-icon"><Coffee size={21} /></span><span className="pill">Solo space</span></div><h2>Personal</h2><p>A little space for yourself</p><strong>₹18,450<span>recorded this month</span></strong><div className="sample-tags"><span>Coffee</span><span>Books</span><span>Tech</span></div></article>
+      <article className="sample-bucket"><div className="sample-top"><span className="tile-icon"><Sun size={21} /></span><span className="avatar-pair"><i>M</i><i>A</i><i>+2</i></span></div><h2>Summer Retreat</h2><p>Group of 4</p><strong>€2,410<span>recorded together</span></strong><div className="sample-tags"><span>Stay</span><span>Travel</span><span>Dining</span></div></article></div><p className="example-caption">Illustrative examples. Your buckets start fresh.</p>
+    </section>
+    <section id="philosophy" className="principles section-wrap"><span className="eyebrow">FOUNDATIONAL PRINCIPLES</span><h2>Finance without the sensory overload.</h2><div className="three-columns">{[{ icon: FolderOpen, title: "Your own spaces", copy: "Organize spending into independent buckets for yourself, your household, or your next adventure." }, { icon: Users, title: "Together when you choose", copy: "Invite a partner, roommate, or family member into a bucket. Keep the rest of your spending private." }, { icon: BookOpen, title: "A clearer everyday", copy: "Understand where your money goes, without complicated accounting or linking your bank." }].map(({ icon: Icon, title, copy }) => <article key={title}><span className="tile-icon"><Icon size={23} /></span><h3>{title}</h3><p>{copy}</p></article>)}</div></section>
+    <section id="how-it-works" className="how-section section-wrap"><div><span className="eyebrow">DELIBERATE SIMPLICITY</span><h2>Designed for natural<br />human collaboration.</h2><p>Start with one bucket. Give it a name, choose your currency, and invite your people when you’re ready.</p><ul className="check-list"><li><Check size={17} /> Keep personal and shared spending separate</li><li><Check size={17} /> Choose who has access to each bucket</li><li><Check size={17} /> Build a little more clarity, day by day</li></ul></div><div className="ledger-example"><div className="ledger-heading"><span>Monthly ledger</span><span className="pill">Example</span></div>{[["Farmers Market", "Groceries", "₹1,840"], ["Bookshop", "Personal", "₹680"], ["Kitchen Provisions", "Household", "₹3,200"]].map(([name, category, amount]) => <div className="ledger-row" key={name}><span className="tile-icon"><FolderOpen size={18} /></span><div><b>{name}</b><small>{category}</small></div><strong>{amount}</strong></div>)}</div></section>
+    <section className="cta-section"><span className="eyebrow">A FRESH START</span><h2>Ready for calm everyday spending?</h2><p>Start small with a single bucket. Share it if you choose,<br className="desktop-break" /> or keep it quiet for yourself.</p><Link className="button primary" href="/sign-up">Create your first bucket <ArrowRight size={16} /></Link></section>
+    </main><footer className="site-footer"><Wordmark /><span>Made for everyday life.</span><span>© {new Date().getFullYear()} Buckit</span></footer>
+  </>;
 }
