@@ -3,14 +3,17 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { getFirebaseClientAuth, isFirebaseConfigured } from "@/lib/firebase/client";
+import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { api, friendlyError, ClientError } from "@/lib/api/client";
 import type { Profile } from "./contracts";
 
-type AuthContextValue = { user: User | null; profile: Profile | null; loading: boolean; error: string; configured: boolean; refresh: () => Promise<void>; logout: () => Promise<void> };
+type Theme = "light" | "dark" | "system";
+type AuthContextValue = { user: User | null; profile: Profile | null; loading: boolean; error: string; configured: boolean; theme: Theme; setTheme: (theme: Theme) => void; syncProfile: (profile: Profile) => void; refresh: () => Promise<void>; logout: () => Promise<void> };
 const Context = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null); const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const [theme, setThemeState] = useState<Theme>("system");
   const generation = useRef(0); const bootKeys = useRef(new Map<string, string>()); const router = useRouter();
   const configured = isFirebaseConfigured();
   const load = useCallback(async (current: User) => {
@@ -36,15 +39,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, () => { setError("Unable to restore your session. Please sign in again."); setLoading(false); });
   }, [configured, load]);
   useEffect(() => {
-    if (!profile) return;
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => document.documentElement.setAttribute("data-theme", profile.theme === "system" ? (query.matches ? "dark" : "light") : profile.theme);
-    apply(); query.addEventListener("change", apply); return () => query.removeEventListener("change", apply);
+    const saved = getPreference("buckit-theme");
+    if (saved === "light" || saved === "dark" || saved === "system") queueMicrotask(() => setThemeState(saved));
+  }, []);
+  useEffect(() => {
+    if (getPreference("buckit-theme") || !profile) return;
+    queueMicrotask(() => setThemeState(profile.theme));
   }, [profile]);
+  useEffect(() => {
+    const saved = getPreference("buckit-theme");
+    if ((saved === "light" || saved === "dark" || saved === "system") && saved !== theme) return;
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => document.documentElement.setAttribute("data-theme", theme === "system" ? (query.matches ? "dark" : "light") : theme);
+    apply(); query.addEventListener("change", apply); return () => query.removeEventListener("change", apply);
+  }, [theme]);
+  const setTheme = useCallback((next: Theme) => { setPreference("buckit-theme", next); setThemeState(next); }, []);
   const refresh = useCallback(async () => { const current = getFirebaseClientAuth().currentUser; if (current) await load(current); }, [load]);
+  const syncProfile = useCallback((updated: Profile) => {
+    setProfile((current) => current?.id === updated.id && updated.revision >= current.revision ? updated : current);
+  }, []);
   const logout = useCallback(async () => {
-    generation.current++; await signOut(getFirebaseClientAuth()); setProfile(null); setUser(null); document.documentElement.removeAttribute("data-theme"); router.push("/sign-in");
+    generation.current++; await signOut(getFirebaseClientAuth()); setProfile(null); setUser(null); router.push("/sign-in");
   }, [router]);
-  return <Context value={{ user, profile, loading, error, configured, refresh, logout }}>{children}</Context>;
+  return <Context value={{ user, profile, loading, error, configured, theme, setTheme, syncProfile, refresh, logout }}>{children}</Context>;
 }
 export function useAuth() { const context = useContext(Context); if (!context) throw new Error("AuthProvider is required"); return context; }

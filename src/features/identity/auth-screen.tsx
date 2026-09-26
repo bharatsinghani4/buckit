@@ -5,7 +5,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { applyActionCode, confirmPasswordReset, createUserWithEmailAndPassword, GoogleAuthProvider, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, updateProfile, verifyPasswordResetCode } from "firebase/auth";
 import { ArrowLeft, ArrowRight, LockKeyhole, Mail, ShieldCheck, Wallet } from "lucide-react";
 import { Brand, Wordmark } from "@/components/brand";
-import { Notice, PasswordField } from "@/components/ui";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Notice, PasswordField, Pending } from "@/components/ui";
 import { getFirebaseClientAuth } from "@/lib/firebase/client";
 import { friendlyError } from "@/lib/api/client";
 import { useAuth } from "./auth-provider";
@@ -14,6 +15,10 @@ import { authHref, safeNext } from "./contracts";
 export type AuthMode = "sign-in" | "sign-up" | "forgot-password" | "verify-email" | "auth-action";
 export function AuthScreen({ mode }: { mode: AuthMode }) {
   const auth = useAuth(); const router = useRouter(); const params = useSearchParams();
+  const authPage = mode === "sign-in" || mode === "sign-up";
+  useEffect(() => {
+    if (authPage && !auth.loading && auth.user) router.replace("/workspace");
+  }, [authPage, auth.loading, auth.user, router]);
   const [inviteFragment, setInviteFragment] = useState("");
   useEffect(() => { const read = () => setInviteFragment(window.location.hash); read(); window.addEventListener("hashchange", read); return () => window.removeEventListener("hashchange", read); }, []);
   const destination = safeNext(params.get("next"));
@@ -77,7 +82,8 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
   const title = signup ? "Create your account" : mode === "forgot-password" ? "Forgot your password?" : mode === "verify-email" ? "Check your inbox" : mode === "auth-action" ? action === "resetPassword" ? "A fresh start" : "Verify your email" : <>Sign in to <Wordmark /></>;
   const subtitle = signup ? "A little more clarity starts here." : mode === "forgot-password" ? "We’ll send you a link to reset it." : mode === "verify-email" ? `Open the verification link sent to ${auth.user?.email ?? "your email address"}.` : mode === "auth-action" ? "Finish securely setting up your account." : "Welcome back to your everyday spending.";
   const emailForm = ["sign-in", "sign-up", "forgot-password"].includes(mode);
-  return <main id="main" className="auth-page"><div className="auth-card"><section className="auth-form-panel"><Brand />
+  if (authPage && (auth.loading || auth.user)) return <main id="main"><Pending label="Checking your session…" /></main>;
+  return <main id="main" className="auth-page"><div className="auth-card"><section className="auth-form-panel"><div className="auth-top"><Brand /><ThemeToggle /></div>
     {next.startsWith("/join") && <Notice kind="info"><Mail size={16} /> Sign in to continue to your invitation.</Notice>}
     <div className="form-heading"><h1>{title}</h1><p>{subtitle}</p></div>
     {!auth.configured && <Notice kind="info">Sign-in is not available yet. Please try again once Buckit is connected.</Notice>}
@@ -94,5 +100,5 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
     {mode === "auth-action" && action === "verifyEmail" && actionReady && <button className="button primary full" onClick={() => verify(false)} disabled={busy}>Verify email</button>}
     {["forgot-password", "auth-action"].includes(mode) && <Link className="back-link" href="/sign-in"><ArrowLeft size={16} /> Back to sign in</Link>}
     <p className="trust-note"><LockKeyhole size={13} /> Your sign-in is secured by Firebase.</p>
-  </section><aside className="auth-art"><div className="art-heading"><span className="eyebrow">A SPACE FOR EVERYDAY LIFE</span><span className="pill">A little clarity</span></div><div className="art-middle"><div className="mini-ledger"><div className="mini-ledger-top"><span className="tile-icon"><Wallet size={19} /></span><div><small>Example bucket</small><b>Shared Living</b></div><strong>₹4,850</strong></div><div className="meter-label"><span>Monthly spending</span><span>In one place</span></div><div className="meter"><span /></div><div className="mini-totals"><div><small>Groceries</small><b>₹3,200</b></div><div><small>Household</small><b>₹1,650</b></div></div></div><blockquote>“A little clarity for<br />everyday spending.”</blockquote><p>Your spaces. Your people. Your pace.</p></div><div className="art-footer"><span><ShieldCheck size={14} /> No bank linking required</span><Wordmark /></div></aside></div><Link href="/" className="auth-home"><ArrowLeft size={14} /> Back to home</Link></main>;
+  </section><aside className="auth-art"><div className="art-heading"><span className="eyebrow">A SPACE FOR EVERYDAY LIFE</span><span className="pill">A little clarity</span></div><div className="art-middle"><div className="mini-ledger"><div className="mini-ledger-top"><span className="tile-icon"><Wallet size={19} /></span><div><small>Example bucket</small><b>Shared Living</b></div><strong>₹4,850</strong></div><div className="meter-label"><span>Monthly spending</span><span>In one place</span></div><div className="meter"><span /></div><div className="mini-totals"><div><small>Groceries</small><b>₹3,200</b></div><div><small>Household</small><b>₹1,650</b></div></div></div><blockquote>“A little clarity for<br />everyday spending.”</blockquote><p>Your spaces. Your people. Your pace.</p></div><div className="art-footer"><span><ShieldCheck size={14} /> No bank linking required</span><Wordmark /></div></aside></div>{!authPage && <Link href="/" className="auth-home"><ArrowLeft size={14} /> Back to home</Link>}</main>;
 }

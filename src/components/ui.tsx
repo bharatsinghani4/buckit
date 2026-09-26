@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { Eye, EyeOff, LoaderCircle, X } from "lucide-react";
 export function Notice({ children, kind = "error" }: { children: ReactNode; kind?: "error" | "success" | "info" }) {
-  return <div className={`notice ${kind}`} role={kind === "error" ? "alert" : "status"}>{children}</div>;
+  return <div className={`d-alert notice ${kind}`} role={kind === "error" ? "alert" : "status"}>{children}</div>;
 }
 export function Pending({ label = "Loading your workspace…" }: { label?: string }) { return <div className="pending" role="status"><LoaderCircle className="spin" size={22} /><span>{label}</span></div>; }
 export function PasswordField(props: InputHTMLAttributes<HTMLInputElement>) {

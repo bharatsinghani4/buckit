@@ -22,7 +22,7 @@ npm run db:setup
 npm run dev
 ```
 
-See [Phase 1 implementation and setup](docs/PHASE_1_IMPLEMENTATION.md) for Firebase providers, authorized domains, email action URLs, database indexes, supported flows and limitations. Never commit `.env.local`. No infrastructure is provisioned by this repository.
+See [Phase 1 implementation and setup](docs/PHASE_1_IMPLEMENTATION.md) for Firebase providers, authorized domains, email action URLs, database indexes, supported flows and limitations. [App progress](docs/APP_PROGRESS.md) tracks completed work, current changes and remaining checks. Never commit `.env.local`. No infrastructure is provisioned by this repository.
 
 ## Verify
 
