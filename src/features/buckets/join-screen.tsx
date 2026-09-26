@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Link2, Users } from "lucide-react";
 import { Brand } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Notice, Pending } from "@/components/ui";
 import { useAuth } from "@/features/identity/auth-provider";
 import { authHref, type Bucket } from "@/features/identity/contracts";
@@ -30,7 +31,7 @@ export function JoinScreen() {
     catch (e) { setError(friendlyError(e)); } finally { setBusy(false); }
   }
   const next = `/join${token ? `#${token}` : ""}`;
-  return <main id="main" className="join-page"><Brand /><section className="join-card"><span className="large-icon"><Users size={30} /></span><span className="eyebrow">BETTER, TOGETHER</span><h1>{preview ? `Join ${preview.bucketName}` : "A shared space awaits."}</h1><p>{preview?.alreadyMember ? "You’re already a member of this bucket." : "Keep everyday spending in one place with your people."}</p>
+  return <main id="main" className="join-page"><div className="join-top"><Brand /><ThemeToggle /></div><section className="join-card"><span className="large-icon"><Users size={30} /></span><span className="eyebrow">BETTER, TOGETHER</span><h1>{preview ? `Join ${preview.bucketName}` : "A shared space awaits."}</h1><p>{preview?.alreadyMember ? "You’re already a member of this bucket." : "Keep everyday spending in one place with your people."}</p>
     {error && <Notice>{error}</Notice>}{!auth.configured && <Notice kind="info">Invitations will be available once Buckit’s services are connected.</Notice>}
     {!token && <form onSubmit={pasteLink} className="form-stack"><label>Invitation link<input name="link" type="url" required placeholder="Paste your invitation link" /></label><button className="button primary full"><Link2 size={16} /> Continue with link</button></form>}
     {token && !auth.user && <><p className="muted small-text">Sign in to view this invitation. Nothing is joined until you confirm.</p><Link className="button primary full" href={authHref("/sign-in", next)}>Sign in to continue <ArrowRight size={16} /></Link><Link className="text-link centered" href={authHref("/sign-up", next)}>Create an account</Link></>}

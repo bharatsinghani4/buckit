@@ -28,6 +28,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     else if (method === "GET" && path === "capabilities") data = { currencies: currencies.map((c) => ({ ...c, precision: c.code === "JPY" ? 0 : 2 })), phase: 1 };
     else if (method === "POST" && path === "invitations/preview") data = await previewInvitation(identity, await readJson(request));
     else {
+      const supportedMutation = (method === "POST" && (path === "me/bootstrap" || path === "buckets" || path === "invitations/join" || /^buckets\/[a-f\d]{24}\/invitations$/i.test(path))) || (method === "PATCH" && path === "me");
+      if (!supportedMutation) throw new ApiError(404, "RESOURCE_NOT_FOUND", "This endpoint is not available.");
       const key = requireIdempotencyKey(request); const body = await readJson(request); let result;
       if (method === "POST" && path === "me/bootstrap") result = await bootstrap(identity, body, key);
       else if (method === "PATCH" && path === "me") result = await updateProfile(identity, body, key, request.headers.get("if-match"));

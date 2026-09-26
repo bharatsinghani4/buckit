@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import Script from "next/script";
 import "./globals.css";
 import "@fontsource-variable/plus-jakarta-sans";
 import "@fontsource-variable/fraunces/standard-italic.css";
@@ -14,5 +15,5 @@ export const metadata: Metadata = {
 export const runtime = "nodejs";
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="en" suppressHydrationWarning><body><SkipLink /><AuthProvider>{children}</AuthProvider></body></html>;
+  return <html lang="en" suppressHydrationWarning><body><Script src="/theme-init.js" strategy="beforeInteractive" /><SkipLink /><AuthProvider>{children}</AuthProvider></body></html>;
 }

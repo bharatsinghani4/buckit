@@ -2,10 +2,11 @@ import Link from "next/link";
 import { ArrowRight, BookOpen, FolderOpen, Users, Home, Coffee, Sun, Check } from "lucide-react";
 import { Brand, Wordmark } from "@/components/brand";
 import { GuestHome } from "@/features/identity/guest-home";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function HomePage() {
   return <GuestHome>
-    <header className="site-header"><Brand /><nav aria-label="Main navigation"><a href="#philosophy">Philosophy</a><a href="#how-it-works">How it works</a></nav><div className="header-actions"><Link href="/sign-in">Sign in</Link><Link href="/sign-up" className="button primary small">Get started <ArrowRight size={15} /></Link></div></header>
+    <header className="site-header"><Brand /><nav aria-label="Main navigation"><a href="#philosophy">Philosophy</a><a href="#how-it-works">How it works</a></nav><div className="header-actions"><ThemeToggle /><Link href="/sign-in">Sign in</Link><Link href="/sign-up" className="button primary small">Get started <ArrowRight size={15} /></Link></div></header>
     <main id="main"><section className="hero"><div className="eyebrow"><span className="status-dot" /> PRIVATE SPACES. SHARED CLARITY.</div><h1>A little clarity for<br />everyday spending.</h1><p>A shared space to record, understand, and plan spending,<br className="desktop-break" /> one bucket at a time.</p><div className="hero-actions"><Link className="button primary" href="/sign-up">Get started <ArrowRight size={17} /></Link><a className="text-link" href="#how-it-works">Learn how it works <ArrowRight size={16} /></a></div>
       <div className="bucket-showcase" aria-label="Illustrative bucket examples"><article className="sample-bucket"><div className="sample-top"><span className="tile-icon"><Home size={21} /></span><span className="avatar-pair"><i>Y</i><i>P</i></span></div><h2>House Expenses</h2><p>Shared with Priya</p><strong>₹64,280<span>recorded this month</span></strong><div className="sample-tags"><span>Groceries</span><span>Utilities</span><span>Rent</span></div></article>
       <article className="sample-bucket featured"><div className="sample-top"><span className="tile-icon"><Coffee size={21} /></span><span className="pill">Solo space</span></div><h2>Personal</h2><p>A little space for yourself</p><strong>₹18,450<span>recorded this month</span></strong><div className="sample-tags"><span>Coffee</span><span>Books</span><span>Tech</span></div></article>
