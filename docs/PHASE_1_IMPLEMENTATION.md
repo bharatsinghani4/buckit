@@ -18,16 +18,16 @@ Sign-up, verification, recovery, invitation acceptance and the workspace extend 
 
 ## Routes and behavior
 
-| Route | Behavior |
-| --- | --- |
-| `/` | Responsive public home with working navigation and get-started links |
-| `/sign-in`, `/sign-up` | Email/password and Google authentication; password visibility; error/pending states |
-| `/forgot-password` | Firebase recovery email with neutral account-existence response |
-| `/verify-email` | Resend cooldown, verification refresh, and continue-for-now option |
-| `/auth/action` | Custom Firebase password-reset and email-verification action handler |
-| `/onboarding`, `/buckets/new` | Profile name/timezone and bucket setup; name suggestions; currency/timezone selection |
-| `/join` | Paste an invitation; authenticated preview; explicit join/already-member flow; expired/revoked feedback |
-| `/workspace` | Last accessible bucket, bucket switching, owner-only link/QR/manual WhatsApp sharing, profile/theme controls and replayable role-aware tour |
+| Route                         | Behavior                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                           | Responsive public home with working navigation and get-started links                                                                        |
+| `/sign-in`, `/sign-up`        | Email/password and Google authentication; password visibility; error/pending states                                                         |
+| `/forgot-password`            | Firebase recovery email with neutral account-existence response                                                                             |
+| `/verify-email`               | Resend cooldown, verification refresh, and continue-for-now option                                                                          |
+| `/auth/action`                | Custom Firebase password-reset and email-verification action handler                                                                        |
+| `/onboarding`, `/buckets/new` | Profile name/timezone and bucket setup; name suggestions; currency/timezone selection                                                       |
+| `/join`                       | Paste an invitation; authenticated preview; explicit join/already-member flow; expired/revoked feedback                                     |
+| `/workspace`                  | Last accessible bucket, bucket switching, owner-only link/QR/manual WhatsApp sharing, profile/theme controls and replayable role-aware tour |
 
 The workspace deliberately has no analytical totals or expense-entry controls yet. Later features are labeled as coming later. There is no mock authentication or local-storage substitute for the database.
 

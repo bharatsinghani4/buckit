@@ -13,6 +13,11 @@ export function GuestHome({ children }: { children: ReactNode }) {
     if (!loading && user) router.replace("/workspace");
   }, [loading, user, router]);
 
-  if (loading || user) return <main id="main"><Pending label="Checking your session…" /></main>;
+  if (loading || user)
+    return (
+      <main id="main">
+        <Pending label="Checking your session…" />
+      </main>
+    );
   return children;
 }

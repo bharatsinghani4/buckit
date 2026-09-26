@@ -13,6 +13,10 @@ try {
   }
   console.log("Phase 1 collections and indexes are ready. Existing indexes were not dropped.");
 } catch {
-  console.error("Database setup failed. Check the MongoDB configuration, database permissions, and network access.");
+  console.error(
+    "Database setup failed. Check the MongoDB configuration, database permissions, and network access.",
+  );
   process.exitCode = 1;
-} finally { await mongoose.disconnect(); }
+} finally {
+  await mongoose.disconnect();
+}

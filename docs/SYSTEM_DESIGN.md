@@ -10,15 +10,15 @@ Build one full-stack Next.js application in TypeScript. Its backend runs on Node
 
 The initial release is non-commercial, shared with friends and family, targeting ₹0 within free-service allowances. Use the Vercel-provided HTTPS URL; no purchased domain is required.
 
-| Area | Approved change since the earlier documents |
-| --- | --- |
-| Application stack | Next.js/Node.js/Vercel replaces React/Vite/Cloudflare Workers |
-| Data | MongoDB with Mongoose replaces D1/SQL |
-| Scheduling | Daily processing replaces minute-level/midnight execution and exact reminder times |
-| Communication | In-app plus optional web push replaces application email and email digests |
-| Invitations | Links, manual WhatsApp sharing and QR; automatic email invitations deferred |
-| Authentication emails | Firebase verification and password reset remain |
-| Telegram | Excluded; no bot or integration |
+| Area                  | Approved change since the earlier documents                                        |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| Application stack     | Next.js/Node.js/Vercel replaces React/Vite/Cloudflare Workers                      |
+| Data                  | MongoDB with Mongoose replaces D1/SQL                                              |
+| Scheduling            | Daily processing replaces minute-level/midnight execution and exact reminder times |
+| Communication         | In-app plus optional web push replaces application email and email digests         |
+| Invitations           | Links, manual WhatsApp sharing and QR; automatic email invitations deferred        |
+| Authentication emails | Firebase verification and password reset remain                                    |
+| Telegram              | Excluded; no bot or integration                                                    |
 
 PRD.md remains unchanged in this task. Its email/invitation and precise-timing wording needs a separately authorized alignment edit. The decisions above govern this design and are approved changes, not silent feature reductions. Production application email is no longer a V1 prerequisite; no Resend, Gmail SMTP or domain purchase is needed.
 
@@ -56,16 +56,16 @@ The service worker supports push only: it does not introduce offline expense sav
 
 Documentation checked on 23 September 2026; verify again during setup. Nothing has been deployed or load-tested.
 
-| Service | Relevant constraint | Design response |
-| --- | --- | --- |
-| Vercel Hobby | Personal/non-commercial use; finite compute/transfer | Matches stated release; monitor account usage |
-| Vercel Cron | Each job once daily at most, invocation within scheduled hour | One daily coordinator; approximate processing window |
-| Vercel Functions | Bounded execution, 4.5 MB request/response payload | Checkpoints, small import chunks and pages |
-| Atlas Free | About 512 MB including indexes; 500 connections; 100 operations/second | Small pools, indexes, bounded concurrency |
-| Atlas operations | No managed backups; idle pause possible after 30 days with zero connections | Independent backup/recovery process |
-| Firebase Auth | Spark lists 1,000 verification emails/day and 150 resets/day | Resend throttling; no app-email load |
-| FCM | No messaging fee; quotas/device limitations still apply | Controlled fan-out, backoff and token cleanup |
-| Frankfurter | Free API with abuse rate limiting | Shared rate cache and manual fallback |
+| Service          | Relevant constraint                                                         | Design response                                      |
+| ---------------- | --------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Vercel Hobby     | Personal/non-commercial use; finite compute/transfer                        | Matches stated release; monitor account usage        |
+| Vercel Cron      | Each job once daily at most, invocation within scheduled hour               | One daily coordinator; approximate processing window |
+| Vercel Functions | Bounded execution, 4.5 MB request/response payload                          | Checkpoints, small import chunks and pages           |
+| Atlas Free       | About 512 MB including indexes; 500 connections; 100 operations/second      | Small pools, indexes, bounded concurrency            |
+| Atlas operations | No managed backups; idle pause possible after 30 days with zero connections | Independent backup/recovery process                  |
+| Firebase Auth    | Spark lists 1,000 verification emails/day and 150 resets/day                | Resend throttling; no app-email load                 |
+| FCM              | No messaging fee; quotas/device limitations still apply                     | Controlled fan-out, backoff and token cleanup        |
+| Frankfurter      | Free API with abuse rate limiting                                           | Shared rate cache and manual fallback                |
 
 Sources: [Vercel Hobby](https://vercel.com/docs/plans/hobby), [Cron](https://vercel.com/docs/cron-jobs/usage-and-pricing), [Functions](https://vercel.com/docs/functions/limitations), [Atlas](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/), [Firebase Auth](https://firebase.google.com/docs/auth/limits), [FCM](https://firebase.google.com/products/cloud-messaging), [Frankfurter](https://frankfurter.dev/).
 
@@ -125,16 +125,16 @@ Store calendar dates independently of UTC timestamps; use IANA timezones. Retain
 
 Jobs recheck active bucket, creator membership, plan/version, skip/deletion and conversion state before commit. Record archive intervals. On restoration, entries due while archived become creator-resolved pending decisions even if no job ran. Only actual creators post/cancel their overdue entries; future daily processing resumes. Ordinary service downtime catches up automatically rather than requiring archive approval.
 
-| Condition | Reporting effect | Resolution |
-| --- | --- | --- |
-| Future scheduled | Commitment only | Daily run after eligibility |
-| Due, pending daily run | Pending indicator, not yet actual | Processor |
-| Posted and converted | Actual signed amount once | Normal creator corrections |
-| Conversion needed | Incomplete totals flagged | Creator enters converted amount |
-| Pending archive decision | No spending | Creator posts/cancels |
-| Skipped EMI | Unpaid obligation, no spending | Plan creator |
-| Canceled future entry | No posting | Terminal cancellation |
-| Soft-deleted | Excluded, recoverable for 30 days | Creator with current access |
+| Condition                | Reporting effect                  | Resolution                      |
+| ------------------------ | --------------------------------- | ------------------------------- |
+| Future scheduled         | Commitment only                   | Daily run after eligibility     |
+| Due, pending daily run   | Pending indicator, not yet actual | Processor                       |
+| Posted and converted     | Actual signed amount once         | Normal creator corrections      |
+| Conversion needed        | Incomplete totals flagged         | Creator enters converted amount |
+| Pending archive decision | No spending                       | Creator posts/cancels           |
+| Skipped EMI              | Unpaid obligation, no spending    | Plan creator                    |
+| Canceled future entry    | No posting                        | Terminal cancellation           |
+| Soft-deleted             | Excluded, recoverable for 30 days | Creator with current access     |
 
 Model scheduling, conversion, deletion and obligations separately so combinations remain explicit.
 
@@ -152,16 +152,16 @@ Shared budgets match all payers; member budgets match Paid By. Overlapping budge
 
 Independent In-app/Push controls apply per trigger. In-app initially enabled; Push off until explicit user action and device permission. Either, both or neither can be enabled. No application-email, Telegram, SMS or automated WhatsApp channel. Firebase verification/reset emails remain separate. Imports/exports have on-screen outcomes and history, but no notification fan-out.
 
-| Event | Recipients |
-| --- | --- |
-| Expense added/edited/deleted | Current bucket members with enabled channels |
-| Comment added | Other members, excluding commenter |
-| Membership changes | Relevant authorized users; no private content after access loss |
-| Shared budget threshold | Current members |
-| Member budget threshold | Budget creator |
-| Scheduled/EMI activity | Authorized members; creator for conversion action |
-| Contact share/change/revoke | Relevant creator/recipients only |
-| Personal reminder | Configured user |
+| Event                        | Recipients                                                      |
+| ---------------------------- | --------------------------------------------------------------- |
+| Expense added/edited/deleted | Current bucket members with enabled channels                    |
+| Comment added                | Other members, excluding commenter                              |
+| Membership changes           | Relevant authorized users; no private content after access loss |
+| Shared budget threshold      | Current members                                                 |
+| Member budget threshold      | Budget creator                                                  |
+| Scheduled/EMI activity       | Authorized members; creator for conversion action               |
+| Contact share/change/revoke  | Relevant creator/recipients only                                |
+| Personal reminder            | Configured user                                                 |
 
 Group labels organize settings; supported individual triggers remain independently configurable. Recheck access/preferences before dispatch. Disabling a channel suppresses unsent work; enabling it does not replay suppressed history.
 

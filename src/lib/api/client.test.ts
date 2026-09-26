@@ -10,7 +10,12 @@ afterEach(() => vi.unstubAllGlobals());
 describe("API client requests", () => {
   it("shares simultaneous reads of the same resource, then allows a later refresh", async () => {
     let finish!: (response: Response) => void;
-    const fetcher = vi.fn(() => new Promise<Response>((resolve) => { finish = resolve; }));
+    const fetcher = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
     vi.stubGlobal("fetch", fetcher);
 
     const first = api<unknown[]>("buckets");
@@ -29,7 +34,10 @@ describe("API client requests", () => {
   it("does not combine writes with the same path", async () => {
     const fetcher = vi.fn(async () => Response.json({ data: {}, meta: {} }));
     vi.stubGlobal("fetch", fetcher);
-    await Promise.all([api("me", { method: "PATCH", body: { theme: "dark" } }), api("me", { method: "PATCH", body: { theme: "dark" } })]);
+    await Promise.all([
+      api("me", { method: "PATCH", body: { theme: "dark" } }),
+      api("me", { method: "PATCH", body: { theme: "dark" } }),
+    ]);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

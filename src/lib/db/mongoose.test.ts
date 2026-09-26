@@ -25,7 +25,11 @@ afterEach(() => {
 describe("database connection lifecycle", () => {
   it("shares an in-flight connection across concurrent callers", async () => {
     let finish!: (connection: object) => void;
-    connect.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    connect.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
 
     const first = connectDatabase();
     const second = connectDatabase();

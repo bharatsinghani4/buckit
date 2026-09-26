@@ -1,0 +1,15 @@
+# Generated output and dependencies
+node_modules/
+.next/
+out/
+coverage/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local settings and secrets
+.env*
+!.env.example
+
+# Recreated by Next.js development tooling
+AGENTS.md

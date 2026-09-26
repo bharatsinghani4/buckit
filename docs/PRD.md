@@ -44,42 +44,42 @@ The product should remain useful to individuals and groups while staying simple,
 
 ## 2. Core concepts
 
-| Concept | Meaning |
-| --- | --- |
-| Bucket | Independent spending workspace with members, currency, and timezone |
-| Bucket owner | Single member responsible for bucket administration |
-| Expense owner | Actual creator of an expense; for CSV entries, the importer |
-| Paid By | Bucket member who paid for an expense; controls member-budget matching |
-| Added By | Displayed attribution, normally the creator; may differ on owner-run imports |
-| Account | Bucket-specific named payment source, such as HDFC Personal or Cash |
-| Platform | Merchant/place of purchase, such as Amazon, D-Mart, or Other |
-| Scheduled expense | Future commitment that becomes spending automatically on its date |
-| EMI plan | Fixed monthly installment schedule belonging to a bucket |
+| Concept           | Meaning                                                                      |
+| ----------------- | ---------------------------------------------------------------------------- |
+| Bucket            | Independent spending workspace with members, currency, and timezone          |
+| Bucket owner      | Single member responsible for bucket administration                          |
+| Expense owner     | Actual creator of an expense; for CSV entries, the importer                  |
+| Paid By           | Bucket member who paid for an expense; controls member-budget matching       |
+| Added By          | Displayed attribution, normally the creator; may differ on owner-run imports |
+| Account           | Bucket-specific named payment source, such as HDFC Personal or Cash          |
+| Platform          | Merchant/place of purchase, such as Amazon, D-Mart, or Other                 |
+| Scheduled expense | Future commitment that becomes spending automatically on its date            |
+| EMI plan          | Fixed monthly installment schedule belonging to a bucket                     |
 
 Account and account type are merged into one Account field. There is no separate beneficiary field. For negative entries, Paid By identifies the member receiving the credit, with this meaning explained in the interface.
 
 ## 3. Membership and permissions
 
-| Action | Bucket owner | Other current member |
-| --- | --- | --- |
-| View bucket expenses, budgets, and EMI plans | Yes | Yes |
-| Manage bucket settings and invitations | Yes | No |
-| Manage accounts, categories, and platforms | Yes | No |
-| Remove another member | Yes | No |
-| Leave a bucket | After transferring ownership if others remain | Yes |
-| Add an expense | Yes | Yes |
-| Edit/delete/restore an expense | Own records only | Own records only |
-| Comment on any expense | Yes | Yes |
-| Edit/delete a comment | Own comments only | Own comments only |
-| Manage shared budgets | Yes | No |
-| Manage member-specific budgets | Own member budgets | Own member budgets |
-| Create an EMI plan | Yes | Yes |
-| Manage an EMI plan | Own plans only | Own plans only |
-| Import/export expenses | Yes | Yes |
-| Create missing reference options during import | Yes | No |
-| Attribute imported Added By to another member | Yes | No |
-| Archive/restore/permanently delete bucket | Yes | No |
-| Resolve overdue entries after bucket restoration | Own entries only | Own entries only |
+| Action                                           | Bucket owner                                  | Other current member |
+| ------------------------------------------------ | --------------------------------------------- | -------------------- |
+| View bucket expenses, budgets, and EMI plans     | Yes                                           | Yes                  |
+| Manage bucket settings and invitations           | Yes                                           | No                   |
+| Manage accounts, categories, and platforms       | Yes                                           | No                   |
+| Remove another member                            | Yes                                           | No                   |
+| Leave a bucket                                   | After transferring ownership if others remain | Yes                  |
+| Add an expense                                   | Yes                                           | Yes                  |
+| Edit/delete/restore an expense                   | Own records only                              | Own records only     |
+| Comment on any expense                           | Yes                                           | Yes                  |
+| Edit/delete a comment                            | Own comments only                             | Own comments only    |
+| Manage shared budgets                            | Yes                                           | No                   |
+| Manage member-specific budgets                   | Own member budgets                            | Own member budgets   |
+| Create an EMI plan                               | Yes                                           | Yes                  |
+| Manage an EMI plan                               | Own plans only                                | Own plans only       |
+| Import/export expenses                           | Yes                                           | Yes                  |
+| Create missing reference options during import   | Yes                                           | No                   |
+| Attribute imported Added By to another member    | Yes                                           | No                   |
+| Archive/restore/permanently delete bucket        | Yes                                           | No                   |
+| Resolve overdue entries after bucket restoration | Own entries only                              | Own entries only     |
 
 Owner status does not grant permission to edit another member's expense, comment, member-specific budget, or EMI plan.
 
@@ -134,19 +134,19 @@ On voluntary departure, removal, or user-account deletion, remove that actual cr
 
 ## 6. Expense entry and reference options
 
-| Field | Requirement |
-| --- | --- |
-| Date | Required; supports past, present, and future dates |
-| Description | Required title/description |
-| Paid By | Required; selectable bucket member |
-| Added By | Automatic for manual entry; imported attribution rules apply |
-| Category | Required; exactly one category |
-| Platform | Always populated; defaults to Other |
-| Payment Mode | Required: UPI, Cash, NEFT, IMPS, or Credit Card |
-| Account | Required; selected bucket account |
-| Amount | Required nonzero monetary amount; positive spending or negative credit/refund |
-| Currency | Defaults to bucket primary currency; supported alternatives allowed |
-| Notes | Optional |
+| Field        | Requirement                                                                   |
+| ------------ | ----------------------------------------------------------------------------- |
+| Date         | Required; supports past, present, and future dates                            |
+| Description  | Required title/description                                                    |
+| Paid By      | Required; selectable bucket member                                            |
+| Added By     | Automatic for manual entry; imported attribution rules apply                  |
+| Category     | Required; exactly one category                                                |
+| Platform     | Always populated; defaults to Other                                           |
+| Payment Mode | Required: UPI, Cash, NEFT, IMPS, or Credit Card                               |
+| Account      | Required; selected bucket account                                             |
+| Amount       | Required nonzero monetary amount; positive spending or negative credit/refund |
+| Currency     | Defaults to bucket primary currency; supported alternatives allowed           |
+| Notes        | Optional                                                                      |
 
 - Account names are user-defined by the owner, e.g. HDFC Personal, HDFC Common, ICICI Savings, and Cash.
 - Accounts are shared within the bucket and can have an optional owner label. They do not represent live balances.
@@ -290,21 +290,21 @@ Preserve these column names and order:
 
 `Date, Description, PaidBy, Category, Platform, Payment Mode, Bank Account, Amount, Currency, Added By, Notes, Comments, Status`
 
-| Column | Import/export behavior |
-| --- | --- |
-| Date | DD/MM/YYYY; required; future dates create scheduled entries |
-| Description | Required expense description |
-| PaidBy | Resolve to a member of the selected bucket |
-| Category | Resolve to a category; owner can create after preview |
-| Platform | Default Other if missing/blank; owner can create after preview |
-| Payment Mode | Required valid method, supplied in file or resolved before import |
-| Bank Account | Maps to Account; owner can create after preview |
-| Amount | Required original-currency amount |
-| Currency | Default bucket currency if missing/blank |
-| Added By | Default importer if missing/blank; owner-only alternate attribution |
-| Notes | Optional; missing/blank becomes empty |
-| Comments | Export-only; ignored on import with an explicit explanation |
-| Status | Export identifies actual versus scheduled entries; import derives state from Date and lifecycle/conversion rules, not an editable CSV status |
+| Column       | Import/export behavior                                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Date         | DD/MM/YYYY; required; future dates create scheduled entries                                                                                  |
+| Description  | Required expense description                                                                                                                 |
+| PaidBy       | Resolve to a member of the selected bucket                                                                                                   |
+| Category     | Resolve to a category; owner can create after preview                                                                                        |
+| Platform     | Default Other if missing/blank; owner can create after preview                                                                               |
+| Payment Mode | Required valid method, supplied in file or resolved before import                                                                            |
+| Bank Account | Maps to Account; owner can create after preview                                                                                              |
+| Amount       | Required original-currency amount                                                                                                            |
+| Currency     | Default bucket currency if missing/blank                                                                                                     |
+| Added By     | Default importer if missing/blank; owner-only alternate attribution                                                                          |
+| Notes        | Optional; missing/blank becomes empty                                                                                                        |
+| Comments     | Export-only; ignored on import with an explicit explanation                                                                                  |
+| Status       | Export identifies actual versus scheduled entries; import derives state from Date and lifecycle/conversion rules, not an editable CSV status |
 
 ### Attribution and ownership
 
@@ -384,41 +384,41 @@ Missing Date, Description, or Amount must be corrected rather than invented. Req
 
 ## 16. V1 acceptance scenarios
 
-| Scenario | Expected result |
-| --- | --- |
-| Switch from Common to Personal | Every bucket-scoped view switches; global Contacts does not |
-| Member opens owner controls | Administrative mutations are unavailable and rejected if attempted |
-| Bharat records an expense paid by Anjali | Everyone sees it; Bharat owns it; Anjali's matching member budget counts it |
-| Owner imports Added By = Anjali | Attribution shows Anjali; importer remains actual actor and expense owner |
-| Import original eight-column sheet | Currency defaults to bucket currency; Added By defaults to importer; new optional fields are handled transparently |
-| Import 100 rows | 100 separate dated entries; no notification fan-out, including import-caused budget alerts |
-| Import unknown platform | Owner can preview/create; ordinary member must map to an existing option |
-| Add a comment | Other members receive only their enabled channels; commenter receives no self-notification |
-| Disable both channels for a trigger | No notification for that trigger in either channel |
-| Expense matches two budgets | Both budget views update; bucket spending increases once |
-| Future expense reaches its date | It becomes eligible in bucket timezone and posts once during daily processing without confirmation, retaining its original expense date |
-| Skip an EMI installment | No spending; unpaid obligation remains; other dates stay unchanged |
-| Add an existing EMI plan through EMI setup | Previously paid count is retained; only remaining installments generate entries |
-| Delete and restore an expense within 30 days | Totals reverse then recover the entry's effect, including negative amounts; restoration is limited to its actual creator |
-| Share a contact with an associated user | Only authorized users see it; unrelated bucket names stay hidden |
-| Leave or be removed from a bucket | Access ends; creator-owned future entries are removed and plans stopped; history and prior contact shares remain |
-| Import historical entries referencing former members | Attribution resolves without granting access or creating users |
-| Record a ₹500 refund against a ₹2,000 expense | Negative row remains visible; net spending is ₹1,500 if in the same period |
-| Budget has no selected alert thresholds | No threshold alerts are generated |
-| Cross several selected thresholds in one expense | One notification shows the highest crossed threshold; no repeated alerts in that period |
-| Schedule a monthly entry for the 31st | February uses its last day; March returns to the 31st |
-| End an EMI plan | Future installments canceled; historical payments retained |
-| Due foreign expense has no usable rate | Conversion needed is visible; creator enters converted amount; reports flag incomplete totals until resolved |
-| Restore an archived bucket | Future daily scheduling resumes; each creator resolves only their own pending overdue entries |
-| Export with Include scheduled expenses disabled | Only matching actual expenses; no deleted rows |
-| Permanently delete a bucket | Owner confirms name; bucket data becomes unrecoverable; global contacts unaffected |
-| Delete a user account | Ownership transfer enforced; sign-in revoked; personal contacts/shares removed; shared history shows Deleted user |
-| Enable Push for a trigger | Device permission is requested intentionally; delivery targets only enabled, authorized registrations |
-| Deny or lack push support | App remains usable with enabled in-app notifications; no email fallback |
-| Use an iPhone/iPad for push | Home Screen setup guidance is shown for supported devices |
-| View lock-screen notification | Generic text; private expense/contact content stays inside authenticated Buckit |
-| Daily run posts a previous month's installment | Spending is attributed to the installment's original month, not the processing month |
-| Share a bucket invitation | Link, manual WhatsApp share or QR; no automatic email is sent |
+| Scenario                                             | Expected result                                                                                                                         |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Switch from Common to Personal                       | Every bucket-scoped view switches; global Contacts does not                                                                             |
+| Member opens owner controls                          | Administrative mutations are unavailable and rejected if attempted                                                                      |
+| Bharat records an expense paid by Anjali             | Everyone sees it; Bharat owns it; Anjali's matching member budget counts it                                                             |
+| Owner imports Added By = Anjali                      | Attribution shows Anjali; importer remains actual actor and expense owner                                                               |
+| Import original eight-column sheet                   | Currency defaults to bucket currency; Added By defaults to importer; new optional fields are handled transparently                      |
+| Import 100 rows                                      | 100 separate dated entries; no notification fan-out, including import-caused budget alerts                                              |
+| Import unknown platform                              | Owner can preview/create; ordinary member must map to an existing option                                                                |
+| Add a comment                                        | Other members receive only their enabled channels; commenter receives no self-notification                                              |
+| Disable both channels for a trigger                  | No notification for that trigger in either channel                                                                                      |
+| Expense matches two budgets                          | Both budget views update; bucket spending increases once                                                                                |
+| Future expense reaches its date                      | It becomes eligible in bucket timezone and posts once during daily processing without confirmation, retaining its original expense date |
+| Skip an EMI installment                              | No spending; unpaid obligation remains; other dates stay unchanged                                                                      |
+| Add an existing EMI plan through EMI setup           | Previously paid count is retained; only remaining installments generate entries                                                         |
+| Delete and restore an expense within 30 days         | Totals reverse then recover the entry's effect, including negative amounts; restoration is limited to its actual creator                |
+| Share a contact with an associated user              | Only authorized users see it; unrelated bucket names stay hidden                                                                        |
+| Leave or be removed from a bucket                    | Access ends; creator-owned future entries are removed and plans stopped; history and prior contact shares remain                        |
+| Import historical entries referencing former members | Attribution resolves without granting access or creating users                                                                          |
+| Record a ₹500 refund against a ₹2,000 expense        | Negative row remains visible; net spending is ₹1,500 if in the same period                                                              |
+| Budget has no selected alert thresholds              | No threshold alerts are generated                                                                                                       |
+| Cross several selected thresholds in one expense     | One notification shows the highest crossed threshold; no repeated alerts in that period                                                 |
+| Schedule a monthly entry for the 31st                | February uses its last day; March returns to the 31st                                                                                   |
+| End an EMI plan                                      | Future installments canceled; historical payments retained                                                                              |
+| Due foreign expense has no usable rate               | Conversion needed is visible; creator enters converted amount; reports flag incomplete totals until resolved                            |
+| Restore an archived bucket                           | Future daily scheduling resumes; each creator resolves only their own pending overdue entries                                           |
+| Export with Include scheduled expenses disabled      | Only matching actual expenses; no deleted rows                                                                                          |
+| Permanently delete a bucket                          | Owner confirms name; bucket data becomes unrecoverable; global contacts unaffected                                                      |
+| Delete a user account                                | Ownership transfer enforced; sign-in revoked; personal contacts/shares removed; shared history shows Deleted user                       |
+| Enable Push for a trigger                            | Device permission is requested intentionally; delivery targets only enabled, authorized registrations                                   |
+| Deny or lack push support                            | App remains usable with enabled in-app notifications; no email fallback                                                                 |
+| Use an iPhone/iPad for push                          | Home Screen setup guidance is shown for supported devices                                                                               |
+| View lock-screen notification                        | Generic text; private expense/contact content stays inside authenticated Buckit                                                         |
+| Daily run posts a previous month's installment       | Spending is attributed to the installment's original month, not the processing month                                                    |
+| Share a bucket invitation                            | Link, manual WhatsApp share or QR; no automatic email is sent                                                                           |
 
 ## 17. Technical design boundaries
 

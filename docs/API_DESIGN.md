@@ -26,15 +26,15 @@ No authentication cookies are introduced by this design. Protected responses use
 
 ### 2.2 Access labels used below
 
-| Label | Meaning |
-| --- | --- |
-| User | Authenticated, active Buckit account |
-| Member | User with current membership in the addressed bucket |
-| Owner | Member matching the bucket's current owner |
-| Creator | Member who actually created the expense/plan/member budget |
-| Author | Member who wrote the comment |
-| Contact owner | User who created the global contact |
-| Contact viewer | Contact owner or recipient with an explicit active grant |
+| Label          | Meaning                                                    |
+| -------------- | ---------------------------------------------------------- |
+| User           | Authenticated, active Buckit account                       |
+| Member         | User with current membership in the addressed bucket       |
+| Owner          | Member matching the bucket's current owner                 |
+| Creator        | Member who actually created the expense/plan/member budget |
+| Author         | Member who wrote the comment                               |
+| Contact owner  | User who created the global contact                        |
+| Contact viewer | Contact owner or recipient with an explicit active grant   |
 
 All financial/reference/comment/budget mutations require an active bucket. Archived buckets allow authorized reads/export and explicit owner lifecycle operations. Account-deletion and membership-lifecycle services apply their own documented cleanup rules, rather than editing financial history through ordinary endpoints.
 
@@ -73,12 +73,12 @@ Lists return `data: []` and `meta: {requestId, nextCursor, hasMore}`. `nextCurso
 
 Mutation status conventions:
 
-| HTTP status | Meaning |
-| --- | --- |
-| 200 | Read/update/action completed; response describes committed result |
-| 201 | New resource created; include a `Location` header |
-| 202 | Durable operation accepted; expose operation/progress reference and access effect |
-| 204 | Completed deletion/revocation with no response body |
+| HTTP status | Meaning                                                                           |
+| ----------- | --------------------------------------------------------------------------------- |
+| 200         | Read/update/action completed; response describes committed result                 |
+| 201         | New resource created; include a `Location` header                                 |
+| 202         | Durable operation accepted; expose operation/progress reference and access effect |
+| 204         | Completed deletion/revocation with no response body                               |
 
 An expense saved as Conversion needed is a successful save, not a fabricated spending total. A push failure does not turn a saved expense/comment into a failed mutation.
 
@@ -114,19 +114,19 @@ After 401, refresh the Firebase token once and retry. For 429/503, respect `Retr
 }
 ```
 
-| HTTP | Stable codes/examples |
-| --- | --- |
-| 400 | `MALFORMED_REQUEST`, `INVALID_CURSOR` |
-| 401 | `AUTHENTICATION_REQUIRED`, `INVALID_TOKEN` |
-| 403 | `FORBIDDEN`, `ACCOUNT_INACTIVE`, `REAUTHENTICATION_REQUIRED` |
-| 404 | `RESOURCE_NOT_FOUND` |
-| 409 | `BUCKET_ARCHIVED`, `CURRENCY_LOCKED`, `OPTION_IN_USE`, `DUPLICATE_NAME`, `INVALID_STATE_TRANSITION`, `OWNERSHIP_TRANSFER_REQUIRED`, `EXPORT_CHANGED`, `PREVIEW_STALE`, `IDEMPOTENCY_KEY_REUSED`, `OPERATION_IN_PROGRESS` |
-| 410 | `RESTORE_WINDOW_EXPIRED`, `IMPORT_SESSION_EXPIRED`, `EXPORT_TOKEN_EXPIRED` for previously authorized operations |
-| 412 / 428 | `REVISION_MISMATCH` / `PRECONDITION_REQUIRED` |
-| 413 | `PAYLOAD_TOO_LARGE`, `IMPORT_LIMIT_EXCEEDED` |
-| 422 | `VALIDATION_FAILED`, `AMBIGUOUS_MEMBER`, `UNRESOLVED_REFERENCE`, `INVALID_CONVERSION`, `INVALID_DATE`, `UNSUPPORTED_CURRENCY` |
-| 429 | `RATE_LIMITED` |
-| 503 | `SERVICE_UNAVAILABLE`, `CAPACITY_UNAVAILABLE` |
+| HTTP      | Stable codes/examples                                                                                                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 400       | `MALFORMED_REQUEST`, `INVALID_CURSOR`                                                                                                                                                                                    |
+| 401       | `AUTHENTICATION_REQUIRED`, `INVALID_TOKEN`                                                                                                                                                                               |
+| 403       | `FORBIDDEN`, `ACCOUNT_INACTIVE`, `REAUTHENTICATION_REQUIRED`                                                                                                                                                             |
+| 404       | `RESOURCE_NOT_FOUND`                                                                                                                                                                                                     |
+| 409       | `BUCKET_ARCHIVED`, `CURRENCY_LOCKED`, `OPTION_IN_USE`, `DUPLICATE_NAME`, `INVALID_STATE_TRANSITION`, `OWNERSHIP_TRANSFER_REQUIRED`, `EXPORT_CHANGED`, `PREVIEW_STALE`, `IDEMPOTENCY_KEY_REUSED`, `OPERATION_IN_PROGRESS` |
+| 410       | `RESTORE_WINDOW_EXPIRED`, `IMPORT_SESSION_EXPIRED`, `EXPORT_TOKEN_EXPIRED` for previously authorized operations                                                                                                          |
+| 412 / 428 | `REVISION_MISMATCH` / `PRECONDITION_REQUIRED`                                                                                                                                                                            |
+| 413       | `PAYLOAD_TOO_LARGE`, `IMPORT_LIMIT_EXCEEDED`                                                                                                                                                                             |
+| 422       | `VALIDATION_FAILED`, `AMBIGUOUS_MEMBER`, `UNRESOLVED_REFERENCE`, `INVALID_CONVERSION`, `INVALID_DATE`, `UNSUPPORTED_CURRENCY`                                                                                            |
+| 429       | `RATE_LIMITED`                                                                                                                                                                                                           |
+| 503       | `SERVICE_UNAVAILABLE`, `CAPACITY_UNAVAILABLE`                                                                                                                                                                            |
 
 Expired, revoked, and unknown invitation tokens share `404 INVITATION_UNAVAILABLE`. Errors expose no database details, secrets, inaccessible member names, or other bucket data. Conversion-provider failure normally produces a missing-conversion state, not a generic 503 for an otherwise valid expense save.
 
@@ -134,15 +134,15 @@ Expired, revoked, and unknown invitation tokens share `404 INVITATION_UNAVAILABL
 
 All paths in endpoint tables are relative to `/api/v1`. `{b}` means bucket ID; other placeholders identify the named resource.
 
-| Method and path | Access | Input/result |
-| --- | --- | --- |
-| `POST /me/bootstrap` | Verified Firebase identity | Optional initial displayName/timezone; create missing app profile or return existing profile; 201/200 |
-| `GET /me` | User | Own profile, verification status, theme/timezone, last accessible bucket, tour progress, revision |
-| `PATCH /me` | User | Allowlisted displayName, timezone, theme, lastBucketId, tour progress; updated profile |
-| `GET /capabilities` | User | Supported currencies and precision, payment modes, date/import rules, current size limits, trigger catalog, scheduled-processing description |
-| `GET /me/deletion-preview` | User | Shared buckets needing ownership transfer and sole-owned buckets needing explicit deletion; no mutation |
-| `POST /me/deletion` | User + recent auth | `confirmation: "DELETE MY ACCOUNT"`; begin irreversible access revocation/cleanup; 202 |
-| `GET /operations/{operationId}` | Authorized operation actor | Safe operation state/progress for active users; no internal worker secrets |
+| Method and path                 | Access                     | Input/result                                                                                                                                 |
+| ------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /me/bootstrap`            | Verified Firebase identity | Optional initial displayName/timezone; create missing app profile or return existing profile; 201/200                                        |
+| `GET /me`                       | User                       | Own profile, verification status, theme/timezone, last accessible bucket, tour progress, revision                                            |
+| `PATCH /me`                     | User                       | Allowlisted displayName, timezone, theme, lastBucketId, tour progress; updated profile                                                       |
+| `GET /capabilities`             | User                       | Supported currencies and precision, payment modes, date/import rules, current size limits, trigger catalog, scheduled-processing description |
+| `GET /me/deletion-preview`      | User                       | Shared buckets needing ownership transfer and sole-owned buckets needing explicit deletion; no mutation                                      |
+| `POST /me/deletion`             | User + recent auth         | `confirmation: "DELETE MY ACCOUNT"`; begin irreversible access revocation/cleanup; 202                                                       |
+| `GET /operations/{operationId}` | Authorized operation actor | Safe operation state/progress for active users; no internal worker secrets                                                                   |
 
 Bootstrap derives email/UID/provider state from verified identity, not the body. A missing app profile may access bootstrap only. Capabilities report app configuration, not a promise that provider quotas are unlimited.
 
@@ -154,21 +154,21 @@ Account deletion requires all ownership prerequisites to be resolved first. Retu
 
 ### 5.1 Buckets and membership
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets` | User | Current accessible memberships, name/currency/timezone/state, owner status; paginated |
-| `POST /buckets` | User | `{name, primaryCurrency, timezone}`; create owner membership, default categories and Other platform atomically; 201 |
-| `GET /buckets/{b}` | Member | Bucket DTO, revision, effective permissions, currency-lock state |
-| `PATCH /buckets/{b}` | Owner | Name/timezone, or primaryCurrency only before first expense |
-| `POST /buckets/{b}/archive` | Owner | Archive with expected bucket revision; read-only effect immediate |
-| `POST /buckets/{b}/restore` | Owner | Restore; return pending creator-review count and daily-processing status |
-| `GET /buckets/{b}/deletion-preview` | Owner | Counts and irreversible deletion explanation, bucket revision |
-| `POST /buckets/{b}/deletion` | Owner + recent auth | `{confirmationName}` exactly matching current bucket name; 202, immediately inaccessible |
-| `GET /buckets/{b}/members` | Member | `state=active` default; explicit `state=all` supports historical attribution, with no private email directory |
-| `POST /buckets/{b}/ownership-transfer` | Owner + recent auth | `{newOwnerUserId}` referencing a current member; atomic ownership transfer |
-| `POST /buckets/{b}/leave` | Member | Use membership revision; owner must transfer first or explicitly delete sole-owned bucket |
-| `DELETE /buckets/{b}/members/{membershipId}` | Owner | Membership revision; cannot remove self through owner removal or remove current owner |
-| `GET /buckets/{b}/activity` | Member | Cursor-paginated audit history, optional entity type/ID filter; actual actor preserved |
+| Method and path                              | Access              | Contract                                                                                                            |
+| -------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `GET /buckets`                               | User                | Current accessible memberships, name/currency/timezone/state, owner status; paginated                               |
+| `POST /buckets`                              | User                | `{name, primaryCurrency, timezone}`; create owner membership, default categories and Other platform atomically; 201 |
+| `GET /buckets/{b}`                           | Member              | Bucket DTO, revision, effective permissions, currency-lock state                                                    |
+| `PATCH /buckets/{b}`                         | Owner               | Name/timezone, or primaryCurrency only before first expense                                                         |
+| `POST /buckets/{b}/archive`                  | Owner               | Archive with expected bucket revision; read-only effect immediate                                                   |
+| `POST /buckets/{b}/restore`                  | Owner               | Restore; return pending creator-review count and daily-processing status                                            |
+| `GET /buckets/{b}/deletion-preview`          | Owner               | Counts and irreversible deletion explanation, bucket revision                                                       |
+| `POST /buckets/{b}/deletion`                 | Owner + recent auth | `{confirmationName}` exactly matching current bucket name; 202, immediately inaccessible                            |
+| `GET /buckets/{b}/members`                   | Member              | `state=active` default; explicit `state=all` supports historical attribution, with no private email directory       |
+| `POST /buckets/{b}/ownership-transfer`       | Owner + recent auth | `{newOwnerUserId}` referencing a current member; atomic ownership transfer                                          |
+| `POST /buckets/{b}/leave`                    | Member              | Use membership revision; owner must transfer first or explicitly delete sole-owned bucket                           |
+| `DELETE /buckets/{b}/members/{membershipId}` | Owner               | Membership revision; cannot remove self through owner removal or remove current owner                               |
+| `GET /buckets/{b}/activity`                  | Member              | Cursor-paginated audit history, optional entity type/ID filter; actual actor preserved                              |
 
 Responses distinguish user IDs from membership-episode IDs. Removal stops access immediately and suppresses the actual creator's future records before resumable cleanup. Payer or Added By departure does not remove another creator's entries. Rejoining never revives canceled schedules. Existing global contact shares survive.
 
@@ -176,13 +176,13 @@ Bucket deletion and user deletion are commands rather than bodies on HTTP DELETE
 
 ### 5.2 Invitations
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/invitations` | Owner | Invitation metadata, expiration, revoked state; no raw stored tokens |
-| `POST /buckets/{b}/invitations` | Owner | Create seven-day multi-use link; return share URL/token once; 201 |
-| `DELETE /buckets/{b}/invitations/{invitationId}` | Owner | Revoke with revision; 204 |
-| `POST /invitations/preview` | User; read-only | `{token}`; minimal bucket name and expiry if valid; no membership list |
-| `POST /invitations/join` | User | `{token}`; join immediately after validation; 201, or 200 if already a member |
+| Method and path                                  | Access          | Contract                                                                      |
+| ------------------------------------------------ | --------------- | ----------------------------------------------------------------------------- |
+| `GET /buckets/{b}/invitations`                   | Owner           | Invitation metadata, expiration, revoked state; no raw stored tokens          |
+| `POST /buckets/{b}/invitations`                  | Owner           | Create seven-day multi-use link; return share URL/token once; 201             |
+| `DELETE /buckets/{b}/invitations/{invitationId}` | Owner           | Revoke with revision; 204                                                     |
+| `POST /invitations/preview`                      | User; read-only | `{token}`; minimal bucket name and expiry if valid; no membership list        |
+| `POST /invitations/join`                         | User            | `{token}`; join immediately after validation; 201, or 200 if already a member |
 
 The client generates QR from the share URL or opens manual WhatsApp sharing. No email or automated WhatsApp send endpoint exists. Token verification occurs again during join. A GET/link preview never joins. Keep tokens out of request logs, analytics, and referrer propagation. Invitation creation is the explicit one-time-secret exception to response replay: a retried key returns the original invitation metadata with `secretUnavailable: true`, without creating another invitation. If its one-time link response was lost, the owner can revoke it and deliberately create another invitation with a new key. Do not store recoverable raw tokens in a generic receipt.
 
@@ -190,14 +190,14 @@ The client generates QR from the share URL or opens manual WhatsApp sharing. No 
 
 Use `{kind}` equal to `accounts`, `categories`, or `platforms`; this maps to the database option discriminator.
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/{kind}` | Member | Active options by default; `state=all` for historical filters |
-| `POST /buckets/{b}/{kind}` | Owner | `{name}`, category `iconKey?`, account `ownerLabel?`; 201 |
-| `PATCH /buckets/{b}/{kind}/{optionId}` | Owner | Rename or permitted kind-specific display fields |
-| `POST /buckets/{b}/{kind}/{optionId}/archive` | Owner | Archive, preserving prior associations |
-| `POST /buckets/{b}/{kind}/{optionId}/restore` | Owner | Reactivate archived option |
-| `DELETE /buckets/{b}/{kind}/{optionId}` | Owner | Delete only if unused; otherwise `OPTION_IN_USE` with archive action hint |
+| Method and path                               | Access | Contract                                                                  |
+| --------------------------------------------- | ------ | ------------------------------------------------------------------------- |
+| `GET /buckets/{b}/{kind}`                     | Member | Active options by default; `state=all` for historical filters             |
+| `POST /buckets/{b}/{kind}`                    | Owner  | `{name}`, category `iconKey?`, account `ownerLabel?`; 201                 |
+| `PATCH /buckets/{b}/{kind}/{optionId}`        | Owner  | Rename or permitted kind-specific display fields                          |
+| `POST /buckets/{b}/{kind}/{optionId}/archive` | Owner  | Archive, preserving prior associations                                    |
+| `POST /buckets/{b}/{kind}/{optionId}/restore` | Owner  | Reactivate archived option                                                |
+| `DELETE /buckets/{b}/{kind}/{optionId}`       | Owner  | Delete only if unused; otherwise `OPTION_IN_USE` with archive action hint |
 
 Trim names and enforce case-insensitive uniqueness within kind/bucket, including archived options. Keep the default Other platform available. No `accountType` field is accepted. New selection of archived references is rejected; unchanged associations on existing scheduled entries remain valid. Historical labels follow DB_DESIGN.md.
 
@@ -205,17 +205,17 @@ Trim names and enforce case-insensitive uniqueness within kind/bucket, including
 
 ### 6.1 Expense endpoints
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/expenses` | Member | Filtered cursor-paginated entries; deleted excluded by default |
-| `POST /buckets/{b}/expenses` | Member | Expense input below; 201 with derived state and conversion |
-| `GET /buckets/{b}/expenses/{expenseId}` | Member | Full Expense DTO, comment count, permissions, revision |
-| `PATCH /buckets/{b}/expenses/{expenseId}` | Creator | Edit allowed financial/display fields; re-evaluate affected periods/conversion/state |
-| `DELETE /buckets/{b}/expenses/{expenseId}` | Creator | Soft-delete; 200 with ID, deletedAt, restoreUntil, revision |
-| `POST /buckets/{b}/expenses/{expenseId}/restore` | Creator | Restore within 30 days with current access and valid lifecycle; updated Expense DTO |
-| `PUT /buckets/{b}/expenses/{expenseId}/conversion` | Creator | Explicit manual amount or rate; update conversion and eligible posting state |
-| `POST /buckets/{b}/expenses/{expenseId}/archive-resolution` | Creator | `{decision: "post" or "cancel"}`; allowed only for archive-review entries |
-| `POST /buckets/{b}/conversion-preview` | Member; read-only | Date/originalAmount/currency; estimate/applicable rate or unavailable result; never saves an expense |
+| Method and path                                             | Access            | Contract                                                                                             |
+| ----------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `GET /buckets/{b}/expenses`                                 | Member            | Filtered cursor-paginated entries; deleted excluded by default                                       |
+| `POST /buckets/{b}/expenses`                                | Member            | Expense input below; 201 with derived state and conversion                                           |
+| `GET /buckets/{b}/expenses/{expenseId}`                     | Member            | Full Expense DTO, comment count, permissions, revision                                               |
+| `PATCH /buckets/{b}/expenses/{expenseId}`                   | Creator           | Edit allowed financial/display fields; re-evaluate affected periods/conversion/state                 |
+| `DELETE /buckets/{b}/expenses/{expenseId}`                  | Creator           | Soft-delete; 200 with ID, deletedAt, restoreUntil, revision                                          |
+| `POST /buckets/{b}/expenses/{expenseId}/restore`            | Creator           | Restore within 30 days with current access and valid lifecycle; updated Expense DTO                  |
+| `PUT /buckets/{b}/expenses/{expenseId}/conversion`          | Creator           | Explicit manual amount or rate; update conversion and eligible posting state                         |
+| `POST /buckets/{b}/expenses/{expenseId}/archive-resolution` | Creator           | `{decision: "post" or "cancel"}`; allowed only for archive-review entries                            |
+| `POST /buckets/{b}/conversion-preview`                      | Member; read-only | Date/originalAmount/currency; estimate/applicable rate or unavailable result; never saves an expense |
 
 Filters: `from`, `toExclusive`, `categoryId`, `platformId`, `accountId`, `paymentMode`, `paidByUserId`, plain-text `q`, `status`, cursor, limit. Status accepts `actual`, `scheduled`, `pending_processing`, `conversion_needed`, `archive_review`, or `all`; it is a presentation filter, not a writable state. `deleted=only` supports the caller's recoverable records and requires creator filtering. Canceled lifecycle entries are history rather than ordinary expense-list rows.
 
@@ -298,12 +298,12 @@ Display-state priority: deleted/canceled lifecycle state, archive review, conver
 
 ### 6.4 Comments
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/expenses/{expenseId}/comments` | Member | Nondeleted comments with author/time, cursor pagination |
-| `POST /buckets/{b}/expenses/{expenseId}/comments` | Member | `{body}`; 201; event targets all other current members |
-| `PATCH /buckets/{b}/expenses/{expenseId}/comments/{commentId}` | Author | `{body}`, revision check; retain editedAt |
-| `DELETE /buckets/{b}/expenses/{expenseId}/comments/{commentId}` | Author | Revision check; 204 |
+| Method and path                                                 | Access | Contract                                                |
+| --------------------------------------------------------------- | ------ | ------------------------------------------------------- |
+| `GET /buckets/{b}/expenses/{expenseId}/comments`                | Member | Nondeleted comments with author/time, cursor pagination |
+| `POST /buckets/{b}/expenses/{expenseId}/comments`               | Member | `{body}`; 201; event targets all other current members  |
+| `PATCH /buckets/{b}/expenses/{expenseId}/comments/{commentId}`  | Author | `{body}`, revision check; retain editedAt               |
+| `DELETE /buckets/{b}/expenses/{expenseId}/comments/{commentId}` | Author | Revision check; 204                                     |
 
 No comments on deleted expenses or archived buckets. New-comment notifications exclude the commenter and obey each recipient's in-app/push preferences. Editing/deleting a comment does not impersonate authors or create an additional comment-added event.
 
@@ -311,14 +311,14 @@ No comments on deleted expenses or archived buckets. New-comment notifications e
 
 ### 7.1 Budgets
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/budgets` | Member | Visible shared/member budgets, optional scope/state filter |
-| `POST /buckets/{b}/budgets` | Owner for shared; member for own | Budget input; 201 |
-| `GET /buckets/{b}/budgets/{budgetId}` | Member | Definition, revision, permissions |
-| `PATCH /buckets/{b}/budgets/{budgetId}` | Shared owner or member creator | Definition changes; invalidate/recompute affected usage |
-| `DELETE /buckets/{b}/budgets/{budgetId}` | Shared owner or member creator | Delete budget, suppress pending alerts; 204 |
-| `GET /buckets/{b}/budgets/{budgetId}/usage` | Member | `month=YYYY-MM` for monthly, or stored custom period; usage/incomplete counts/threshold history |
+| Method and path                             | Access                           | Contract                                                                                        |
+| ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `GET /buckets/{b}/budgets`                  | Member                           | Visible shared/member budgets, optional scope/state filter                                      |
+| `POST /buckets/{b}/budgets`                 | Owner for shared; member for own | Budget input; 201                                                                               |
+| `GET /buckets/{b}/budgets/{budgetId}`       | Member                           | Definition, revision, permissions                                                               |
+| `PATCH /buckets/{b}/budgets/{budgetId}`     | Shared owner or member creator   | Definition changes; invalidate/recompute affected usage                                         |
+| `DELETE /buckets/{b}/budgets/{budgetId}`    | Shared owner or member creator   | Delete budget, suppress pending alerts; 204                                                     |
+| `GET /buckets/{b}/budgets/{budgetId}/usage` | Member                           | `month=YYYY-MM` for monthly, or stored custom period; usage/incomplete counts/threshold history |
 
 Input: `name`, `scope` (`shared` or `member`), nonempty unique `categoryIds`, positive `limitAmount`, `periodType` (`monthly` or `custom`), custom `from`/`toExclusive`, and `thresholdPercentages` (default empty). Member scope is always the caller; do not accept another memberUserId. Scope/creator identity is immutable after creation. Shared budgets match all payers; member budgets match Paid By to their creator. All budgets remain visible to members.
 
@@ -328,9 +328,9 @@ Usage DTO: `currency`, `from`, `toExclusive`, `limitAmount`, `usedAmount`, `rema
 
 ### 7.2 Dashboard and reports
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/dashboard` | Member | `period=month\|quarter\|year\|custom`, anchorDate or custom range; current month default |
+| Method and path                     | Access | Contract                                                                                           |
+| ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| `GET /buckets/{b}/dashboard`        | Member | `period=month\|quarter\|year\|custom`, anchorDate or custom range; current month default           |
 | `GET /buckets/{b}/reports/spending` | Member | Range and expense filters; `groupBy=category\|account\|platform\|payment_mode\|member\|day\|month` |
 
 Dashboard returns a coherent snapshot with `asOf`, `financialRevision`, normalized range, bucket timezone/currency, actual total, category/trend/member breakdowns, budget summaries, recent entries, EMI summary, and separate scheduled/pending/conversion/review counts and values. Cap embedded lists and return continuation links; totals cover the requested range, not just displayed rows.
@@ -339,17 +339,17 @@ Use one consistent snapshot or validate/retry the shared revision across panels.
 
 ## 8. EMI plans and installment commands
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/emi-plans` | Member | State filter; plan summaries and generation status |
-| `POST /buckets/{b}/emi-plans/preview` | Member; read-only | Validate plan and show bounded remaining schedule, with pagination where needed |
-| `POST /buckets/{b}/emi-plans` | Member | Create definition and generation checkpoint; 201 with ready/processing progress |
-| `GET /buckets/{b}/emi-plans/{planId}` | Member | Plan, counts/amounts, revision, generation state |
-| `PATCH /buckets/{b}/emi-plans/{planId}` | Creator | Future defaults/schedule corrections with explicit preview revision; never rewrite posted history |
-| `POST /buckets/{b}/emi-plans/{planId}/end` | Creator | Cancel future entries; preserve past and unpaid history |
-| `GET /buckets/{b}/emi-plans/{planId}/installments` | Member | Cursor-paginated obligations and linked expense states |
-| `POST /buckets/{b}/emi-plans/{planId}/installments/{installmentId}/reschedule` | Creator | `{expenseDate, expectedExpenseRevision}`; synchronize one obligation/entry |
-| `POST /buckets/{b}/emi-plans/{planId}/installments/{installmentId}/skip` | Creator | Expected linked expense revision; unpaid/skipped obligation with no spending |
+| Method and path                                                                | Access            | Contract                                                                                          |
+| ------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /buckets/{b}/emi-plans`                                                   | Member            | State filter; plan summaries and generation status                                                |
+| `POST /buckets/{b}/emi-plans/preview`                                          | Member; read-only | Validate plan and show bounded remaining schedule, with pagination where needed                   |
+| `POST /buckets/{b}/emi-plans`                                                  | Member            | Create definition and generation checkpoint; 201 with ready/processing progress                   |
+| `GET /buckets/{b}/emi-plans/{planId}`                                          | Member            | Plan, counts/amounts, revision, generation state                                                  |
+| `PATCH /buckets/{b}/emi-plans/{planId}`                                        | Creator           | Future defaults/schedule corrections with explicit preview revision; never rewrite posted history |
+| `POST /buckets/{b}/emi-plans/{planId}/end`                                     | Creator           | Cancel future entries; preserve past and unpaid history                                           |
+| `GET /buckets/{b}/emi-plans/{planId}/installments`                             | Member            | Cursor-paginated obligations and linked expense states                                            |
+| `POST /buckets/{b}/emi-plans/{planId}/installments/{installmentId}/reschedule` | Creator           | `{expenseDate, expectedExpenseRevision}`; synchronize one obligation/entry                        |
+| `POST /buckets/{b}/emi-plans/{planId}/installments/{installmentId}/skip`       | Creator           | Expected linked expense revision; unpaid/skipped obligation with no spending                      |
 
 Plan input: `title`, positive `installmentAmount`, `currency`, positive integer `totalInstallments`, `previouslyPaidCount` default 0, `firstInstallmentDate`, category/account/platform/paymentMode/paidByUserId. The original first date defines the anchor; previouslyPaidCount must be between zero and totalInstallments. Preview makes the remaining dates explicit. No prior expenses are generated for the previous paid count.
 
@@ -361,18 +361,18 @@ Skipping/rescheduling applies only to eligible unrecorded obligations. A recorde
 
 ## 9. Global contacts and selective sharing
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /contacts` | User | Owned and active nonhidden shared contacts; `view=all\|owned\|shared`, q, cursor |
-| `POST /contacts` | User | Name/serviceType/phone, optional email/address/notes; private initially; 201 |
-| `GET /contacts/{contactId}` | Contact viewer | Current details and viewer permissions |
-| `PATCH /contacts/{contactId}` | Contact owner | Edit allowed details; recipients see same record |
-| `DELETE /contacts/{contactId}` | Contact owner | Delete/revoke grants and pending content delivery; 204 |
-| `GET /contacts/share-candidates` | User | Search/paginate associated existing users; only mutually shared bucket names |
-| `GET /contacts/{contactId}/shares` | Contact owner | Explicit recipients/grant state, no unrelated memberships |
-| `POST /contacts/{contactId}/shares` | Contact owner | `{recipientUserIds}`; validate all candidates then add/reactivate grants atomically within batch limit |
-| `DELETE /contacts/{contactId}/shares/{shareId}` | Contact owner | Share revision; revoke one grant; 204 |
-| `POST /contacts/{contactId}/hide` | Shared recipient | Share revision; hide from own list without editing/revoking owner's contact |
+| Method and path                                 | Access           | Contract                                                                                               |
+| ----------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------ |
+| `GET /contacts`                                 | User             | Owned and active nonhidden shared contacts; `view=all\|owned\|shared`, q, cursor                       |
+| `POST /contacts`                                | User             | Name/serviceType/phone, optional email/address/notes; private initially; 201                           |
+| `GET /contacts/{contactId}`                     | Contact viewer   | Current details and viewer permissions                                                                 |
+| `PATCH /contacts/{contactId}`                   | Contact owner    | Edit allowed details; recipients see same record                                                       |
+| `DELETE /contacts/{contactId}`                  | Contact owner    | Delete/revoke grants and pending content delivery; 204                                                 |
+| `GET /contacts/share-candidates`                | User             | Search/paginate associated existing users; only mutually shared bucket names                           |
+| `GET /contacts/{contactId}/shares`              | Contact owner    | Explicit recipients/grant state, no unrelated memberships                                              |
+| `POST /contacts/{contactId}/shares`             | Contact owner    | `{recipientUserIds}`; validate all candidates then add/reactivate grants atomically within batch limit |
+| `DELETE /contacts/{contactId}/shares/{shareId}` | Contact owner    | Share revision; revoke one grant; 204                                                                  |
+| `POST /contacts/{contactId}/hide`               | Shared recipient | Share revision; hide from own list without editing/revoking owner's contact                            |
 
 Share response contains per-recipient share IDs/revisions. Existing active grants are idempotent and do not generate repeat share notifications. Grant creation requires a current common bucket at commit time. A later departure/bucket deletion does not revoke existing shares. Never offer a global application-user directory. Recipient requests cannot further share or change contact details. Reject a batch with invalid recipients with authorized field errors rather than silently sharing with only some users.
 
@@ -382,28 +382,28 @@ Share response contains per-recipient share IDs/revisions. Existing active grant
 
 Initial supported preference keys:
 
-| Family | Independent keys |
-| --- | --- |
-| Expenses | `expense.added`, `expense.edited`, `expense.deleted` |
-| Comments | `comment.added` |
-| Membership | `membership.joined`, `membership.left`, `membership.removed`, `bucket.ownership_transferred` |
-| Budgets | `budget.threshold_reached` |
-| Scheduling/EMI | `scheduled.posted`, `scheduled.conversion_needed`, `scheduled.archive_review_required`, `emi.plan_changed`, `emi.installment_skipped`, `emi.plan_ended` |
-| Contacts | `contact.shared`, `contact.updated`, `contact.share_revoked` |
-| Personal reminders | `reminder.due` |
+| Family             | Independent keys                                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Expenses           | `expense.added`, `expense.edited`, `expense.deleted`                                                                                                    |
+| Comments           | `comment.added`                                                                                                                                         |
+| Membership         | `membership.joined`, `membership.left`, `membership.removed`, `bucket.ownership_transferred`                                                            |
+| Budgets            | `budget.threshold_reached`                                                                                                                              |
+| Scheduling/EMI     | `scheduled.posted`, `scheduled.conversion_needed`, `scheduled.archive_review_required`, `emi.plan_changed`, `emi.installment_skipped`, `emi.plan_ended` |
+| Contacts           | `contact.shared`, `contact.updated`, `contact.share_revoked`                                                                                            |
+| Personal reminders | `reminder.due`                                                                                                                                          |
 
 This catalog maps the approved trigger families; additions must be exposed explicitly in capabilities/settings. Restoration of an expense uses the expense-edited family. Avoid duplicate expense-added and scheduled-posted notifications for the same posting transition. Import creation/export produces none, including import-caused budget alerts. A later independent action on an imported expense follows its normal action trigger.
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /me/notification-preferences` | User | Trigger map and revision, each value `{inApp, push}` |
-| `PATCH /me/notification-preferences` | User | Partial trigger map; each provided trigger supplies both booleans |
-| `GET /notifications` | User | Authorized inbox items; unread/all filter and cursor |
-| `GET /notifications/unread-count` | User | Count using the same current-access filter as inbox |
-| `POST /notifications/read` | User | Bounded `{notificationIds}`; mark own items read; idempotent, no If-Match needed |
-| `PUT /me/push-installations/{installationId}` | User | Token and current permission; create/update binding; first registration has no If-Match, updates require registration revision |
-| `DELETE /me/push-installations/{installationId}` | User | Revoke own binding with revision; 204 |
-| `GET /me/push-installations` | User | Own safe device metadata/state, never raw tokens |
+| Method and path                                  | Access | Contract                                                                                                                       |
+| ------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /me/notification-preferences`               | User   | Trigger map and revision, each value `{inApp, push}`                                                                           |
+| `PATCH /me/notification-preferences`             | User   | Partial trigger map; each provided trigger supplies both booleans                                                              |
+| `GET /notifications`                             | User   | Authorized inbox items; unread/all filter and cursor                                                                           |
+| `GET /notifications/unread-count`                | User   | Count using the same current-access filter as inbox                                                                            |
+| `POST /notifications/read`                       | User   | Bounded `{notificationIds}`; mark own items read; idempotent, no If-Match needed                                               |
+| `PUT /me/push-installations/{installationId}`    | User   | Token and current permission; create/update binding; first registration has no If-Match, updates require registration revision |
+| `DELETE /me/push-installations/{installationId}` | User   | Revoke own binding with revision; 204                                                                                          |
+| `GET /me/push-installations`                     | User   | Own safe device metadata/state, never raw tokens                                                                               |
 
 In-app defaults on and push off. Push requires intentional browser permission and a valid device registration. Neither channel is mandatory. Preference changes suppress unsent disabled work; enabling does not replay past events. Device registration does not independently enable every trigger. API success registering a token does not guarantee browser/OS delivery.
 
@@ -411,12 +411,12 @@ Inbox DTO: ID, trigger, safe title, occurredAt, readAt, authorized target descri
 
 ### 10.2 Personal reminders
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /me/reminders` | User | Own reminder definitions and next eligible dates |
-| `POST /me/reminders` | User | Recurrence input; 201 |
-| `PATCH /me/reminders/{reminderId}` | Owner of reminder | Edit recurrence/timezone/enabled state, with revision |
-| `DELETE /me/reminders/{reminderId}` | Owner of reminder | Delete and suppress pending occurrences; 204 |
+| Method and path                     | Access            | Contract                                              |
+| ----------------------------------- | ----------------- | ----------------------------------------------------- |
+| `GET /me/reminders`                 | User              | Own reminder definitions and next eligible dates      |
+| `POST /me/reminders`                | User              | Recurrence input; 201                                 |
+| `PATCH /me/reminders/{reminderId}`  | Owner of reminder | Edit recurrence/timezone/enabled state, with revision |
+| `DELETE /me/reminders/{reminderId}` | Owner of reminder | Delete and suppress pending occurrences; 204          |
 
 Input: optional bucketId, enabled, timezone, and frequency. Weekly needs one weekday; twice_weekly two distinct weekdays; fortnightly an anchor date; monthly a day from 1–31; daily no weekday selector. Use ISO weekdays 1–7. Bucket-scoped reminders require current membership and retain its episode. Return `nextEligibleDate` and a daily processing description, not an exact guaranteed delivery time. Reminders are fixed-schedule and not conditional on expense entry. Archive pauses related reminders; do not replay stale reminder bursts.
 
@@ -428,19 +428,19 @@ Template headers, in order:
 
 `Date, Description, PaidBy, Category, Platform, Payment Mode, Bank Account, Amount, Currency, Added By, Notes, Comments, Status`
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `GET /buckets/{b}/imports/template` | Member | UTF-8 CSV header/template with download filename; no expense content |
-| `GET /buckets/{b}/imports/guidance` | Member | Column rules/defaults, limits, permission rules, ignored fields, required acknowledgments |
-| `POST /buckets/{b}/imports` | Member | File metadata, hash, headers, row count; create preview session; 201 |
-| `PUT /buckets/{b}/imports/{sessionId}/chunks/{chunkNumber}` | Importer | Rows with stable row numbers, <=512 KiB; validated staging only |
-| `PATCH /buckets/{b}/imports/{sessionId}/resolution` | Importer | Mappings, row corrections/exclusions, duplicate decisions, proposed new options; session revision |
-| `POST /buckets/{b}/imports/{sessionId}/validate` | Importer; read-only domain preview | Server validation/summary with current preview revision/digest; staging validation metadata may update |
-| `GET /buckets/{b}/imports/{sessionId}` | Importer | State/progress/counts and preview revision |
-| `GET /buckets/{b}/imports/{sessionId}/rows` | Importer | Filtered paginated row outcomes/errors/defaults |
-| `POST /buckets/{b}/imports/{sessionId}/confirm` | Importer | Freeze explicit valid rows/exclusions, duplicate choices, defaults acknowledgment, expected preview digest; 200 |
-| `POST /buckets/{b}/imports/{sessionId}/commit-next` | Importer | Commit next bounded confirmed batch; return progress and continuation flag |
-| `POST /buckets/{b}/imports/{sessionId}/cancel` | Importer | Stop uncommitted work; committed expenses remain |
+| Method and path                                             | Access                             | Contract                                                                                                        |
+| ----------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /buckets/{b}/imports/template`                         | Member                             | UTF-8 CSV header/template with download filename; no expense content                                            |
+| `GET /buckets/{b}/imports/guidance`                         | Member                             | Column rules/defaults, limits, permission rules, ignored fields, required acknowledgments                       |
+| `POST /buckets/{b}/imports`                                 | Member                             | File metadata, hash, headers, row count; create preview session; 201                                            |
+| `PUT /buckets/{b}/imports/{sessionId}/chunks/{chunkNumber}` | Importer                           | Rows with stable row numbers, <=512 KiB; validated staging only                                                 |
+| `PATCH /buckets/{b}/imports/{sessionId}/resolution`         | Importer                           | Mappings, row corrections/exclusions, duplicate decisions, proposed new options; session revision               |
+| `POST /buckets/{b}/imports/{sessionId}/validate`            | Importer; read-only domain preview | Server validation/summary with current preview revision/digest; staging validation metadata may update          |
+| `GET /buckets/{b}/imports/{sessionId}`                      | Importer                           | State/progress/counts and preview revision                                                                      |
+| `GET /buckets/{b}/imports/{sessionId}/rows`                 | Importer                           | Filtered paginated row outcomes/errors/defaults                                                                 |
+| `POST /buckets/{b}/imports/{sessionId}/confirm`             | Importer                           | Freeze explicit valid rows/exclusions, duplicate choices, defaults acknowledgment, expected preview digest; 200 |
+| `POST /buckets/{b}/imports/{sessionId}/commit-next`         | Importer                           | Commit next bounded confirmed batch; return progress and continuation flag                                      |
+| `POST /buckets/{b}/imports/{sessionId}/cancel`              | Importer                           | Stop uncommitted work; committed expenses remain                                                                |
 
 Chunks contain `{rowNumber, cells}` with original column text, not trusted pre-authorized expenses. The browser can parse locally for preview, but the server validates every submitted row and mapping. A same chunk number with different content requires an explicit revised staging operation; never overwrite already committed rows. Sequential chunk upload uses returned session revisions. `validate` is exempt from financial idempotency but cannot create references/expenses or alter confirmed input.
 
@@ -462,12 +462,12 @@ Commit response includes cumulative committed/excluded/failed/pending counts, ou
 
 ### 11.2 Export protocol
 
-| Method and path | Access | Contract |
-| --- | --- | --- |
-| `POST /buckets/{b}/exports/preview` | Member; read-only | `{filters, scope: "filtered" or "all", includeScheduled: false}`; exact columns and explanatory counts |
-| `POST /buckets/{b}/exports/start` | Member; read-only | Same selection; signed export token with revision/filter binding and expiry |
-| `POST /buckets/{b}/exports/page` | Member; read-only | `{exportToken, cursor?}`; bounded row DTOs, cursor, hasMore |
-| `POST /buckets/{b}/exports/complete` | Member; read-only | Export token plus final signed cursor; validate completed traversal and unchanged revision |
+| Method and path                      | Access            | Contract                                                                                               |
+| ------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `POST /buckets/{b}/exports/preview`  | Member; read-only | `{filters, scope: "filtered" or "all", includeScheduled: false}`; exact columns and explanatory counts |
+| `POST /buckets/{b}/exports/start`    | Member; read-only | Same selection; signed export token with revision/filter binding and expiry                            |
+| `POST /buckets/{b}/exports/page`     | Member; read-only | `{exportToken, cursor?}`; bounded row DTOs, cursor, hasMore                                            |
+| `POST /buckets/{b}/exports/complete` | Member; read-only | Export token plus final signed cursor; validate completed traversal and unchanged revision             |
 
 Export tokens are short-lived signed capabilities bound to the user/bucket/filter/exportRevision; they never replace current authorization. They require no new durable export collection. Initial token lifetime is 30 minutes, returned as expiresAt. Expiration requires restarting the export rather than continuing a potentially stale snapshot.
 
@@ -487,16 +487,16 @@ No public endpoint forces posting of another user's future expenses, runs arbitr
 
 ## 13. Cross-cutting workflows and integrity
 
-| Workflow | Required guarantee |
-| --- | --- |
-| Expense mutation | Expense, EMI link if any, budget effects, audit, event intent, and receipt commit together |
-| Scheduled posting | Original date retained, usable final conversion, no archive-review bypass, one contribution |
-| Membership removal | Access and future-processing eligibility stop before cleanup; creator rather than payer determines cleanup |
-| Import | Confirmed rows only, per-row source identity, no notifications, no silent defaults beyond disclosed rules |
-| Comment addition | Real author preserved, all other current members considered, channel preferences honored |
-| Budget crossing | Highest newly crossed selected threshold in one event; all crossed marked handled; import suppression durable |
-| Contact sharing | Association checked at grant, explicit grants used afterward; bucket changes do not revoke them |
-| Permanent deletion | Confirmation and recent auth, immediate access denial, resumable cleanup/tombstone recovery |
+| Workflow           | Required guarantee                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Expense mutation   | Expense, EMI link if any, budget effects, audit, event intent, and receipt commit together                    |
+| Scheduled posting  | Original date retained, usable final conversion, no archive-review bypass, one contribution                   |
+| Membership removal | Access and future-processing eligibility stop before cleanup; creator rather than payer determines cleanup    |
+| Import             | Confirmed rows only, per-row source identity, no notifications, no silent defaults beyond disclosed rules     |
+| Comment addition   | Real author preserved, all other current members considered, channel preferences honored                      |
+| Budget crossing    | Highest newly crossed selected threshold in one event; all crossed marked handled; import suppression durable |
+| Contact sharing    | Association checked at grant, explicit grants used afterward; bucket changes do not revoke them               |
+| Permanent deletion | Confirmation and recent auth, immediate access denial, resumable cleanup/tombstone recovery                   |
 
 Persist financial state before attempting push. Do not call FX or FCM from retryable database transaction callbacks. API receipts and display statuses never replace the database's lifecycle guards. No endpoint exposes unrestricted raw collections or client-selected aggregation pipelines.
 

@@ -31,7 +31,9 @@ npm run check
 npm run build
 ```
 
-`check` runs lint, types and tests. Integration tests use an isolated temporary MongoDB replica set and download a cached test binary on first run; they never connect to your Atlas database. `npm run test:watch` runs the watcher. After a production build, `npm start` serves it locally.
+`check` verifies formatting, lint, types and tests. Integration tests use an isolated temporary MongoDB replica set and download a cached test binary on first run; they never connect to your Atlas database. `npm run test:watch` runs the watcher. After a production build, `npm start` serves it locally.
+
+Run `npm run format` to format project files with Prettier, or `npm run format:check` to check formatting without changing files. Generated files and local environment files are excluded.
 
 ## Structure
 

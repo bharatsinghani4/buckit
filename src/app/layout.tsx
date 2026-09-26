@@ -15,5 +15,13 @@ export const metadata: Metadata = {
 export const runtime = "nodejs";
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="en" suppressHydrationWarning><body><Script src="/theme-init.js" strategy="beforeInteractive" /><SkipLink /><AuthProvider>{children}</AuthProvider></body></html>;
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
+        <SkipLink />
+        <AuthProvider>{children}</AuthProvider>
+      </body>
+    </html>
+  );
 }
