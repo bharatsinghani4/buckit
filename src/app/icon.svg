@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="24" fill="#F8FAF7"/>
+  <rect x="1.5" y="1.5" width="97" height="97" rx="22.5" stroke="#E0E6DE" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="isoTopNew" x1="24" y1="18" x2="76" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4EBA8D"/>
+      <stop offset="100%" stop-color="#2D8565"/>
+    </linearGradient>
+    <linearGradient id="isoLeftNew" x1="24" y1="33" x2="50" y2="83" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#226950"/>
+      <stop offset="100%" stop-color="#172F28"/>
+    </linearGradient>
+  </defs>
+  <path d="M50 18L76 33L50 48L24 33L50 18Z" fill="url(#isoTopNew)"/>
+  <path d="M50 24L65.6 33L50 42L34.4 33L50 24Z" fill="#11241E"/>
+  <ellipse cx="50" cy="33" rx="5.5" ry="3.17" fill="#8DE1BD"/>
+  <path d="M24 33L50 48V83L24 68V33Z" fill="url(#isoLeftNew)"/>
+  <path d="M76 33L50 48V83L76 68V33Z" fill="#172F28"/>
+</svg>

@@ -5,14 +5,16 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ["firebase-admin", "jwks-rsa", "jose"],
   async headers() {
-    return [{
-      source: "/:path*",
-      headers: [
-        { key: "X-Content-Type-Options", value: "nosniff" },
-        { key: "Referrer-Policy", value: "no-referrer" },
-        { key: "X-Frame-Options", value: "DENY" },
-      ],
-    }];
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Frame-Options", value: "DENY" },
+        ],
+      },
+    ];
   },
 };
 

@@ -22,22 +22,22 @@ There are no collections for settlements, balances, beneficiary tracking, applic
 
 ## 2. Shared storage conventions
 
-| Convention | Design |
-| --- | --- |
-| Identifiers | BSON ObjectId internally; string identifiers at API boundaries |
-| Authentication mapping | A unique Firebase UID on an active app user; references within Buckit use user ObjectIds |
-| Money | BSON Decimal128, constructed from validated decimal strings; never floating-point JavaScript arithmetic |
-| Exchange rates | Positive Decimal128 with more precision than currency amounts |
-| Currency | Uppercase supported currency code; validate against the application's currency registry |
-| Calendar dates | Validated ISO `YYYY-MM-DD` strings for expense dates and period boundaries; CSV uses `DD/MM/YYYY` |
-| Instants | BSON Date in UTC for timestamps, eligibility, leases, and expiration |
-| Timezones | Validated IANA names; retain the timezone used to calculate a scheduled eligibility instant |
-| Common fields | `_id`, `createdAt`, `updatedAt`; mutable domain records also have an explicit integer `revision` |
-| Optimistic updates | Match expected `revision`, then increment it; do not rely on Mongoose's default version behavior for arbitrary updates |
-| Names | Preserve display text; use a separately normalized, trimmed, case-insensitive key for uniqueness |
-| Optional identifiers | Omit absent references. Avoid explicit null where partial unique indexes distinguish presence |
-| References | MongoDB references are not foreign keys. The domain service validates existence, bucket, type, membership, and lifecycle |
-| Sensitive data | Keep tokens and contact data out of logs, event payloads, and generic push text |
+| Convention             | Design                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Identifiers            | BSON ObjectId internally; string identifiers at API boundaries                                                           |
+| Authentication mapping | A unique Firebase UID on an active app user; references within Buckit use user ObjectIds                                 |
+| Money                  | BSON Decimal128, constructed from validated decimal strings; never floating-point JavaScript arithmetic                  |
+| Exchange rates         | Positive Decimal128 with more precision than currency amounts                                                            |
+| Currency               | Uppercase supported currency code; validate against the application's currency registry                                  |
+| Calendar dates         | Validated ISO `YYYY-MM-DD` strings for expense dates and period boundaries; CSV uses `DD/MM/YYYY`                        |
+| Instants               | BSON Date in UTC for timestamps, eligibility, leases, and expiration                                                     |
+| Timezones              | Validated IANA names; retain the timezone used to calculate a scheduled eligibility instant                              |
+| Common fields          | `_id`, `createdAt`, `updatedAt`; mutable domain records also have an explicit integer `revision`                         |
+| Optimistic updates     | Match expected `revision`, then increment it; do not rely on Mongoose's default version behavior for arbitrary updates   |
+| Names                  | Preserve display text; use a separately normalized, trimmed, case-insensitive key for uniqueness                         |
+| Optional identifiers   | Omit absent references. Avoid explicit null where partial unique indexes distinguish presence                            |
+| References             | MongoDB references are not foreign keys. The domain service validates existence, bucket, type, membership, and lifecycle |
+| Sensitive data         | Keep tokens and contact data out of logs, event payloads, and generic push text                                          |
 
 Money validation uses each currency's minor-unit precision. Quantize the converted amount once and store it; sum stored amounts for reports. A nonzero original amount can round to zero in the bucket currency. This does not make the original entry invalid. A manually entered conversion must preserve the original sign and produce a positive exchange rate; reject an unusable zero manual conversion where a rate cannot be derived.
 
@@ -47,34 +47,34 @@ Avoid unbounded arrays: members, expenses, comments, installments, import rows, 
 
 ## 3. Collection map
 
-| Collection | Purpose and scope |
-| --- | --- |
-| `users` | Buckit profile, application access state, preferences, and Firebase mapping |
-| `buckets` | Bucket identity, owner, currency, timezone, lifecycle, concurrency guards |
-| `bucket_memberships` | Membership episodes, including historical departures |
-| `bucket_archive_intervals` | Archive periods used to recognize paused scheduled entries |
-| `bucket_options` | Bucket accounts, categories, and platforms, distinguished by kind |
-| `invitations` | Revocable, expiring multi-use invitation tokens |
-| `expenses` | Manual, imported, and EMI expense records and conversion state |
-| `emi_plans` | Fixed monthly plan definitions and generation progress |
-| `emi_installments` | Individual obligations and their relationship to expenses |
-| `budgets` | Shared/member-specific budget definitions |
-| `budget_periods` | Rebuildable usage cache and durable threshold handling per period |
-| `comments` | Expense comments with real authorship |
-| `contacts` | User-owned contact details |
-| `contact_shares` | Explicit recipient access and recipient-specific hiding |
-| `reminders` | Personal recurrence definitions and scheduling progress |
-| `push_installations` | User/device push registrations |
-| `domain_events` | Durable notification-relevant facts and fan-out progress |
-| `notifications` | In-app inbox items only |
-| `push_deliveries` | Per-event, per-user, per-installation push delivery intents |
-| `audit_events` | Actual actors and domain-change history |
-| `import_sessions` | Validated import scope, mapping decisions, and progress |
-| `import_rows` | Independently validated and committed row outcomes |
-| `fx_rate_cache` | Reusable provider rates, independent of applied expense snapshots |
-| `operation_receipts` | Durable idempotency receipts for domain mutations |
-| `background_jobs` | Leases, checkpoints, retry state, and resumable cleanup |
-| `deletion_tombstones` | Durable deletion/anonymization instructions for cleanup and recovery |
+| Collection                 | Purpose and scope                                                           |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `users`                    | Buckit profile, application access state, preferences, and Firebase mapping |
+| `buckets`                  | Bucket identity, owner, currency, timezone, lifecycle, concurrency guards   |
+| `bucket_memberships`       | Membership episodes, including historical departures                        |
+| `bucket_archive_intervals` | Archive periods used to recognize paused scheduled entries                  |
+| `bucket_options`           | Bucket accounts, categories, and platforms, distinguished by kind           |
+| `invitations`              | Revocable, expiring multi-use invitation tokens                             |
+| `expenses`                 | Manual, imported, and EMI expense records and conversion state              |
+| `emi_plans`                | Fixed monthly plan definitions and generation progress                      |
+| `emi_installments`         | Individual obligations and their relationship to expenses                   |
+| `budgets`                  | Shared/member-specific budget definitions                                   |
+| `budget_periods`           | Rebuildable usage cache and durable threshold handling per period           |
+| `comments`                 | Expense comments with real authorship                                       |
+| `contacts`                 | User-owned contact details                                                  |
+| `contact_shares`           | Explicit recipient access and recipient-specific hiding                     |
+| `reminders`                | Personal recurrence definitions and scheduling progress                     |
+| `push_installations`       | User/device push registrations                                              |
+| `domain_events`            | Durable notification-relevant facts and fan-out progress                    |
+| `notifications`            | In-app inbox items only                                                     |
+| `push_deliveries`          | Per-event, per-user, per-installation push delivery intents                 |
+| `audit_events`             | Actual actors and domain-change history                                     |
+| `import_sessions`          | Validated import scope, mapping decisions, and progress                     |
+| `import_rows`              | Independently validated and committed row outcomes                          |
+| `fx_rate_cache`            | Reusable provider rates, independent of applied expense snapshots           |
+| `operation_receipts`       | Durable idempotency receipts for domain mutations                           |
+| `background_jobs`          | Leases, checkpoints, retry state, and resumable cleanup                     |
+| `deletion_tombstones`      | Durable deletion/anonymization instructions for cleanup and recovery        |
 
 The collections are logical boundaries, not separate database servers or paid services. Do not put an entire bucket into one document.
 
@@ -174,30 +174,30 @@ Joining is a deliberate authenticated mutation. Check expiration, revocation, bu
 
 ### 5.1 `expenses`
 
-| Field/group | Type and meaning |
-| --- | --- |
-| `bucketId` | Required bucket reference |
-| `actualCreatorUserId` | Immutable actual owner; importer for CSV, plan creator for EMI |
-| `creatorMembershipId` | Immutable membership episode at creation |
-| `paidByUserId` | Required payer/credit recipient; budget attribution |
-| `addedByUserId` | Required displayed attribution; does not affect ownership |
-| `expenseDate` | Required validated calendar date |
-| `description`, `notes` | Required description; optional notes |
-| `categoryId`, `accountId`, `platformId` | Required references with bucket/type validation |
-| `referenceLabels` | Recorded category/account/platform display labels |
-| `paymentMode` | `upi`, `cash`, `neft`, `imps`, `credit_card` |
-| `originalAmount`, `originalCurrency` | Required nonzero signed Decimal128 and currency code |
-| `bucketCurrency` | Bucket currency at creation, immutable once used |
-| `conversion` | Structured conversion data described below |
-| `postingState` | `unposted`, `posted`, or `canceled` |
-| `reviewState` | `none` or `archive_review_required` |
-| `dueAt`, `scheduleTimezone` | Eligibility instant and timezone used for future entry |
-| `postedAt?`, `canceledAt?`, `cancelReason?` | Transition metadata |
-| `deletedAt?`, `restoreUntil?`, `deletedByUserId?` | Recoverable expense deletion, independent of posting state |
-| `source` | Kind `manual`, `import`, or `emi`, plus immutable source IDs |
-| `originKey` | Stable unique creation operation/row/installment key |
-| `refundOfExpenseId?` | Optional same-bucket original purchase reference |
-| `revision` | Optimistic concurrency counter |
+| Field/group                                       | Type and meaning                                               |
+| ------------------------------------------------- | -------------------------------------------------------------- |
+| `bucketId`                                        | Required bucket reference                                      |
+| `actualCreatorUserId`                             | Immutable actual owner; importer for CSV, plan creator for EMI |
+| `creatorMembershipId`                             | Immutable membership episode at creation                       |
+| `paidByUserId`                                    | Required payer/credit recipient; budget attribution            |
+| `addedByUserId`                                   | Required displayed attribution; does not affect ownership      |
+| `expenseDate`                                     | Required validated calendar date                               |
+| `description`, `notes`                            | Required description; optional notes                           |
+| `categoryId`, `accountId`, `platformId`           | Required references with bucket/type validation                |
+| `referenceLabels`                                 | Recorded category/account/platform display labels              |
+| `paymentMode`                                     | `upi`, `cash`, `neft`, `imps`, `credit_card`                   |
+| `originalAmount`, `originalCurrency`              | Required nonzero signed Decimal128 and currency code           |
+| `bucketCurrency`                                  | Bucket currency at creation, immutable once used               |
+| `conversion`                                      | Structured conversion data described below                     |
+| `postingState`                                    | `unposted`, `posted`, or `canceled`                            |
+| `reviewState`                                     | `none` or `archive_review_required`                            |
+| `dueAt`, `scheduleTimezone`                       | Eligibility instant and timezone used for future entry         |
+| `postedAt?`, `canceledAt?`, `cancelReason?`       | Transition metadata                                            |
+| `deletedAt?`, `restoreUntil?`, `deletedByUserId?` | Recoverable expense deletion, independent of posting state     |
+| `source`                                          | Kind `manual`, `import`, or `emi`, plus immutable source IDs   |
+| `originKey`                                       | Stable unique creation operation/row/installment key           |
+| `refundOfExpenseId?`                              | Optional same-bucket original purchase reference               |
+| `revision`                                        | Optimistic concurrency counter                                 |
 
 Do not store user-name snapshots as permission or identity fields. Resolve user display names from active users or Deleted user stubs, including comments and exports. If an audit representation includes personal names, anonymization must cover it too.
 
@@ -229,18 +229,18 @@ An expense contributes to actual spending only when all are true:
 
 Use this same predicate in dashboard, budget, export-status, and member/category aggregations. Never sum both expenses and EMI obligations.
 
-| Situation | Stored/resulting state |
-| --- | --- |
-| Current/past manual entry with conversion | Posted during request |
-| Current/past entry without a usable rate | Unposted, missing conversion; totals flagged incomplete |
-| Future manual/import/EMI entry | Unposted, with estimated or fixed conversion |
-| Due, waiting for daily run | Unposted; Pending daily processing is derived from date and state |
-| Daily posting succeeds | Posted, final conversion, original expense date retained |
-| Due conversion fails | Unposted, missing conversion; only creator supplies manual amount |
-| Overdue on bucket restoration | Unposted, archive review required |
-| Creator resolves archive backlog | Explicit post or cancel, after conversion validation |
-| Soft deletion | Set deletion timestamps; retain previous posting state for possible restoration |
-| Departure removes future entry | Cancel/remove scheduled record as lifecycle cleanup; not a user-restorable expense |
+| Situation                                 | Stored/resulting state                                                             |
+| ----------------------------------------- | ---------------------------------------------------------------------------------- |
+| Current/past manual entry with conversion | Posted during request                                                              |
+| Current/past entry without a usable rate  | Unposted, missing conversion; totals flagged incomplete                            |
+| Future manual/import/EMI entry            | Unposted, with estimated or fixed conversion                                       |
+| Due, waiting for daily run                | Unposted; Pending daily processing is derived from date and state                  |
+| Daily posting succeeds                    | Posted, final conversion, original expense date retained                           |
+| Due conversion fails                      | Unposted, missing conversion; only creator supplies manual amount                  |
+| Overdue on bucket restoration             | Unposted, archive review required                                                  |
+| Creator resolves archive backlog          | Explicit post or cancel, after conversion validation                               |
+| Soft deletion                             | Set deletion timestamps; retain previous posting state for possible restoration    |
+| Departure removes future entry            | Cancel/remove scheduled record as lifecycle cleanup; not a user-restorable expense |
 
 Future records belonging to an ended membership episode must fail the eligibility check even if the same user rejoins. Removal cleanup must not make their future dates postable when those dates later pass. Record the departure cutoff and persist cancellation before resuming ordinary processing for the affected records. Already-due records are evaluated using their original eligibility and archive/conversion state, not reclassified as future merely because processing was delayed.
 
@@ -369,16 +369,16 @@ Indexes: unique `{ eventKey: 1 }`; `{ fanoutState: 1, createdAt: 1 }`; `{ bucket
 
 An event records a committed fact, not an instruction supplied by a client. Trigger types cover the PRD's expense, comment, membership, budget, scheduled/EMI, contact-sharing, and reminder categories. Import/export activity has no notification fan-out; audit and on-screen results remain separate.
 
-| Event family | Eligible recipients before channel checks |
-| --- | --- |
-| Expense additions/edits/deletions | Current bucket members, including actor |
-| New comment | Current bucket members excluding commenter |
-| Membership changes | Relevant authorized users; access-ended notice contains no private bucket content |
-| Shared budget threshold | Current bucket members |
-| Member budget threshold | Budget creator |
-| Scheduled/EMI activity | Authorized bucket members; conversion-action notice targets creator |
-| Contact share/change/revoke | Relevant owner/recipients, with content access checked separately |
-| Personal reminder | Reminder owner |
+| Event family                      | Eligible recipients before channel checks                                         |
+| --------------------------------- | --------------------------------------------------------------------------------- |
+| Expense additions/edits/deletions | Current bucket members, including actor                                           |
+| New comment                       | Current bucket members excluding commenter                                        |
+| Membership changes                | Relevant authorized users; access-ended notice contains no private bucket content |
+| Shared budget threshold           | Current bucket members                                                            |
+| Member budget threshold           | Budget creator                                                                    |
+| Scheduled/EMI activity            | Authorized bucket members; conversion-action notice targets creator               |
+| Contact share/change/revoke       | Relevant owner/recipients, with content access checked separately                 |
+| Personal reminder                 | Reminder owner                                                                    |
 
 Individual supported triggers have independent preferences; family labels only organize the settings UI.
 
@@ -464,16 +464,16 @@ The initial transaction marks the bucket/user inaccessible, invalidates processi
 
 ### 11.4 Lifecycle matrix
 
-| Action | Immediate effect | Durable cleanup/result |
-| --- | --- | --- |
-| Delete expense | Remove from spending; set 30-day restore deadline; update EMI/budgets | Purge payload/comments after deadline; preserve minimal no-regeneration evidence |
-| Restore expense | Creator/access/deadline checks; recompute spending and EMI state | Audit and financial revision update |
-| Leave/remove member | End membership episode; block access and future processing | Cancel creator's future records/plans; historical member budgets read-only; preserve past records |
-| Archive bucket | Read-only; create open archive interval; invalidate processing | Preserve all history, pause reminders/posting |
-| Restore bucket | Close interval; resume future processing | Archived overdue backlog requires each creator's decision |
-| Permanently delete bucket | Owner confirmation/recent authentication; mark deleting | Remove bucket options, invitations, memberships, financial records, comments, budgets, scoped events/inbox/deliveries/imports/jobs/audit; retain minimal tombstone |
-| Delete user account | Ownership-transfer checks; revoke app access | Departure cleanup, owned contacts/grants, recipient grants, reminders, devices/preferences and personal data removed; shared historical user references anonymized; Firebase deletion retryable |
-| Delete contact | Revoke access immediately | Remove grants, private content, and pending contact notifications |
+| Action                    | Immediate effect                                                      | Durable cleanup/result                                                                                                                                                                          |
+| ------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delete expense            | Remove from spending; set 30-day restore deadline; update EMI/budgets | Purge payload/comments after deadline; preserve minimal no-regeneration evidence                                                                                                                |
+| Restore expense           | Creator/access/deadline checks; recompute spending and EMI state      | Audit and financial revision update                                                                                                                                                             |
+| Leave/remove member       | End membership episode; block access and future processing            | Cancel creator's future records/plans; historical member budgets read-only; preserve past records                                                                                               |
+| Archive bucket            | Read-only; create open archive interval; invalidate processing        | Preserve all history, pause reminders/posting                                                                                                                                                   |
+| Restore bucket            | Close interval; resume future processing                              | Archived overdue backlog requires each creator's decision                                                                                                                                       |
+| Permanently delete bucket | Owner confirmation/recent authentication; mark deleting               | Remove bucket options, invitations, memberships, financial records, comments, budgets, scoped events/inbox/deliveries/imports/jobs/audit; retain minimal tombstone                              |
+| Delete user account       | Ownership-transfer checks; revoke app access                          | Departure cleanup, owned contacts/grants, recipient grants, reminders, devices/preferences and personal data removed; shared historical user references anonymized; Firebase deletion retryable |
+| Delete contact            | Revoke access immediately                                             | Remove grants, private content, and pending contact notifications                                                                                                                               |
 
 Global contacts and their grants are not deleted by bucket archival, departure, or bucket deletion. User-account deletion is different and removes that user's personal contacts and shares. Cleanup must also clear inaccessible last-selected-bucket references when encountered.
 
@@ -485,15 +485,15 @@ Reading membership inside a transaction alone is not sufficient to prevent a con
 
 Core transaction boundaries:
 
-| Workflow | Atomic database changes |
-| --- | --- |
+| Workflow                           | Atomic database changes                                                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | Create/edit/delete/restore expense | Guard checks, expense, optional installment state, financial/export revisions, affected budget state, audit, eligible event, operation receipt |
-| Post scheduled expense | Guard and revision checks, final conversion, posting state, obligation, budget effects, audit/event, receipt |
-| Add comment | Guard checks, comment, export revision, audit, single domain event |
-| Import batch | Guard checks, approved references as needed, expense rows, row outcomes, silent threshold state, revisions/audit/receipts |
-| Transfer bucket ownership | Current owner and target membership checks, new owner reference, audit |
-| Leave/archive/delete | Lifecycle/access guard, state transition, tombstone/job if needed, scheduling invalidation, audit |
-| Share contact | Owner/access checks, associated-user eligibility, grant, audit/event/receipt |
+| Post scheduled expense             | Guard and revision checks, final conversion, posting state, obligation, budget effects, audit/event, receipt                                   |
+| Add comment                        | Guard checks, comment, export revision, audit, single domain event                                                                             |
+| Import batch                       | Guard checks, approved references as needed, expense rows, row outcomes, silent threshold state, revisions/audit/receipts                      |
+| Transfer bucket ownership          | Current owner and target membership checks, new owner reference, audit                                                                         |
+| Leave/archive/delete               | Lifecycle/access guard, state transition, tombstone/job if needed, scheduling invalidation, audit                                              |
+| Share contact                      | Owner/access checks, associated-user eligibility, grant, audit/event/receipt                                                                   |
 
 Keep transactions bounded; batch large imports, plan generation, and deletion. Do not use `Promise.all()` for operations inside the same Mongoose transaction/session. Mongoose describes supported transaction execution in its [transaction documentation](https://mongoosejs.com/docs/transactions.html). Outside transactions, independent reads may be parallelized.
 
@@ -501,17 +501,17 @@ Notification fan-out can finish in bounded batches after the financial transacti
 
 ## 13. Read models and export consistency
 
-| View | Query/source |
-| --- | --- |
-| Bucket selector | Current memberships joined to nondeleting buckets; validate last selection |
-| Dashboard total/trend/category/member charts | Actual-spending predicate over expense-date range; group by requested dimension |
-| Incomplete totals | Separate count/list of due unposted conversion-missing or review-required records |
-| Scheduled commitments | Unposted, nondeleted/noncanceled expenses; estimate clearly marked |
-| EMI dashboard | Plans and obligations, joined to linked expense state; prior-paid count separate |
-| Budget progress | Predicate plus category set, period, and optional payer filter |
-| Associated contact recipients | Intersection of current memberships, then search eligible user profiles |
-| Contact list | Owned contacts plus active, nonhidden grants |
-| Notification bell | Authorized recipient inbox rows; same visibility predicate for unread count |
+| View                                         | Query/source                                                                      |
+| -------------------------------------------- | --------------------------------------------------------------------------------- |
+| Bucket selector                              | Current memberships joined to nondeleting buckets; validate last selection        |
+| Dashboard total/trend/category/member charts | Actual-spending predicate over expense-date range; group by requested dimension   |
+| Incomplete totals                            | Separate count/list of due unposted conversion-missing or review-required records |
+| Scheduled commitments                        | Unposted, nondeleted/noncanceled expenses; estimate clearly marked                |
+| EMI dashboard                                | Plans and obligations, joined to linked expense state; prior-paid count separate  |
+| Budget progress                              | Predicate plus category set, period, and optional payer filter                    |
+| Associated contact recipients                | Intersection of current memberships, then search eligible user profiles           |
+| Contact list                                 | Owned contacts plus active, nonhidden grants                                      |
+| Notification bell                            | Authorized recipient inbox rows; same visibility predicate for unread count       |
 
 Use cursor pagination with a stable `_id` tie-breaker. Avoid large skip offsets and unrestricted population chains. Every bucket query includes `bucketId` and access checks; every global contact query includes owner/grant authorization. Any performance cache is derived and disposable, never an authorization source.
 
