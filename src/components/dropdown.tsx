@@ -1,7 +1,7 @@
 "use client";
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Option = { value: string; label: string };
 export function Dropdown({
@@ -27,15 +27,21 @@ export function Dropdown({
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | undefined>();
+  const [selected, setSelected] = useState(value ?? defaultValue ?? "");
+  useEffect(() => {
+    setSelected(value ?? defaultValue ?? "");
+  }, [value, defaultValue]);
   function handleOpenChange(open: boolean) {
     if (open) setPortalContainer(trigger.current?.closest("dialog") ?? undefined);
     onOpenChange?.(open);
   }
   return (
     <Select.Root
-      value={value}
-      defaultValue={defaultValue}
-      onValueChange={onValueChange}
+      value={selected}
+      onValueChange={(next) => {
+        setSelected(next);
+        onValueChange?.(next);
+      }}
       onOpenChange={handleOpenChange}
       name={name}
       disabled={disabled}

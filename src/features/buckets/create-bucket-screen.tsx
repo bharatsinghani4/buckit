@@ -110,10 +110,7 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
               </>
             )}
           </h1>
-          <p>
-            Let’s set up your profile and create a space
-            <br className="desktop-break" /> for the spending that matters to you.
-          </p>
+          <p>Let’s set up your profile and create a space for the spending that matters to you.</p>
         </header>
         <form className="onboarding-card form-stack" onSubmit={submit}>
           {error && <Notice>{error}</Notice>}

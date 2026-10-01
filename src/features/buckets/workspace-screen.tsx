@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BookOpen,
   Check,
+  CalendarDays,
   Copy,
   FolderOpen,
   Home,
@@ -15,12 +16,12 @@ import {
   LogOut,
   Mail,
   PanelLeftClose,
-  PanelLeftOpen,
   Pin,
   PinOff,
   Plus,
   Settings2,
   ShieldCheck,
+  SlidersHorizontal,
   Users,
   Wallet,
 } from "lucide-react";
@@ -39,15 +40,20 @@ import {
 } from "@/features/identity/contracts";
 import { api, ClientError, friendlyError, operationKey } from "@/lib/api/client";
 import { getPreference, setPreference } from "@/lib/browser-preferences";
+import { PhaseTwoScreen } from "@/features/expenses/phase-two-screen";
+import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 
 export function WorkspaceScreen() {
   return (
     <AccessGate>
-      <Workspace />
+      <WorkspaceDataProvider>
+        <Workspace />
+      </WorkspaceDataProvider>
     </AccessGate>
   );
 }
 function Workspace() {
+  const { read, invalidate } = useWorkspaceData();
   const auth = useAuth();
   const profile = auth.profile!;
   const params = useSearchParams();
@@ -63,9 +69,11 @@ function Workspace() {
   const [step, setStep] = useState(profile.tour.lastStep);
   const tourPrompted = useRef(false);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [ledgerMonth, setLedgerMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bucketPickerOpen = useRef(false);
   const requestedBucketTarget = useRef<string | null>(null);
   const loadedBuckets = useRef<Bucket[]>([]);
@@ -92,11 +100,12 @@ function Workspace() {
   const inviteKey = useRef<{ body: string; key: string } | null>(null);
   const profileKey = useRef<{ body: string; key: string } | null>(null);
   const bucketQuery = params.get("bucket");
+  const phaseView = params.get("view");
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const result = await api<Bucket[]>("buckets");
+      const result = await read<Bucket[]>("buckets");
       loadedBuckets.current = result.data;
       setBuckets(result.data);
       setCursor(result.meta.nextCursor ?? null);
@@ -108,7 +117,7 @@ function Workspace() {
       let bucket = result.data.find((b) => b.id === target);
       if (!bucket) {
         try {
-          bucket = (await api<Bucket>(`buckets/${target}`)).data;
+          bucket = (await read<Bucket>(`buckets/${target}`)).data;
         } catch (e) {
           if (!(e instanceof ClientError) || e.status !== 404) throw e;
           bucket = result.data[0];
@@ -128,7 +137,7 @@ function Workspace() {
     } finally {
       setLoading(false);
     }
-  }, [bucketQuery, profile.lastBucketId, router]);
+  }, [bucketQuery, profile.lastBucketId, read, router]);
   useEffect(() => {
     const target = bucketQuery || profile.lastBucketId || "";
     if (requestedBucketTarget.current === target) return;
@@ -143,7 +152,12 @@ function Workspace() {
     });
   }, [bucketQuery, profile.lastBucketId, load]);
   useEffect(() => {
-    if (selected && profile.tour.state === "not_started" && !tourPrompted.current) {
+    if (
+      selected &&
+      profile.tour.state === "not_started" &&
+      getPreference("buckit-tour-seen") !== "true" &&
+      !tourPrompted.current
+    ) {
       tourPrompted.current = true;
       queueMicrotask(() => setModal("tour"));
     }
@@ -193,7 +207,7 @@ function Workspace() {
       await patchProfile({ lastBucketId: id });
       requestedBucketTarget.current = id;
       setSelected(loadedBuckets.current.find((bucket) => bucket.id === id) ?? null);
-      router.replace(`/workspace?bucket=${id}`);
+      router.replace(`/workspace?bucket=${id}${phaseView ? `&view=${phaseView}` : ""}`);
     } catch (e) {
       setError(friendlyError(e));
     } finally {
@@ -279,22 +293,16 @@ function Workspace() {
     },
   ];
   const currentStep = Math.min(step, steps.length - 1);
-  async function tour(nextStep: number, state: Tour["state"] = "in_progress") {
-    setBusy(true);
-    setError("");
-    try {
-      await patchProfile({ tour: { version: 1, state, lastStep: nextStep } });
-      setStep(nextStep);
-      if (state === "completed" || state === "skipped") setModal(null);
-    } catch (e) {
-      setError(friendlyError(e));
-    } finally {
-      setBusy(false);
+  function tour(nextStep: number, state: Tour["state"] = "in_progress") {
+    setStep(nextStep);
+    if (state === "completed" || state === "skipped") {
+      setPreference("buckit-tour-seen", "true");
+      setModal(null);
     }
   }
   function closeModal() {
     if (busy) return;
-    if (modal === "tour" && !error) void tour(currentStep, "skipped");
+    if (modal === "tour" && !error) tour(currentStep, "skipped");
     else {
       setModal(null);
       setError("");
@@ -308,23 +316,37 @@ function Workspace() {
         ref={sidebarRef}
         className="sidebar"
         onMouseEnter={() => {
-          if (!sidebarPinned) setSidebarExpanded(true);
+          if (!sidebarPinned) {
+            sidebarHoverTimer.current = setTimeout(() => setSidebarExpanded(true), 250);
+          }
         }}
         onMouseLeave={() => {
+          if (sidebarHoverTimer.current) clearTimeout(sidebarHoverTimer.current);
           if (!sidebarPinned && !bucketPickerOpen.current) setSidebarExpanded(false);
         }}
       >
         <div className="sidebar-top">
-          <Brand compact={!sidebarExpanded} />
-          <button
-            type="button"
-            className="icon-button sidebar-toggle"
-            onClick={sidebarExpanded ? minimizeSidebar : () => setSidebarExpanded(true)}
-            aria-label={sidebarExpanded ? "Minimize sidebar" : "Expand sidebar"}
-            title={sidebarExpanded ? "Minimize sidebar" : "Expand sidebar"}
-          >
-            {sidebarExpanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-          </button>
+          <Brand
+            compact={!sidebarExpanded}
+            ariaLabel={sidebarExpanded ? "Buckit home" : "Expand sidebar"}
+            onClick={(event) => {
+              if (!sidebarExpanded) {
+                event.preventDefault();
+                setSidebarExpanded(true);
+              }
+            }}
+          />
+          {sidebarExpanded && (
+            <button
+              type="button"
+              className="icon-button sidebar-toggle"
+              onClick={minimizeSidebar}
+              aria-label="Minimize sidebar"
+              title="Minimize sidebar"
+            >
+              <PanelLeftClose size={18} />
+            </button>
+          )}
         </div>
         <div className="sidebar-section">
           <div className="sidebar-heading">
@@ -378,12 +400,35 @@ function Workspace() {
           <Plus size={20} />
         </Link>
         <nav aria-label="Workspace">
-          <Link href="/workspace" className="nav-item active">
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}` : "/workspace"}
+            className={`nav-item ${!phaseView ? "active" : ""}`}
+          >
             <LayoutDashboard size={18} /> Overview
           </Link>
-          <div className="nav-item unavailable">
-            <Wallet size={18} /> Expenses <small>Coming next</small>
-          </div>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=expenses` : "/workspace"}
+            className={`nav-item ${["expenses", "deleted", "add-expense", "expense"].includes(phaseView ?? "") ? "active" : ""}`}
+          >
+            <Wallet size={18} /> Expenses
+          </Link>
+          {sidebarExpanded && (
+            <div className="sidebar-heading mt-4">
+              <span className="eyebrow">MANAGEMENT</span>
+            </div>
+          )}
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=references` : "/workspace"}
+            className={`nav-item ${phaseView === "references" ? "active" : ""}`}
+          >
+            <SlidersHorizontal size={18} /> Reference settings
+          </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=members` : "/workspace"}
+            className={`nav-item ${phaseView === "members" ? "active" : ""}`}
+          >
+            <Users size={18} /> Members
+          </Link>
           <div className="nav-item unavailable">
             <BookOpen size={18} /> Budgets <small>Later</small>
           </div>
@@ -409,9 +454,47 @@ function Workspace() {
       </aside>
       <div className="workspace-main">
         <header className="workspace-header">
-          <span>{selected?.name ?? "Your workspace"}</span>
+          <span>
+            {selected?.name ?? "Your workspace"}
+            {phaseView && (
+              <span className="text-[var(--muted)]">
+                {" "}
+                /{" "}
+                {phaseView === "references"
+                  ? "Reference settings"
+                  : phaseView === "members"
+                    ? "Members & invitations"
+                    : "Expenses"}
+              </span>
+            )}
+          </span>
           <div className="workspace-header-actions">
+            {phaseView === "expenses" && (
+              <label className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs">
+                <CalendarDays size={16} aria-hidden="true" />
+                <span className="sr-only">Ledger month</span>
+                <input
+                  type="month"
+                  className="min-w-0 max-w-36 bg-transparent outline-none"
+                  value={ledgerMonth}
+                  onChange={(event) => setLedgerMonth(event.target.value)}
+                />
+              </label>
+            )}
             <ThemeToggle />
+            {selected?.isOwner && selected.status === "active" && phaseView && (
+              <button
+                className="button primary"
+                onClick={() => {
+                  setInvite(null);
+                  inviteKey.current = null;
+                  setCopied(false);
+                  setModal("invite");
+                }}
+              >
+                <Users size={16} /> Invite people
+              </button>
+            )}
             <button className="profile-chip" onClick={() => setModal("profile")}>
               <span>{profile.displayName.charAt(0).toUpperCase()}</span>
               {profile.displayName}
@@ -432,6 +515,7 @@ function Workspace() {
                 className="button secondary"
                 onClick={() => {
                   requestedBucketTarget.current = bucketQuery || profile.lastBucketId || "";
+                  invalidate("buckets");
                   void load();
                 }}
               >
@@ -441,6 +525,25 @@ function Workspace() {
           )}
           {loading ? (
             <Pending />
+          ) : selected &&
+            ["expenses", "deleted", "add-expense", "expense", "references", "members"].includes(
+              phaseView ?? "",
+            ) ? (
+            <PhaseTwoScreen
+              key={`${selected.id}:${phaseView}:${params.get("expense") ?? ""}`}
+              bucket={selected}
+              profile={profile}
+              view={
+                phaseView as
+                  "expenses" | "deleted" | "add-expense" | "expense" | "references" | "members"
+              }
+              expenseId={params.get("expense")}
+              refundOf={params.get("refundOf")}
+              month={ledgerMonth}
+              onClearMonth={() => setLedgerMonth("")}
+              resolveRequested={params.get("resolve") === "1"}
+              refundMode={params.get("mode") === "refund"}
+            />
           ) : (
             <>
               <div className="workspace-title">
@@ -496,18 +599,16 @@ function Workspace() {
                     <p>
                       Make it your own, or invite someone to share it.
                       <br />
-                      Expense entry is coming in the next phase.
+                      Add an expense to start keeping track.
                     </p>
-                    {selected.isOwner && selected.status === "active" ? (
+                    {selected.status === "active" ? (
                       <button
                         className="button secondary"
-                        onClick={() => {
-                          setInvite(null);
-                          inviteKey.current = null;
-                          setModal("invite");
-                        }}
+                        onClick={() =>
+                          router.push(`/workspace?bucket=${selected.id}&view=add-expense`)
+                        }
                       >
-                        Invite your people <ArrowRight size={16} />
+                        Add an expense <ArrowRight size={16} />
                       </button>
                     ) : (
                       <button

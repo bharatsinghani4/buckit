@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body>
         <Script src="/theme-init.js" strategy="beforeInteractive" />
         <SkipLink />

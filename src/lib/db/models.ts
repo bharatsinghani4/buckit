@@ -78,6 +78,7 @@ const optionSchema = new Schema(
     name: String,
     nameKey: String,
     iconKey: String,
+    ownerLabel: String,
     systemKey: String,
     state: { type: String, default: "active" },
     createdByUserId: ref,
@@ -105,6 +106,73 @@ const invitationSchema = new Schema(
 invitationSchema.index({ tokenHash: 1 }, { unique: true });
 invitationSchema.index({ bucketId: 1, createdAt: -1 });
 
+const expenseSchema = new Schema(
+  {
+    bucketId: ref,
+    actualCreatorUserId: ref,
+    creatorMembershipId: ref,
+    paidByUserId: ref,
+    addedByUserId: ref,
+    expenseDate: { type: String, required: true },
+    description: { type: String, required: true },
+    notes: { type: String, default: "" },
+    categoryId: ref,
+    accountId: ref,
+    platformId: ref,
+    referenceLabels: {
+      category: String,
+      account: String,
+      platform: String,
+    },
+    paymentMode: {
+      type: String,
+      enum: ["upi", "cash", "neft", "imps", "credit_card"],
+      required: true,
+    },
+    originalAmount: { type: Schema.Types.Decimal128, required: true },
+    originalCurrency: { type: String, required: true },
+    bucketCurrency: { type: String, required: true },
+    conversion: {
+      status: { type: String, enum: ["estimated", "final", "missing"], required: true },
+      method: { type: String, enum: ["identity", "provider", "manual_rate", "manual_amount"] },
+      convertedAmount: Schema.Types.Decimal128,
+      rate: Schema.Types.Decimal128,
+      rateDate: String,
+      provider: String,
+      manualFixed: { type: Boolean, default: false },
+    },
+    postingState: { type: String, enum: ["unposted", "posted", "canceled"], required: true },
+    reviewState: { type: String, enum: ["none", "archive_review_required"], default: "none" },
+    dueAt: Date,
+    scheduleTimezone: String,
+    postedAt: Date,
+    deletedAt: Date,
+    restoreUntil: Date,
+    deletedByUserId: Schema.Types.ObjectId,
+    refundOfExpenseId: Schema.Types.ObjectId,
+    source: { kind: { type: String, default: "manual" } },
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+expenseSchema.index({ bucketId: 1, expenseDate: -1, _id: -1 });
+expenseSchema.index({ bucketId: 1, actualCreatorUserId: 1, deletedAt: -1 });
+expenseSchema.index({ bucketId: 1, postingState: 1, deletedAt: 1, expenseDate: 1 });
+
+const commentSchema = new Schema(
+  {
+    bucketId: ref,
+    expenseId: ref,
+    authorUserId: ref,
+    body: { type: String, required: true },
+    editedAt: Date,
+    deletedAt: Date,
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+commentSchema.index({ expenseId: 1, createdAt: 1, _id: 1 });
+
 const receiptSchema = new Schema(
   {
     actor: { type: String, required: true },
@@ -124,6 +192,7 @@ const auditSchema = new Schema(
     actorUserId: ref,
     actorKind: { type: String, default: "user" },
     action: String,
+    changedFields: [String],
     entityId: Schema.Types.ObjectId,
     occurredAt: { type: Date, default: Date.now },
     operationKey: String,
@@ -148,6 +217,10 @@ export const OptionModel =
 export const InvitationModel =
   mongoose.models.BuckitInvitation ||
   mongoose.model("BuckitInvitation", invitationSchema, "invitations");
+export const ExpenseModel =
+  mongoose.models.BuckitExpense || mongoose.model("BuckitExpense", expenseSchema, "expenses");
+export const CommentModel =
+  mongoose.models.BuckitComment || mongoose.model("BuckitComment", commentSchema, "comments");
 export const ReceiptModel =
   mongoose.models.BuckitReceipt ||
   mongoose.model("BuckitReceipt", receiptSchema, "operation_receipts");
@@ -165,3 +238,4 @@ export const phaseOneModels = [
   AuditModel,
   RateLimitModel,
 ];
+export const phaseTwoModels = [...phaseOneModels, ExpenseModel, CommentModel];

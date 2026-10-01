@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 @plugin "daisyui" {
   themes: false;
   prefix: "d-";
@@ -17,6 +18,8 @@
   --error: #a13737;
   --error-bg: #fff0ed;
   --shadow: 0 4px 24px #172f2806;
+  --button-primary: #193a2e;
+  --button-primary-text: #fff;
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -32,6 +35,8 @@
   --error: #ffb3ab;
   --error-bg: #3d2929;
   --shadow: 0 4px 18px #00000018;
+  --button-primary: #a8e6c2;
+  --button-primary-text: #17251e;
 }
 * {
   @apply [box-sizing:border-box];
@@ -99,10 +104,10 @@ h1 {
   @apply [font-size:32px] [font-weight:700];
 }
 h2 {
-  @apply [font-size:25px] [font-weight:650];
+  @apply [font-size:20px] [font-weight:650];
 }
 h3 {
-  @apply [font-size:17px] [font-weight:650];
+  @apply [font-size:16px] [font-weight:650];
 }
 p {
   @apply [color:var(--muted)];
@@ -123,10 +128,10 @@ svg {
   @apply [font-family:"Fraunces_Variable",_Georgia,_serif] [font-style:italic] [color:var(--mint)] [font-weight:700] [letter-spacing:-.065em];
 }
 .button {
-  @apply [min-height:46px] [padding:11px_22px] [display:inline-flex] [align-items:center] [justify-content:center] [gap:10px] [border:1px_solid_transparent] [border-radius:7px] [font-size:12px] [font-weight:650];
+  @apply [padding:8px_16px] [display:inline-flex] [align-items:center] [justify-content:center] [gap:10px] [border:1px_solid_transparent] [border-radius:4px] [font-size:12px] [font-weight:650];
 }
 .button.primary {
-  @apply [background:var(--green)] [color:var(--surface)];
+  @apply [background:var(--button-primary)] [color:var(--button-primary-text)];
 }
 .button.primary:hover:not(:disabled) {
   @apply [background:var(--ink)];
@@ -323,12 +328,16 @@ svg {
 .form-stack {
   @apply [display:flex] [flex-direction:column] [gap:16px];
 }
-label {
+label:not([class]) {
   @apply [display:flex] [flex-direction:column] [gap:7px] [font-size:12px] [font-weight:500];
 }
-input,
+input:not([type="checkbox"]):not([type="radio"]),
 select {
   @apply [width:100%] [min-width:0] [height:46px] [padding:0_14px] [background:var(--soft)] [border:1px_solid_transparent] [color:var(--ink)] [font-size:12px];
+}
+input[type="checkbox"],
+input[type="radio"] {
+  @apply [width:16px] [height:16px] [min-width:16px] [margin:0] [padding:0] [accent-color:var(--green)];
 }
 input::placeholder {
   @apply [color:var(--muted)] [opacity:.75];
@@ -641,7 +650,7 @@ button.nav-item:hover {
   @apply [display:grid] [place-items:center] [width:31px] [height:31px] [border-radius:50%] [background:var(--sage)] [color:var(--green)];
 }
 .workspace-content {
-  @apply [max-width:1160px] [margin:auto] [padding:36px_32px];
+  @apply [max-width:1160px] [margin:auto] [padding:32px];
 }
 .workspace-title {
   @apply [display:flex] [justify-content:space-between] [align-items:center] [gap:20px] [margin-bottom:32px];
