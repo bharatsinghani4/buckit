@@ -1,6 +1,7 @@
 import "server-only";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { DecodedIdToken } from "firebase-admin/auth";
-import mongoose from "mongoose";
+import mongoose, { type ClientSession } from "mongoose";
 import { ApiError, assertRevision } from "@/lib/api/errors";
 import {
   AuditModel,
@@ -18,10 +19,79 @@ import { z } from "zod";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { dueInstant, installmentDate, localDate } from "./dates";
 import { planEditInput, planInput, type PlanInput } from "./contracts";
+import { requireConfig } from "@/lib/config/required";
 
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
 const unavailable = () =>
   new ApiError(404, "RESOURCE_NOT_FOUND", "This EMI plan is not available.");
+const correctionInput = z
+  .object({
+    planId: z.string().regex(/^[a-f\d]{24}$/i),
+    expectedRevision: z.number().int().nonnegative(),
+    edits: planEditInput,
+  })
+  .strict();
+
+function signPreview(payload: string) {
+  return createHmac("sha256", requireConfig("API_CURSOR_SECRET", process.env.API_CURSOR_SECRET))
+    .update(payload)
+    .digest("base64url");
+}
+
+function previewToken(data: Record<string, unknown>) {
+  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
+  return `${payload}.${signPreview(payload)}`;
+}
+
+function assertPreviewToken(token: unknown, expected: Record<string, unknown>) {
+  try {
+    if (typeof token !== "string" || token.length > 32_768) throw new Error();
+    const [payload, signature, extra] = token.split(".");
+    const validSignature = signPreview(payload);
+    if (
+      extra ||
+      !signature ||
+      signature.length !== validSignature.length ||
+      !timingSafeEqual(Buffer.from(signature), Buffer.from(validSignature))
+    )
+      throw new Error();
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (
+      typeof parsed.expiresAt !== "number" ||
+      parsed.expiresAt < Date.now() ||
+      Object.entries(expected).some(([key, value]) => parsed[key] !== value)
+    )
+      throw new Error();
+  } catch {
+    throw new ApiError(412, "PREVIEW_STALE", "Preview these plan changes again before saving.");
+  }
+}
+
+async function affectedFuture(planId: string, session?: ClientSession) {
+  const installments = await EmiInstallmentModel.find({ planId, state: "scheduled" })
+    .sort({ installmentNumber: 1 })
+    .session(session ?? null);
+  const expenses = await ExpenseModel.find({
+    _id: { $in: installments.map((item) => item.expenseId).filter(Boolean) },
+    postingState: "unposted",
+    deletedAt: null,
+  }).session(session ?? null);
+  const byId = new Map(expenses.map((item) => [String(item._id), item]));
+  return installments.flatMap((item) => {
+    const expense = byId.get(String(item.expenseId));
+    return expense
+      ? [
+          {
+            id: String(item._id),
+            number: item.installmentNumber,
+            date: item.scheduledDate,
+            revision: item.revision,
+            expenseRevision: expense.revision,
+          },
+        ]
+      : [];
+  });
+}
 
 async function planDto(plan: InstanceType<typeof EmiPlanModel>, viewerId: string) {
   const [creator, counts, next, viewerMembership] = await Promise.all([
@@ -95,18 +165,32 @@ export async function getPlan(identity: DecodedIdToken, bucketId: string, planId
   return planDto(plan, String(user._id));
 }
 
-export async function listInstallments(identity: DecodedIdToken, bucketId: string, planId: string) {
+export async function listInstallments(
+  identity: DecodedIdToken,
+  bucketId: string,
+  planId: string,
+  cursor: string | null,
+) {
   const user = await activeUser(identity);
   await bucketForUser(bucketId, user);
   if (!(await EmiPlanModel.exists({ _id: planId, bucketId }))) throw unavailable();
-  const entries = await EmiInstallmentModel.find({ planId, bucketId })
+  const after = cursor === null ? 0 : Number(cursor);
+  if (!Number.isInteger(after) || after < 0 || after > 120)
+    throw new ApiError(400, "INVALID_CURSOR", "Refresh the installment schedule.");
+  const entries = await EmiInstallmentModel.find({
+    planId,
+    bucketId,
+    installmentNumber: { $gt: after },
+  })
     .sort({ installmentNumber: 1 })
-    .limit(120);
+    .limit(25);
+  const hasMore = entries.length > 24;
+  const page = entries.slice(0, 24);
   const expenses = await ExpenseModel.find({
-    _id: { $in: entries.map((entry) => entry.expenseId).filter(Boolean) },
+    _id: { $in: page.map((entry) => entry.expenseId).filter(Boolean) },
   });
   const byId = new Map(expenses.map((expense) => [String(expense._id), expense]));
-  return entries.map((entry) => ({
+  const data = page.map((entry) => ({
     id: String(entry._id),
     number: entry.installmentNumber,
     scheduledDate: entry.scheduledDate,
@@ -118,6 +202,11 @@ export async function listInstallments(identity: DecodedIdToken, bucketId: strin
     expenseRevision: entry.expenseId ? (byId.get(String(entry.expenseId))?.revision ?? null) : null,
     revision: entry.revision,
   }));
+  return {
+    data,
+    hasMore,
+    nextCursor: hasMore ? String(page.at(-1)!.installmentNumber) : null,
+  };
 }
 
 export function previewDates(input: PlanInput) {
@@ -131,12 +220,95 @@ export function previewDates(input: PlanInput) {
 }
 
 export async function previewPlan(identity: DecodedIdToken, bucketId: string, raw: unknown) {
+  if (raw && typeof raw === "object" && "planId" in raw) {
+    const { planId, expectedRevision, edits } = correctionInput.parse(raw);
+    const user = await activeUser(identity);
+    const bucket = await bucketForUser(bucketId, user);
+    if (bucket.status !== "active") throw unavailable();
+    const membership = await MembershipModel.findOne({
+      bucketId,
+      userId: user._id,
+      state: "active",
+    });
+    const plan = await EmiPlanModel.findOne({
+      _id: planId,
+      bucketId,
+      actualCreatorUserId: user._id,
+      creatorMembershipId: membership?._id,
+      state: "active",
+    });
+    if (!plan) throw unavailable();
+    if (plan.revision !== expectedRevision)
+      throw new ApiError(412, "REVISION_MISMATCH", "This plan changed. Refresh and preview again.");
+    if (edits.installmentAmount) {
+      minorUnits(edits.installmentAmount, edits.currency ?? plan.currency);
+      if (Number(edits.installmentAmount) <= 0)
+        throw new ApiError(422, "INVALID_AMOUNT", "Enter a positive installment amount.");
+    } else if (edits.currency) minorUnits(plan.installmentAmount.toString(), edits.currency);
+    const session = await mongoose.startSession();
+    try {
+      await validateReferences(
+        {
+          categoryId: edits.categoryId ?? String(plan.categoryId),
+          accountId: edits.accountId ?? String(plan.accountId),
+          platformId: edits.platformId ?? String(plan.platformId),
+          paidByUserId: edits.paidByUserId ?? String(plan.paidByUserId),
+          paymentMode: edits.paymentMode ?? plan.paymentMode,
+          originalAmount: edits.installmentAmount ?? plan.installmentAmount.toString(),
+          originalCurrency: edits.currency ?? plan.currency,
+          expenseDate: plan.firstInstallmentDate,
+          description: edits.title ?? plan.title,
+          notes: "",
+        },
+        bucketId,
+        session,
+        plan,
+      );
+    } finally {
+      await session.endSession();
+    }
+    const affected = await affectedFuture(planId);
+    const token = previewToken({
+      userId: String(user._id),
+      bucketId,
+      planId,
+      revision: plan.revision,
+      edits: JSON.stringify(edits),
+      affected: JSON.stringify(affected),
+      expiresAt: Date.now() + 10 * 60_000,
+    });
+    return {
+      affected,
+      affectedCount: affected.length,
+      remainingUngenerated: plan.totalInstallments - plan.generatedThroughNumber,
+      validationToken: token,
+      revision: plan.revision,
+    };
+  }
   const input = planInput.parse(raw);
   minorUnits(input.installmentAmount, input.currency);
   if (Number(input.installmentAmount) <= 0)
     throw new ApiError(422, "INVALID_AMOUNT", "Enter a positive installment amount.");
   const user = await activeUser(identity);
-  await bucketForUser(bucketId, user);
+  const bucket = await bucketForUser(bucketId, user);
+  if (bucket.status !== "active") throw unavailable();
+  const session = await mongoose.startSession();
+  try {
+    await validateReferences(
+      {
+        ...input,
+        expenseDate: input.firstInstallmentDate,
+        description: input.title,
+        notes: "",
+        originalAmount: input.installmentAmount,
+        originalCurrency: input.currency,
+      },
+      bucketId,
+      session,
+    );
+  } finally {
+    await session.endSession();
+  }
   return {
     dates: previewDates(input),
     remainingCount: input.totalInstallments - input.previouslyPaidCount,
@@ -338,7 +510,9 @@ export async function changePlan(
   key: string,
   revision: string | null,
 ) {
-  const edits = action === "edit" ? planEditInput.parse(raw) : {};
+  const body = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const { validationToken, ...editBody } = body as Record<string, unknown>;
+  const edits = action === "edit" ? planEditInput.parse(editBody) : {};
   const user = await activeUser(identity);
   const bucket = await bucketForUser(bucketId, user);
   const creatorMembership = await MembershipModel.findOne({
@@ -346,8 +520,30 @@ export async function changePlan(
     userId: user._id,
     state: "active",
   });
+  let currentCurrency = bucket.primaryCurrency;
+  if (action === "edit") {
+    const current = await EmiPlanModel.findOne({
+      _id: planId,
+      bucketId,
+      actualCreatorUserId: user._id,
+      creatorMembershipId: creatorMembership?._id,
+      state: "active",
+    });
+    if (!current) throw unavailable();
+    assertRevision(revision, current.revision);
+    currentCurrency = current.currency;
+    const affected = await affectedFuture(planId);
+    assertPreviewToken(validationToken, {
+      userId: String(user._id),
+      bucketId,
+      planId,
+      revision: current.revision,
+      edits: JSON.stringify(edits),
+      affected: JSON.stringify(affected),
+    });
+  }
   if (action === "edit" && "installmentAmount" in edits && edits.installmentAmount) {
-    minorUnits(edits.installmentAmount, edits.currency ?? bucket.primaryCurrency);
+    minorUnits(edits.installmentAmount, edits.currency ?? currentCurrency);
     if (Number(edits.installmentAmount) <= 0)
       throw new ApiError(422, "INVALID_AMOUNT", "Enter a positive installment amount.");
   }
@@ -422,6 +618,15 @@ export async function changePlan(
       if (!plan) throw unavailable();
       assertRevision(revision, plan.revision);
       if (action === "edit") {
+        const affected = await affectedFuture(planId, session);
+        assertPreviewToken(validationToken, {
+          userId: String(actor._id),
+          bucketId,
+          planId,
+          revision: plan.revision,
+          edits: JSON.stringify(edits),
+          affected: JSON.stringify(affected),
+        });
         const merged = {
           ...edits,
           categoryId: edits.categoryId ?? String(plan.categoryId),

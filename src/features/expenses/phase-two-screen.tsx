@@ -964,7 +964,7 @@ export function PhaseTwoScreen({
                   <div>
                     <h2 className="text-lg">
                       Items in recovery{" "}
-                      <span className="rounded-full bg-[var(--soft)] px-2 text-xs">
+                      <span className="rounded-full bg-[var(--soft)] px-2 py-1 text-xs">
                         {expenses.length}
                       </span>
                     </h2>

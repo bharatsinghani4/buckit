@@ -24,7 +24,7 @@ import {
   type Profile,
 } from "./contracts";
 
-type AppUser = {
+export type AppUser = {
   _id: mongoose.Types.ObjectId;
   status: string;
   displayName: string;
@@ -33,6 +33,17 @@ type AppUser = {
   theme: Profile["theme"];
   lastBucketId?: mongoose.Types.ObjectId | null;
   tour: Profile["tour"];
+  createdAt: Date;
+  notificationPreferences?: Map<
+    string,
+    {
+      inApp: boolean;
+      push: boolean;
+      inAppEnabledSince?: Date;
+      pushEnabledSince?: Date;
+    }
+  >;
+  notificationPreferenceRevision?: number;
   revision: number;
 };
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
