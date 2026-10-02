@@ -18,6 +18,7 @@ import {
   Wallet,
   CreditCard,
   X,
+  BookOpen,
 } from "lucide-react";
 import { Dropdown } from "@/components/dropdown";
 import { Dialog, Notice, Pending } from "@/components/ui";
@@ -412,7 +413,7 @@ export function PhaseThreeScreen({
         )}
       {view === "dashboard" && dashboard && (
         <>
-          <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
                 Bucket overview
@@ -930,8 +931,8 @@ export function PhaseThreeScreen({
               </Link>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex gap-2 border-b border-[var(--line)]">
               {[
                 ["all", "All budgets"],
                 ["shared", "Shared budgets"],
@@ -940,10 +941,10 @@ export function PhaseThreeScreen({
                 <button
                   key={value}
                   type="button"
-                  className={`rounded-lg px-3 py-2 text-xs font-semibold ${budgetTab === value ? "bg-[var(--soft)] text-[var(--green)]" : "text-[var(--muted)] hover:bg-[var(--soft)]"}`}
+                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none !font-semibold ${budgetTab === value ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent !text-[var(--muted)]"}`}
                   onClick={() => setBudgetTab(value)}
                 >
-                  {label}
+                  <BookOpen size={16} /> {label}
                 </button>
               ))}
             </div>
@@ -1345,11 +1346,7 @@ export function PhaseThreeScreen({
         <Notice>This budget is unavailable. Return to all budgets and choose another.</Notice>
       )}
       {deleteOpen && selected && (
-        <Dialog title="Delete this budget?" onClose={() => setDeleteOpen(false)}>
-          <p className="mb-4 text-sm text-[var(--muted)]">
-            {selected.budget.name} will disappear from budget views. Expense records remain
-            unchanged.
-          </p>
+        <Dialog title="Delete this budget?" subtitle={`${selected.budget.name} will disappear from budget views. Expense records remain unchanged.`} onClose={() => setDeleteOpen(false)}>
           <div className="flex justify-end gap-2">
             <button className={secondary} onClick={() => setDeleteOpen(false)}>
               Cancel
