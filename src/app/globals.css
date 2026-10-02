@@ -695,13 +695,13 @@ button.nav-item:hover {
   @apply [font-size:12px];
 }
 .dialog {
-  @apply fixed inset-0 m-auto h-fit overflow-y-auto [color:var(--ink)] [background:var(--surface)] [border:1px_solid_var(--line)] [border-radius:14px] [padding:30px] [width:min(480px,_calc(100%_-_32px))] [max-height:calc(100svh_-_48px)] [box-shadow:0_20px_48px_#172f2825];
+  @apply fixed inset-0 m-auto h-fit overflow-y-auto [color:var(--ink)] [background:var(--surface)] [border:1px_solid_var(--line)] [border-radius:14px] [padding:30px] [width:min(600px,_calc(100%_-_32px))] [max-height:calc(100svh_-_48px)] [box-shadow:0_20px_48px_#172f2825];
 }
 .dialog::backdrop {
   @apply [background:#172f2860] [backdrop-filter:blur(4px)];
 }
 .dialog > header {
-  @apply [display:flex] [align-items:center] [justify-content:space-between] [gap:14px] [margin-bottom:22px];
+  @apply [display:flex] [align-items:start] [justify-content:space-between] [gap:14px] [margin-bottom:22px];
 }
 .dialog > header h2 {
   @apply [font-size:21px];

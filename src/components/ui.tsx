@@ -41,10 +41,12 @@ export function PasswordField(props: InputHTMLAttributes<HTMLInputElement>) {
 }
 export function Dialog({
   title,
+  subtitle,
   children,
   onClose,
 }: {
   title: string;
+  subtitle: string;
   children: ReactNode;
   onClose: () => void;
 }) {
@@ -65,7 +67,10 @@ export function Dialog({
       className="dialog"
     >
       <header>
-        <h2 id="dialog-title">{title}</h2>
+        <div>
+          <h2 id="dialog-title">{title}</h2>
+          {subtitle && <p className="text-[var(--muted)]">{subtitle}</p>}
+        </div>
         <button className="icon-button" onClick={onClose} aria-label="Close dialog">
           <X size={20} />
         </button>

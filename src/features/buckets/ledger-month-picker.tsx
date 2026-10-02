@@ -121,7 +121,7 @@ export function LedgerMonthPicker({
           </div>
           <button
             type="button"
-            className="mt-3 w-full border-t border-[var(--line)] pt-3 text-center text-xs font-semibold text-[var(--green)] hover:underline"
+            className="mt-3 w-full border-t border-[var(--line)] pt-3 text-center text-xs font-semibold text-[var(--green)] hover:underline !rounded-none"
             onClick={() => select("")}
           >
             Show all months
