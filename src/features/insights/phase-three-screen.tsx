@@ -130,7 +130,7 @@ function BudgetCard({
         </div>
         <ChevronRight size={18} className="shrink-0 text-[var(--muted)]" />
       </div>
-      <div className="mb-3 flex items-end justify-between gap-2">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <div>
           <span className="text-xs text-[var(--muted)]">Allocated limit</span>
           <p className="text-lg font-bold text-[var(--ink)]">
@@ -579,7 +579,7 @@ export function PhaseThreeScreen({
               </p>
               {dashboard.trend.length ? (
                 <div
-                  className="flex h-36 items-end gap-1"
+                  className="flex h-36 items-center gap-1"
                   role="img"
                   aria-label="Daily spending chart"
                 >
@@ -678,7 +678,7 @@ export function PhaseThreeScreen({
                     <CreditCard size={19} />
                   </span>
                   <div>
-                    <h2 className="text-sm font-bold text-[var(--ink)]">EMI commitments</h2>
+                    <h2 className="text-base font-bold text-[var(--ink)]">EMI commitments</h2>
                     <p className="text-xs text-[var(--muted)]">
                       Scheduled installments are separate from actual spending.
                     </p>
@@ -713,7 +713,7 @@ export function PhaseThreeScreen({
       )}
       {view === "reports" && report && (
         <>
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
                 Spending insights
@@ -912,7 +912,7 @@ export function PhaseThreeScreen({
       )}
       {view === "budgets" && budgetLoaded && (
         <>
-          <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
                 Money planning · budgets
@@ -1004,7 +1004,7 @@ export function PhaseThreeScreen({
           >
             <ArrowLeft size={15} /> All budgets
           </Link>
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
                 {selected.budget.scope === "shared" ? "Shared budget" : "Member budget"}

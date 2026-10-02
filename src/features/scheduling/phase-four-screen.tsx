@@ -107,6 +107,7 @@ export function PhaseFourScreen({
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<Plan | null>(null);
   const [installments, setInstallments] = useState<Installment[]>([]);
+  const [installmentCursor, setInstallmentCursor] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState<Scheduled[]>([]);
   const [options, setOptions] = useState<{
     categories: Option[];
@@ -123,6 +124,12 @@ export function PhaseFourScreen({
   const [target, setTarget] = useState<Installment | null>(null);
   const [reviewTarget, setReviewTarget] = useState<Scheduled | null>(null);
   const [preview, setPreview] = useState<{ number: number; date: string }[]>([]);
+  const [correctionPreview, setCorrectionPreview] = useState<{
+    affected: { id: string; number: number; date: string }[];
+    affectedCount: number;
+    remainingUngenerated: number;
+    validationToken: string;
+  } | null>(null);
   const [form, setForm] = useState({
     title: "",
     installmentAmount: "",
@@ -151,6 +158,7 @@ export function PhaseFourScreen({
         ]);
         setSelected(plan.data);
         setInstallments(entries.data);
+        setInstallmentCursor(entries.meta.nextCursor ?? null);
       } else {
         const result = await read<Plan[]>(`buckets/${bucket.id}/emi-plans`);
         setPlans(result.data);
@@ -162,6 +170,25 @@ export function PhaseFourScreen({
     }
   }, [bucket.id, planId, read, view]);
 
+  async function loadMoreInstallments() {
+    if (!planId || !installmentCursor || busy) return;
+    setBusy(true);
+    try {
+      const result = await read<Installment[]>(
+        `buckets/${bucket.id}/emi-plans/${planId}/installments?cursor=${installmentCursor}`,
+      );
+      setInstallments((current) => [
+        ...current,
+        ...result.data.filter((entry) => !current.some((item) => item.id === entry.id)),
+      ]);
+      setInstallmentCursor(result.meta.nextCursor ?? null);
+    } catch (cause) {
+      setError(friendlyError(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load]);
@@ -169,6 +196,7 @@ export function PhaseFourScreen({
   async function openForm(editing: boolean) {
     setError("");
     setPreview([]);
+    setCorrectionPreview(null);
     try {
       const [categories, accounts, platforms, members] = await Promise.all([
         read<Option[]>(`buckets/${bucket.id}/options/categories`),
@@ -216,8 +244,23 @@ export function PhaseFourScreen({
     }
   }
 
-  const update = (key: keyof typeof form, value: string) =>
+  const update = (key: keyof typeof form, value: string) => {
+    setCorrectionPreview(null);
+    setPreview([]);
     setForm((current) => ({ ...current, [key]: value }));
+  };
+  function planEdits() {
+    return {
+      title: form.title,
+      installmentAmount: form.installmentAmount,
+      currency: form.currency,
+      categoryId: form.categoryId,
+      accountId: form.accountId,
+      platformId: form.platformId || undefined,
+      paymentMode: form.paymentMode,
+      paidByUserId: form.paidByUserId,
+    };
+  }
   function planBody() {
     return {
       ...form,
@@ -228,11 +271,22 @@ export function PhaseFourScreen({
   }
   async function showPreview() {
     try {
-      const result = await api<{ dates: { number: number; date: string }[] }>(
-        `buckets/${bucket.id}/emi-plans/preview`,
-        { method: "POST", body: planBody() },
-      );
-      setPreview(result.data.dates);
+      if (dialog === "edit" && selected) {
+        const result = await api<NonNullable<typeof correctionPreview>>(
+          `buckets/${bucket.id}/emi-plans/preview`,
+          {
+            method: "POST",
+            body: { planId: selected.id, expectedRevision: selected.revision, edits: planEdits() },
+          },
+        );
+        setCorrectionPreview(result.data);
+      } else {
+        const result = await api<{ dates: { number: number; date: string }[] }>(
+          `buckets/${bucket.id}/emi-plans/preview`,
+          { method: "POST", body: planBody() },
+        );
+        setPreview(result.data.dates);
+      }
       setError("");
     } catch (cause) {
       setError(friendlyError(cause));
@@ -241,20 +295,18 @@ export function PhaseFourScreen({
   async function savePlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    const editing = dialog === "edit" && selected;
+    if (editing && !correctionPreview) {
+      setError("Preview the affected future installments before saving.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const editing = dialog === "edit" && selected;
       const body = editing
         ? {
-            title: form.title,
-            installmentAmount: form.installmentAmount,
-            currency: form.currency,
-            categoryId: form.categoryId,
-            accountId: form.accountId,
-            platformId: form.platformId || undefined,
-            paymentMode: form.paymentMode,
-            paidByUserId: form.paidByUserId,
+            ...planEdits(),
+            validationToken: correctionPreview!.validationToken,
           }
         : planBody();
       const result = await api<Plan>(
@@ -452,7 +504,7 @@ export function PhaseFourScreen({
             />
           </div>
           <section className={card}>
-            <h2 className="!mb-4 text-sm font-bold">Scheduled ledger</h2>
+            <h2 className="!mb-4 text-base font-bold">Scheduled ledger</h2>
             {scheduled.length ? (
               <div className="divide-y divide-[var(--line)]">
                 {scheduled.map((item) => (
@@ -539,8 +591,8 @@ export function PhaseFourScreen({
           <section className={card}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-bold">Financing schedule</h2>
-                <p className="mt-1 text-xs text-[var(--muted)]">
+                <h2 className="text-base font-bold">Financing schedule</h2>
+                <p className="text-xs text-[var(--muted)]">
                   Choose a plan to inspect every installment.
                 </p>
               </div>
@@ -669,8 +721,8 @@ export function PhaseFourScreen({
           </section>
           <section className={card}>
             <div className="mb-3">
-              <h2 className="text-sm font-bold">Installment schedule</h2>
-              <p className="mt-1 text-xs text-[var(--muted)]">
+              <h2 className="text-base font-bold">Installment schedule</h2>
+              <p className="text-xs text-[var(--muted)]">
                 Recorded entries link to the expense ledger. Skipped and deleted installments remain
                 unpaid obligations.
               </p>
@@ -739,6 +791,16 @@ export function PhaseFourScreen({
               </div>
             ) : (
               <Empty text="Installment setup is processing. The daily worker resumes remaining dates." />
+            )}
+            {installmentCursor && (
+              <button
+                type="button"
+                className={`${secondary} mt-4`}
+                disabled={busy}
+                onClick={() => void loadMoreInstallments()}
+              >
+                {busy ? "Loading…" : "Load more installments"}
+              </button>
             )}
           </section>
         </>
@@ -820,6 +882,7 @@ export function PhaseFourScreen({
                     type="date"
                     className={field}
                     value={form.firstInstallmentDate}
+                    onInput={(event) => update("firstInstallmentDate", event.currentTarget.value)}
                     onChange={(event) => update("firstInstallmentDate", event.target.value)}
                   />
                 </Field>
@@ -874,21 +937,53 @@ export function PhaseFourScreen({
                 />
               </Field>
             </div>
-            {dialog === "add" && (
+            {(dialog === "add" || dialog === "edit") && (
               <div className="rounded-lg bg-[var(--soft)] p-3">
                 <button
                   type="button"
                   className="text-xs font-semibold text-[var(--green)]"
                   onClick={() => void showPreview()}
                 >
-                  Preview installment dates
+                  {dialog === "edit"
+                    ? "Preview affected installments"
+                    : "Preview installment dates"}
                 </button>
                 {preview.length > 0 && (
-                  <p className="mt-2 text-[11px] text-[var(--muted)]">
-                    {preview.length} remaining · {dateLabel(preview[0].date)} to{" "}
-                    {dateLabel(preview.at(-1)!.date)}. The monthly anchor returns after shorter
-                    months.
-                  </p>
+                  <div className="mt-2 text-[11px] text-[var(--muted)]">
+                    <p>
+                      {preview.length} remaining · {dateLabel(preview[0].date)} to{" "}
+                      {dateLabel(preview.at(-1)!.date)}. The monthly anchor returns after shorter
+                      months.
+                    </p>
+                    <ol className="mt-2 max-h-32 overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--surface)] p-2">
+                      {preview.map((item) => (
+                        <li key={item.number} className="flex justify-between gap-3 py-0.5">
+                          <span>Installment #{item.number}</span>
+                          <span>{dateLabel(item.date)}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {correctionPreview && (
+                  <div className="mt-2 text-[11px] text-[var(--muted)]">
+                    <p>
+                      {correctionPreview.affectedCount} scheduled installments will change.
+                      {correctionPreview.remainingUngenerated > 0 &&
+                        ` ${correctionPreview.remainingUngenerated} later installments will use the new defaults.`}
+                      {" Recorded and unpaid history will stay unchanged."}
+                    </p>
+                    {correctionPreview.affected.length > 0 && (
+                      <ol className="mt-2 max-h-32 overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--surface)] p-2">
+                        {correctionPreview.affected.map((item) => (
+                          <li key={item.id} className="flex justify-between gap-3 py-0.5">
+                            <span>Installment #{item.number}</span>
+                            <span>{dateLabel(item.date)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
                 )}
               </div>
             )}

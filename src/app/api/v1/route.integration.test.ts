@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { AuditModel, ExpenseModel, phaseFourModels } from "@/lib/db/models";
-import { processDaily } from "@/features/scheduling/service";
+import { generateInstallments, processDaily } from "@/features/scheduling/service";
 import { GET as dailyGET } from "../internal/jobs/daily/route";
 
 vi.mock("server-only", () => ({}));
@@ -41,6 +41,111 @@ afterAll(async () => {
 });
 
 describe("Phase 4 scheduled spending and EMI flows", () => {
+  it("paginates installment history and requires an exact correction preview", async () => {
+    const actor = "phase4pagination";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Long EMI plan",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const profile = (await request("GET", "me", actor)).payload.data;
+    const account = await request("POST", `${root}/accounts`, actor, { name: "Card" });
+    const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, actor)).payload.data[0];
+    const definition = {
+      title: "Long plan",
+      installmentAmount: "100.00",
+      currency: "INR",
+      totalInstallments: 30,
+      previouslyPaidCount: 0,
+      firstInstallmentDate: "2028-01-31",
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "credit_card",
+      paidByUserId: profile.id,
+    };
+    const created = await request("POST", `${root}/emi-plans`, actor, definition);
+    const planId = created.payload.data.id;
+    await generateInstallments(planId);
+    await generateInstallments(planId);
+    const first = await request("GET", `${root}/emi-plans/${planId}/installments`, actor);
+    expect(first.payload.data).toHaveLength(24);
+    expect(first.payload.meta.hasMore).toBe(true);
+    const second = await request(
+      "GET",
+      `${root}/emi-plans/${planId}/installments?cursor=${first.payload.meta.nextCursor}`,
+      actor,
+    );
+    expect(second.payload.data).toHaveLength(6);
+    expect(second.payload.data[0].number).toBe(25);
+    expect(second.payload.meta.hasMore).toBe(false);
+    expect(
+      (await request("GET", `${root}/emi-plans/${planId}/installments?cursor=wrong`, actor))
+        .response.status,
+    ).toBe(400);
+
+    const plan = await request("GET", `${root}/emi-plans/${planId}`, actor);
+    const edits = { title: "Corrected plan", installmentAmount: "125.00" };
+    const preview = await request("POST", `${root}/emi-plans/preview`, actor, {
+      planId,
+      expectedRevision: plan.payload.data.revision,
+      edits,
+    });
+    expect(preview.payload.data.affectedCount).toBe(30);
+    expect(preview.payload.data.affected[0].number).toBe(1);
+    expect(
+      (
+        await request(
+          "PATCH",
+          `${root}/emi-plans/${planId}`,
+          actor,
+          { ...edits, validationToken: "invalid" },
+          { "If-Match": plan.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(412);
+    const changed = await request(
+      "PATCH",
+      `${root}/emi-plans/${planId}`,
+      actor,
+      { ...edits, validationToken: preview.payload.data.validationToken },
+      { "If-Match": plan.response.headers.get("ETag")! },
+    );
+    expect(changed.response.status, JSON.stringify(changed.payload)).toBe(200);
+    expect(changed.payload.data.title).toBe("Corrected plan");
+    const updated = await request("GET", `${root}/emi-plans/${planId}/installments`, actor);
+    expect(updated.payload.data[0].amount).toBe("125.00");
+    const nextPreview = await request("POST", `${root}/emi-plans/preview`, actor, {
+      planId,
+      expectedRevision: changed.payload.data.revision,
+      edits: { title: "Another correction" },
+    });
+    await request(
+      "POST",
+      `${root}/emi-plans/${planId}/installments/${updated.payload.data[0].id}/skip`,
+      actor,
+      undefined,
+      { "If-Match": `"r${updated.payload.data[0].expenseRevision}"` },
+    );
+    expect(
+      (
+        await request(
+          "PATCH",
+          `${root}/emi-plans/${planId}`,
+          actor,
+          {
+            title: "Another correction",
+            validationToken: nextPreview.payload.data.validationToken,
+          },
+          { "If-Match": changed.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(412);
+  });
+
   it("generates a month-end plan, posts once, and keeps skipped installments unpaid", async () => {
     const actor = "phase4owner";
     await request("POST", "me/bootstrap", actor, {});

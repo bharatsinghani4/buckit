@@ -1,17 +1,17 @@
 import { existsSync } from "node:fs";
 import mongoose from "mongoose";
 import { connectDatabase } from "../src/lib/db/mongoose";
-import { phaseFourModels } from "../src/lib/db/models";
+import { phaseFiveModels } from "../src/lib/db/models";
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 try {
   await connectDatabase();
-  for (const model of phaseFourModels) {
+  for (const model of phaseFiveModels) {
     await model.createCollection();
     await model.createIndexes();
     console.log(`Ready: ${model.collection.collectionName}`);
   }
-  console.log("Phase 1–4 collections and indexes are ready. Existing indexes were not dropped.");
+  console.log("Phase 1–5 collections and indexes are ready. Existing indexes were not dropped.");
 } catch {
   console.error(
     "Database setup failed. Check the MongoDB configuration, database permissions, and network access.",

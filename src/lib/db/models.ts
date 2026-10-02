@@ -23,6 +23,20 @@ const userSchema = new Schema(
       state: { type: String, default: "not_started" },
       lastStep: { type: Number, default: 0 },
     },
+    notificationPreferences: {
+      type: Map,
+      of: new Schema(
+        {
+          inApp: { type: Boolean, required: true },
+          push: { type: Boolean, required: true },
+          inAppEnabledSince: Date,
+          pushEnabledSince: Date,
+        },
+        { _id: false },
+      ),
+      default: {},
+    },
+    notificationPreferenceRevision: { type: Number, default: 1 },
     revision: { type: Number, default: 1 },
     accessRevision: { type: Number, default: 0 },
   },
@@ -327,6 +341,114 @@ const jobLeaseSchema = new Schema(
   { versionKey: false, autoIndex: false, autoCreate: false },
 );
 
+const reminderSchema = new Schema(
+  {
+    userId: ref,
+    bucketId: Schema.Types.ObjectId,
+    membershipId: Schema.Types.ObjectId,
+    enabled: { type: Boolean, default: true },
+    timezone: { type: String, required: true },
+    frequency: {
+      type: String,
+      enum: ["daily", "weekly", "twice_weekly", "fortnightly", "monthly"],
+      required: true,
+    },
+    weekdays: [Number],
+    anchorDate: String,
+    dayOfMonth: Number,
+    nextLocalDate: String,
+    nextDueAt: Date,
+    lastEmittedOccurrenceKey: String,
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+reminderSchema.index({ enabled: 1, nextDueAt: 1 });
+reminderSchema.index({ userId: 1, enabled: 1 });
+reminderSchema.index({ bucketId: 1 });
+
+const domainEventSchema = new Schema(
+  {
+    eventKey: { type: String, required: true },
+    type: { type: String, required: true },
+    actorUserId: Schema.Types.ObjectId,
+    bucketId: Schema.Types.ObjectId,
+    entityType: { type: String, required: true },
+    entityId: Schema.Types.ObjectId,
+    occurredAt: { type: Date, default: Date.now },
+    context: { type: Schema.Types.Mixed, default: {} },
+    notificationPolicy: { type: String, enum: ["eligible", "suppressed"], default: "eligible" },
+    fanoutState: { type: String, enum: ["pending", "complete"], default: "pending" },
+    fanoutCursor: String,
+    completedAt: Date,
+  },
+  common,
+);
+domainEventSchema.index({ eventKey: 1 }, { unique: true });
+domainEventSchema.index({ fanoutState: 1, createdAt: 1 });
+
+const notificationSchema = new Schema(
+  {
+    eventId: ref,
+    recipientUserId: ref,
+    bucketId: Schema.Types.ObjectId,
+    triggerType: { type: String, required: true },
+    title: { type: String, required: true },
+    target: { type: Schema.Types.Mixed, default: null },
+    readAt: Date,
+  },
+  common,
+);
+notificationSchema.index({ eventId: 1, recipientUserId: 1 }, { unique: true });
+notificationSchema.index({ recipientUserId: 1, createdAt: -1, _id: -1 });
+notificationSchema.index({ recipientUserId: 1, readAt: 1, createdAt: -1 });
+notificationSchema.index({ bucketId: 1 });
+
+const pushInstallationSchema = new Schema(
+  {
+    userId: ref,
+    installationId: { type: String, required: true },
+    encryptedToken: { type: String, required: true },
+    tokenHash: { type: String, required: true },
+    registrationVersion: { type: Number, default: 1 },
+    state: { type: String, enum: ["active", "revoked", "invalid"], default: "active" },
+    permission: { type: String, required: true },
+    boundAt: { type: Date, default: Date.now },
+    lastSeenAt: { type: Date, default: Date.now },
+    revokedAt: Date,
+  },
+  common,
+);
+pushInstallationSchema.index({ tokenHash: 1 }, { unique: true });
+pushInstallationSchema.index({ userId: 1, installationId: 1 }, { unique: true });
+pushInstallationSchema.index({ userId: 1, state: 1 });
+
+const pushDeliverySchema = new Schema(
+  {
+    eventId: ref,
+    recipientUserId: ref,
+    installationId: { type: String, required: true },
+    registrationVersion: { type: Number, required: true },
+    bucketId: Schema.Types.ObjectId,
+    triggerType: { type: String, required: true },
+    state: {
+      type: String,
+      enum: ["pending", "leased", "sent", "retry", "suppressed", "failed"],
+      default: "pending",
+    },
+    attemptCount: { type: Number, default: 0 },
+    nextAttemptAt: { type: Date, default: Date.now },
+    leaseUntil: Date,
+    leaseToken: String,
+    providerMessageId: String,
+    lastErrorCode: String,
+  },
+  common,
+);
+pushDeliverySchema.index({ eventId: 1, recipientUserId: 1, installationId: 1 }, { unique: true });
+pushDeliverySchema.index({ state: 1, nextAttemptAt: 1 });
+pushDeliverySchema.index({ recipientUserId: 1, state: 1 });
+
 export const UserModel =
   mongoose.models.BuckitUser || mongoose.model("BuckitUser", userSchema, "users");
 export const BucketModel =
@@ -362,6 +484,20 @@ export const RateLimitModel =
   mongoose.models.BuckitRateLimit || mongoose.model("BuckitRateLimit", limitSchema, "rate_limits");
 export const JobLeaseModel =
   mongoose.models.BuckitJobLease || mongoose.model("BuckitJobLease", jobLeaseSchema, "job_leases");
+export const ReminderModel =
+  mongoose.models.BuckitReminder || mongoose.model("BuckitReminder", reminderSchema, "reminders");
+export const DomainEventModel =
+  mongoose.models.BuckitDomainEvent ||
+  mongoose.model("BuckitDomainEvent", domainEventSchema, "domain_events");
+export const NotificationModel =
+  mongoose.models.BuckitNotification ||
+  mongoose.model("BuckitNotification", notificationSchema, "notifications");
+export const PushInstallationModel =
+  mongoose.models.BuckitPushInstallation ||
+  mongoose.model("BuckitPushInstallation", pushInstallationSchema, "push_installations");
+export const PushDeliveryModel =
+  mongoose.models.BuckitPushDelivery ||
+  mongoose.model("BuckitPushDelivery", pushDeliverySchema, "push_deliveries");
 export const phaseOneModels = [
   UserModel,
   BucketModel,
@@ -379,4 +515,12 @@ export const phaseFourModels = [
   EmiPlanModel,
   EmiInstallmentModel,
   JobLeaseModel,
+];
+export const phaseFiveModels = [
+  ...phaseFourModels,
+  ReminderModel,
+  DomainEventModel,
+  NotificationModel,
+  PushInstallationModel,
+  PushDeliveryModel,
 ];

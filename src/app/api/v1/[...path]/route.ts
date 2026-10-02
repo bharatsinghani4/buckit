@@ -116,9 +116,16 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     else if (
       method === "GET" &&
       /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/installments$/i.test(path)
-    )
-      data = await listInstallments(identity, path.split("/")[1], path.split("/")[3]);
-    else if (method === "POST" && /^buckets\/[a-f\d]{24}\/emi-plans\/preview$/i.test(path))
+    ) {
+      const result = await listInstallments(
+        identity,
+        path.split("/")[1],
+        path.split("/")[3],
+        url.searchParams.get("cursor"),
+      );
+      data = result.data;
+      meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
+    } else if (method === "POST" && /^buckets\/[a-f\d]{24}\/emi-plans\/preview$/i.test(path))
       data = await previewPlan(identity, path.split("/")[1], await readJson(request));
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/budgets$/i.test(path))
       data = await listBudgets(
