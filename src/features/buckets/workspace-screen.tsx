@@ -737,6 +737,7 @@ function Workspace() {
                 ? "Make yourself at home"
                 : steps[currentStep].title
           }
+          subtitle=""
           onClose={closeModal}
         >
           {error && <Notice>{error}</Notice>}
