@@ -106,6 +106,7 @@ export type Option = {
   ownerLabel?: string;
   revision: number;
   usageCount: number;
+  budgetCount?: number;
   systemKey?: string;
 };
 export type Member = {

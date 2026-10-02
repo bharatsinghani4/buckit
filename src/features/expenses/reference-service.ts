@@ -1,7 +1,7 @@
 import "server-only";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { ApiError, assertRevision } from "@/lib/api/errors";
-import { AuditModel, ExpenseModel, OptionModel } from "@/lib/db/models";
+import { AuditModel, BudgetModel, ExpenseModel, OptionModel } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
 import { objectId, optionEditInput, optionInput, optionKinds, type OptionKind } from "./contracts";
 
@@ -19,10 +19,16 @@ async function dto(option: {
   systemKey?: string;
   revision: number;
 }) {
-  const usageCount = await ExpenseModel.countDocuments({
-    bucketId: option.bucketId,
-    [`${option.kind}Id`]: option._id,
-  });
+  const [usageCount, budgetCount] = await Promise.all([
+    ExpenseModel.countDocuments({ bucketId: option.bucketId, [`${option.kind}Id`]: option._id }),
+    option.kind === "category"
+      ? BudgetModel.countDocuments({
+          bucketId: option.bucketId,
+          categoryIds: option._id,
+          state: { $ne: "deleted" },
+        })
+      : Promise.resolve(0),
+  ]);
   return {
     id: String(option._id),
     name: option.name,
@@ -33,6 +39,7 @@ async function dto(option: {
     systemKey: option.systemKey,
     revision: option.revision,
     usageCount,
+    budgetCount,
   };
 }
 
@@ -149,11 +156,17 @@ export async function changeOption(
           "The default Other platform must remain available.",
         );
       if (action === "delete") {
-        const used = await ExpenseModel.exists({
-          bucketId,
-          [`${option.kind}Id`]: option._id,
-        }).session(session);
-        if (used || option.systemKey)
+        const [used, inBudget] = await Promise.all([
+          ExpenseModel.exists({ bucketId, [`${option.kind}Id`]: option._id }).session(session),
+          option.kind === "category"
+            ? BudgetModel.exists({
+                bucketId,
+                categoryIds: option._id,
+                state: { $ne: "deleted" },
+              }).session(session)
+            : Promise.resolve(null),
+        ]);
+        if (used || inBudget || option.systemKey)
           throw new ApiError(
             409,
             "OPTION_IN_USE",

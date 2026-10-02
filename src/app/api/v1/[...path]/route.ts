@@ -37,6 +37,14 @@ import {
   revokeInvitation,
 } from "@/features/expenses/member-service";
 import { optionKinds, type OptionKind } from "@/features/expenses/contracts";
+import {
+  changeBudget,
+  createBudget,
+  getBudget,
+  getBudgetUsage,
+  listBudgets,
+} from "@/features/insights/budget-service";
+import { dashboard, spendingReport } from "@/features/insights/report-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,8 +90,29 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     else if (method === "GET" && path === "capabilities")
       data = {
         currencies: currencies.map((c) => ({ ...c, precision: c.code === "JPY" ? 0 : 2 })),
-        phase: 2,
+        phase: 3,
       };
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/dashboard$/i.test(path))
+      data = await dashboard(identity, path.split("/")[1], url.searchParams);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/reports\/spending$/i.test(path))
+      data = await spendingReport(identity, path.split("/")[1], url.searchParams);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/budgets$/i.test(path))
+      data = await listBudgets(
+        identity,
+        path.split("/")[1],
+        url.searchParams.get("month") ?? "",
+        url.searchParams.get("scope"),
+        url.searchParams.get("state"),
+      );
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/budgets\/[a-f\d]{24}$/i.test(path))
+      data = await getBudget(identity, path.split("/")[1], path.split("/")[3]);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/budgets\/[a-f\d]{24}\/usage$/i.test(path))
+      data = await getBudgetUsage(
+        identity,
+        path.split("/")[1],
+        path.split("/")[3],
+        url.searchParams.get("month") ?? "",
+      );
     else if (
       /^buckets\/[a-f\d]{24}\/options\/(accounts|categories|platforms)$/i.test(path) &&
       method === "GET"
@@ -136,7 +165,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           (path === "me/bootstrap" ||
             path === "buckets" ||
             path === "invitations/join" ||
-            /^buckets\/[a-f\d]{24}\/(invitations|expenses|options\/(accounts|categories|platforms))$/i.test(
+            /^buckets\/[a-f\d]{24}\/(invitations|expenses|budgets|options\/(accounts|categories|platforms))$/i.test(
               path,
             ) ||
             /^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}\/restore$/i.test(path) ||
@@ -146,11 +175,11 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
             ))) ||
         (method === "PATCH" &&
           (path === "me" ||
-            /^buckets\/[a-f\d]{24}\/(expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
+            /^buckets\/[a-f\d]{24}\/(budgets\/[a-f\d]{24}|expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
               path,
             ))) ||
         (method === "DELETE" &&
-          /^buckets\/[a-f\d]{24}\/(expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|members\/[a-f\d]{24}|invitations\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
+          /^buckets\/[a-f\d]{24}\/(budgets\/[a-f\d]{24}|expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|members\/[a-f\d]{24}|invitations\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
             path,
           )) ||
         (method === "PUT" &&
@@ -173,6 +202,18 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         result = await createInvitation(identity, path.split("/")[1], body, key, url.origin);
       else if (method === "POST" && path === "invitations/join")
         result = await joinInvitation(identity, body, key);
+      else if (parts[2] === "budgets" && parts.length === 3 && method === "POST")
+        result = await createBudget(identity, bucketId, body, key);
+      else if (parts[2] === "budgets" && parts.length === 4)
+        result = await changeBudget(
+          identity,
+          bucketId,
+          parts[3],
+          method === "DELETE" ? "delete" : "edit",
+          body,
+          key,
+          request.headers.get("if-match"),
+        );
       else if (optionKind && parts.length === 4 && method === "POST")
         result = await createOption(identity, bucketId, optionKind, body, key);
       else if (optionKind && parts.length >= 5)

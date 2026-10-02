@@ -23,6 +23,7 @@ import {
   SlidersHorizontal,
   Users,
   Wallet,
+  BarChart3,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Brand } from "@/components/brand";
@@ -40,6 +41,7 @@ import {
 import { api, ClientError, friendlyError, operationKey } from "@/lib/api/client";
 import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { PhaseTwoScreen } from "@/features/expenses/phase-two-screen";
+import { PhaseThreeScreen } from "@/features/insights/phase-three-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
 import { BucketSelector } from "./bucket-selector";
@@ -442,9 +444,20 @@ function Workspace() {
           >
             <Users size={18} /> Members
           </Link>
-          <div className="nav-item unavailable">
-            <BookOpen size={18} /> Budgets <small>Later</small>
-          </div>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=reports` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`nav-item ${phaseView === "reports" ? "active" : ""}`}
+          >
+            <BarChart3 size={18} /> Reports
+          </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=budgets` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`nav-item ${["budgets", "budget", "budget-form"].includes(phaseView ?? "") ? "active" : ""}`}
+          >
+            <BookOpen size={18} /> Budgets
+          </Link>
         </nav>
         <div className="sidebar-bottom">
           <button
@@ -488,7 +501,11 @@ function Workspace() {
                     ? "Reference settings"
                     : phaseView === "members"
                       ? "Members & invitations"
-                      : "Expenses"}
+                      : phaseView === "reports"
+                        ? "Reports"
+                        : ["budgets", "budget", "budget-form"].includes(phaseView)
+                          ? "Budgets"
+                          : "Expenses"}
                 </span>
               </>
             )}
@@ -560,6 +577,17 @@ function Workspace() {
               onClearMonth={() => setLedgerMonth("")}
               resolveRequested={params.get("resolve") === "1"}
               refundMode={params.get("mode") === "refund"}
+            />
+          ) : selected &&
+            (!phaseView || ["reports", "budgets", "budget", "budget-form"].includes(phaseView)) ? (
+            <PhaseThreeScreen
+              key={selected.id}
+              bucket={selected}
+              view={
+                (phaseView || "dashboard") as
+                  "dashboard" | "reports" | "budgets" | "budget" | "budget-form"
+              }
+              budgetId={params.get("budget")}
             />
           ) : (
             <>
