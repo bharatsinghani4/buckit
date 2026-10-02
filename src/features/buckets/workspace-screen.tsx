@@ -1,12 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   ArrowRight,
   BookOpen,
   Check,
-  CalendarDays,
   Copy,
   FolderOpen,
   Home,
@@ -42,6 +41,8 @@ import { api, ClientError, friendlyError, operationKey } from "@/lib/api/client"
 import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { PhaseTwoScreen } from "@/features/expenses/phase-two-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
+import { LedgerMonthPicker } from "./ledger-month-picker";
+import { BucketSelector } from "./bucket-selector";
 
 export function WorkspaceScreen() {
   return (
@@ -77,6 +78,19 @@ function Workspace() {
   const bucketPickerOpen = useRef(false);
   const requestedBucketTarget = useRef<string | null>(null);
   const loadedBuckets = useRef<Bucket[]>([]);
+  function navigateWithinWorkspace(event: MouseEvent<HTMLAnchorElement>) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    window.history.pushState(null, "", event.currentTarget.href);
+  }
   useEffect(() => {
     const saved = getPreference("buckit-sidebar-pinned");
     if (saved === "false" || (saved === null && window.matchMedia("(max-width: 767px)").matches)) {
@@ -365,9 +379,9 @@ function Workspace() {
           <label className="sr-only" htmlFor="bucket-picker">
             Current bucket
           </label>
-          <Dropdown
-            id="bucket-picker"
-            value={selected?.id || undefined}
+          <BucketSelector
+            buckets={buckets}
+            selected={selected}
             disabled={busy || loading || !buckets.length}
             onValueChange={selectBucket}
             onOpenChange={(open) => {
@@ -376,11 +390,6 @@ function Workspace() {
               else if (!sidebarPinned && !sidebarRef.current?.matches(":hover"))
                 setSidebarExpanded(false);
             }}
-            options={buckets.map((b) => ({
-              value: b.id,
-              label: `${b.name}${b.status === "archived" ? " (archived)" : ""}`,
-            }))}
-            placeholder="Choose a bucket"
           />
           {cursor && (
             <button className="text-link" onClick={moreBuckets} disabled={busy}>
@@ -402,12 +411,14 @@ function Workspace() {
         <nav aria-label="Workspace">
           <Link
             href={selected ? `/workspace?bucket=${selected.id}` : "/workspace"}
+            onClick={navigateWithinWorkspace}
             className={`nav-item ${!phaseView ? "active" : ""}`}
           >
             <LayoutDashboard size={18} /> Overview
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=expenses` : "/workspace"}
+            onClick={navigateWithinWorkspace}
             className={`nav-item ${["expenses", "deleted", "add-expense", "expense"].includes(phaseView ?? "") ? "active" : ""}`}
           >
             <Wallet size={18} /> Expenses
@@ -419,12 +430,14 @@ function Workspace() {
           )}
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=references` : "/workspace"}
+            onClick={navigateWithinWorkspace}
             className={`nav-item ${phaseView === "references" ? "active" : ""}`}
           >
             <SlidersHorizontal size={18} /> Reference settings
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=members` : "/workspace"}
+            onClick={navigateWithinWorkspace}
             className={`nav-item ${phaseView === "members" ? "active" : ""}`}
           >
             <Users size={18} /> Members
@@ -454,37 +467,41 @@ function Workspace() {
       </aside>
       <div className="workspace-main">
         <header className="workspace-header">
-          <span>
-            {selected?.name ?? "Your workspace"}
+          <nav
+            aria-label="Breadcrumb"
+            className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium"
+          >
+            <Link
+              href={selected ? `/workspace?bucket=${selected.id}` : "/workspace"}
+              onClick={navigateWithinWorkspace}
+              className={`truncate text-[var(--muted)] hover:text-[var(--ink)] ${phaseView ? "max-sm:hidden" : ""}`}
+            >
+              {selected?.name ?? "Your workspace"}
+            </Link>
             {phaseView && (
-              <span className="text-[var(--muted)]">
-                {" "}
-                /{" "}
-                {phaseView === "references"
-                  ? "Reference settings"
-                  : phaseView === "members"
-                    ? "Members & invitations"
-                    : "Expenses"}
-              </span>
+              <>
+                <span className="text-[var(--line)] max-sm:hidden" aria-hidden="true">
+                  /
+                </span>
+                <span className="truncate font-semibold text-[var(--ink)]" aria-current="page">
+                  {phaseView === "references"
+                    ? "Reference settings"
+                    : phaseView === "members"
+                      ? "Members & invitations"
+                      : "Expenses"}
+                </span>
+              </>
             )}
-          </span>
-          <div className="workspace-header-actions">
+          </nav>
+          <div className="workspace-header-actions max-sm:!gap-2">
             {phaseView === "expenses" && (
-              <label className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs">
-                <CalendarDays size={16} aria-hidden="true" />
-                <span className="sr-only">Ledger month</span>
-                <input
-                  type="month"
-                  className="min-w-0 max-w-36 bg-transparent outline-none"
-                  value={ledgerMonth}
-                  onChange={(event) => setLedgerMonth(event.target.value)}
-                />
-              </label>
+              <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
             )}
             <ThemeToggle />
             {selected?.isOwner && selected.status === "active" && phaseView && (
               <button
-                className="button primary"
+                className="button primary max-sm:!size-9 max-sm:!min-h-9 max-sm:!p-0"
+                aria-label="Invite people"
                 onClick={() => {
                   setInvite(null);
                   inviteKey.current = null;
@@ -492,10 +509,10 @@ function Workspace() {
                   setModal("invite");
                 }}
               >
-                <Users size={16} /> Invite people
+                <Users size={16} /> <span className="max-sm:hidden">Invite people</span>
               </button>
             )}
-            <button className="profile-chip" onClick={() => setModal("profile")}>
+            <button className="profile-chip max-sm:!hidden" onClick={() => setModal("profile")}>
               <span>{profile.displayName.charAt(0).toUpperCase()}</span>
               {profile.displayName}
             </button>
@@ -605,7 +622,11 @@ function Workspace() {
                       <button
                         className="button secondary"
                         onClick={() =>
-                          router.push(`/workspace?bucket=${selected.id}&view=add-expense`)
+                          window.history.pushState(
+                            null,
+                            "",
+                            `/workspace?bucket=${selected.id}&view=add-expense`,
+                          )
                         }
                       >
                         Add an expense <ArrowRight size={16} />

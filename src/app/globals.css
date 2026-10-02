@@ -641,7 +641,7 @@ button.nav-item:hover {
   @apply [margin-top:auto] [padding-top:40px];
 }
 .workspace-header {
-  @apply [display:flex] [justify-content:space-between] [align-items:center] [padding:18px_32px] [border-bottom:1px_solid_var(--line)] [font-size:12px] [gap:16px] [position:sticky] [top:0] [z-index:20] [background:var(--canvas)];
+  @apply [display:flex] [min-height:64px] [justify-content:space-between] [align-items:center] [padding:0_32px] [border-bottom:1px_solid_var(--line)] [font-size:12px] [gap:16px] [position:sticky] [top:0] [z-index:20] [background:var(--canvas)];
 }
 .profile-chip {
   @apply [border:0] [display:flex] [align-items:center] [gap:9px] [background:transparent] [font-size:12px];

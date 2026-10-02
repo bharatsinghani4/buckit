@@ -7,6 +7,7 @@ import { createWorkspaceReadCache } from "./workspace-read-cache";
 type Result<T> = Awaited<ReturnType<typeof api<T>>>;
 type WorkspaceData = {
   read: <T>(path: string) => Promise<Result<T>>;
+  peek: <T>(path: string) => Result<T> | undefined;
   invalidate: (prefix: string) => void;
 };
 
@@ -18,10 +19,13 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
   const read = useCallback(<T,>(path: string): Promise<Result<T>> => {
     return cache.current.read(path) as Promise<Result<T>>;
   }, []);
+  const peek = useCallback(<T,>(path: string): Result<T> | undefined => {
+    return cache.current.peek(path) as Result<T> | undefined;
+  }, []);
   const invalidate = useCallback((prefix: string) => {
     cache.current.invalidate(prefix);
   }, []);
-  return <Context.Provider value={{ read, invalidate }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ read, peek, invalidate }}>{children}</Context.Provider>;
 }
 
 export function useWorkspaceData() {

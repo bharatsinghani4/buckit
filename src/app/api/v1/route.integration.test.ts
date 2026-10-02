@@ -152,6 +152,24 @@ describe("Phase 2 HTTP API flows", () => {
     });
     expect(accounts.response.status).toBe(201);
     expect((await request("GET", `${root}/accounts`, actor)).payload.data).toHaveLength(1);
+    const unusedAccount = await request("POST", `${root}/accounts`, actor, {
+      name: "Temporary account",
+    });
+    const deletedAccount = await request(
+      "DELETE",
+      `${root}/accounts/${unusedAccount.payload.data.id}`,
+      actor,
+      undefined,
+      { "If-Match": unusedAccount.response.headers.get("ETag")! },
+    );
+    expect(deletedAccount.response.status).toBe(200);
+    expect(deletedAccount.payload.data).toEqual({
+      id: unusedAccount.payload.data.id,
+      deleted: true,
+    });
+    expect((await request("GET", `${root}/accounts?state=all`, actor)).payload.data).toHaveLength(
+      1,
+    );
     const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
     const platform = (await request("GET", `${root}/platforms`, actor)).payload.data[0];
     const profile = (await request("GET", "me", actor)).payload.data;

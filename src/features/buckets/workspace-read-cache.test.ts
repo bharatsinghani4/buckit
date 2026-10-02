@@ -26,4 +26,56 @@ describe("workspace read cache", () => {
     expect(await cache.read("buckets/a/expenses")).toBe("ok");
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
+
+  it("exposes a completed snapshot while revalidating and clears it after a mutation", async () => {
+    let clock = 0;
+    let resolveNext!: (value: string) => void;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce("first")
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveNext = resolve;
+          }),
+      );
+    const cache = createWorkspaceReadCache(fetcher, () => clock, 100);
+
+    expect(cache.peek("buckets/a/expenses")).toBeUndefined();
+    await cache.read("buckets/a/expenses");
+    expect(cache.peek("buckets/a/expenses")).toBe("first");
+    clock = 101;
+    const revalidation = cache.read("buckets/a/expenses");
+    expect(cache.peek("buckets/a/expenses")).toBe("first");
+    resolveNext("second");
+    await revalidation;
+    expect(cache.peek("buckets/a/expenses")).toBe("second");
+    cache.invalidate("buckets/a/");
+    expect(cache.peek("buckets/a/expenses")).toBeUndefined();
+  });
+
+  it("invalidates one reference list without refetching unrelated workspace data", async () => {
+    const fetcher = vi.fn(async (path: string) => path);
+    const cache = createWorkspaceReadCache(fetcher);
+
+    await Promise.all([
+      cache.read("buckets/a/accounts"),
+      cache.read("buckets/a/accounts?state=all"),
+      cache.read("buckets/a/categories"),
+      cache.read("buckets/a/expenses"),
+    ]);
+    cache.invalidate("buckets/a/accounts");
+
+    expect(cache.peek("buckets/a/accounts")).toBeUndefined();
+    expect(cache.peek("buckets/a/accounts?state=all")).toBeUndefined();
+    expect(cache.peek("buckets/a/categories")).toBe("buckets/a/categories");
+    expect(cache.peek("buckets/a/expenses")).toBe("buckets/a/expenses");
+
+    await Promise.all([
+      cache.read("buckets/a/accounts"),
+      cache.read("buckets/a/categories"),
+      cache.read("buckets/a/expenses"),
+    ]);
+    expect(fetcher).toHaveBeenCalledTimes(5);
+  });
 });
