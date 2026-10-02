@@ -1,7 +1,13 @@
 import "server-only";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { ApiError } from "@/lib/api/errors";
-import { BucketModel, ExpenseModel, UserModel } from "@/lib/db/models";
+import {
+  BucketModel,
+  EmiInstallmentModel,
+  EmiPlanModel,
+  ExpenseModel,
+  UserModel,
+} from "@/lib/db/models";
 import { activeUser, bucketForUser } from "@/features/identity/service";
 import { fromMinor } from "@/features/expenses/money";
 import { listBudgets } from "./budget-service";
@@ -50,6 +56,7 @@ async function spending(
   const match: Record<string, unknown> = {
     bucketId,
     deletedAt: null,
+    postingState: { $ne: "canceled" },
     expenseDate: { $gte: from, $lt: toExclusive },
   };
   for (const [parameter, field] of [
@@ -203,7 +210,18 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
   const range = parseRange(params, today);
   const previousRange = priorElapsedRange(range.from, range.toExclusive, today, range.period);
   const empty = new URLSearchParams();
-  const [category, member, trend, previous, budgets, recent] = await Promise.all([
+  const [
+    category,
+    member,
+    trend,
+    previous,
+    budgets,
+    recent,
+    activeEmiPlans,
+    upcomingInstallments,
+    unpaidInstallments,
+    nextInstallment,
+  ] = await Promise.all([
     spending(
       bucketId,
       bucket.primaryCurrency,
@@ -245,10 +263,16 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       empty,
     ),
     listBudgets(identity, bucketId, range.anchor.slice(0, 7)),
-    ExpenseModel.find({ bucketId, deletedAt: null })
+    ExpenseModel.find({ bucketId, deletedAt: null, postingState: { $ne: "canceled" } })
       .sort({ expenseDate: -1, _id: -1 })
       .limit(5)
       .lean(),
+    EmiPlanModel.countDocuments({ bucketId, state: "active" }),
+    EmiInstallmentModel.countDocuments({ bucketId, state: "scheduled" }),
+    EmiInstallmentModel.countDocuments({ bucketId, state: { $in: ["skipped", "unpaid"] } }),
+    EmiInstallmentModel.findOne({ bucketId, state: "scheduled" })
+      .sort({ scheduledDate: 1 })
+      .select("scheduledDate"),
   ]);
   const latest = await BucketModel.findById(bucketId).select("financialRevision writeRevision");
   return {
@@ -263,6 +287,12 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
     members: member.groups,
     trend: trend.groups,
     budgetCount: budgets.filter((entry) => entry.budget.state === "active").length,
+    emi: {
+      activePlans: activeEmiPlans,
+      upcomingInstallments,
+      unpaidInstallments,
+      nextDate: nextInstallment?.scheduledDate ?? null,
+    },
     budgets: budgets.filter((entry) => entry.budget.state === "active").slice(0, 4),
     recentExpenses: recent.map((row) => ({
       id: String(row._id),

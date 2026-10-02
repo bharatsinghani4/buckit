@@ -1,7 +1,7 @@
 import "server-only";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { ApiError, assertRevision } from "@/lib/api/errors";
-import { AuditModel, BudgetModel, ExpenseModel, OptionModel } from "@/lib/db/models";
+import { AuditModel, BudgetModel, EmiPlanModel, ExpenseModel, OptionModel } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
 import { objectId, optionEditInput, optionInput, optionKinds, type OptionKind } from "./contracts";
 
@@ -156,7 +156,7 @@ export async function changeOption(
           "The default Other platform must remain available.",
         );
       if (action === "delete") {
-        const [used, inBudget] = await Promise.all([
+        const [used, inBudget, inPlan] = await Promise.all([
           ExpenseModel.exists({ bucketId, [`${option.kind}Id`]: option._id }).session(session),
           option.kind === "category"
             ? BudgetModel.exists({
@@ -165,8 +165,9 @@ export async function changeOption(
                 state: { $ne: "deleted" },
               }).session(session)
             : Promise.resolve(null),
+          EmiPlanModel.exists({ bucketId, [`${option.kind}Id`]: option._id }).session(session),
         ]);
-        if (used || inBudget || option.systemKey)
+        if (used || inBudget || inPlan || option.systemKey)
           throw new ApiError(
             409,
             "OPTION_IN_USE",

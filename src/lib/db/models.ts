@@ -150,7 +150,12 @@ const expenseSchema = new Schema(
     restoreUntil: Date,
     deletedByUserId: Schema.Types.ObjectId,
     refundOfExpenseId: Schema.Types.ObjectId,
-    source: { kind: { type: String, default: "manual" } },
+    source: {
+      kind: { type: String, default: "manual" },
+      emiPlanId: Schema.Types.ObjectId,
+      emiInstallmentId: Schema.Types.ObjectId,
+    },
+    originKey: String,
     revision: { type: Number, default: 1 },
   },
   common,
@@ -160,6 +165,77 @@ expenseSchema.index({ bucketId: 1, actualCreatorUserId: 1, deletedAt: -1 });
 expenseSchema.index({ bucketId: 1, postingState: 1, deletedAt: 1, expenseDate: 1 });
 expenseSchema.index({ bucketId: 1, categoryId: 1, expenseDate: -1 });
 expenseSchema.index({ bucketId: 1, paidByUserId: 1, expenseDate: -1 });
+expenseSchema.index({ postingState: 1, dueAt: 1, _id: 1 });
+expenseSchema.index(
+  { bucketId: 1, originKey: 1 },
+  { unique: true, partialFilterExpression: { originKey: { $type: "string" } } },
+);
+expenseSchema.index(
+  { "source.emiInstallmentId": 1 },
+  { unique: true, partialFilterExpression: { "source.emiInstallmentId": { $type: "objectId" } } },
+);
+
+const emiPlanSchema = new Schema(
+  {
+    bucketId: ref,
+    actualCreatorUserId: ref,
+    creatorMembershipId: ref,
+    title: { type: String, required: true },
+    installmentAmount: { type: Schema.Types.Decimal128, required: true },
+    currency: { type: String, required: true },
+    totalInstallments: { type: Number, required: true },
+    previouslyPaidCount: { type: Number, default: 0 },
+    firstInstallmentDate: { type: String, required: true },
+    anchorDay: { type: Number, required: true },
+    categoryId: ref,
+    accountId: ref,
+    platformId: ref,
+    referenceLabels: { category: String, account: String, platform: String },
+    paymentMode: { type: String, required: true },
+    paidByUserId: ref,
+    state: {
+      type: String,
+      enum: ["active", "ended", "completed", "owner_departed"],
+      default: "active",
+    },
+    generatedThroughNumber: { type: Number, default: 0 },
+    generationVersion: { type: Number, default: 1 },
+    endedAt: Date,
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+emiPlanSchema.index({ bucketId: 1, state: 1, createdAt: -1 });
+emiPlanSchema.index({ creatorMembershipId: 1, state: 1 });
+
+const emiInstallmentSchema = new Schema(
+  {
+    bucketId: ref,
+    planId: ref,
+    installmentNumber: { type: Number, required: true },
+    actualCreatorUserId: ref,
+    creatorMembershipId: ref,
+    scheduledDate: { type: String, required: true },
+    originalScheduledDate: { type: String, required: true },
+    amount: { type: Schema.Types.Decimal128, required: true },
+    currency: { type: String, required: true },
+    state: {
+      type: String,
+      enum: ["scheduled", "recorded", "skipped", "unpaid", "canceled"],
+      default: "scheduled",
+    },
+    expenseId: Schema.Types.ObjectId,
+    generationVersion: { type: Number, required: true },
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+emiInstallmentSchema.index({ planId: 1, installmentNumber: 1 }, { unique: true });
+emiInstallmentSchema.index({ bucketId: 1, state: 1, scheduledDate: 1 });
+emiInstallmentSchema.index(
+  { expenseId: 1 },
+  { unique: true, partialFilterExpression: { expenseId: { $type: "objectId" } } },
+);
 
 const budgetSchema = new Schema(
   {
@@ -246,6 +322,11 @@ const limitSchema = new Schema(
 );
 limitSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
+const jobLeaseSchema = new Schema(
+  { _id: String, ownerToken: String, expiresAt: Date, lastRunAt: Date },
+  { versionKey: false, autoIndex: false, autoCreate: false },
+);
+
 export const UserModel =
   mongoose.models.BuckitUser || mongoose.model("BuckitUser", userSchema, "users");
 export const BucketModel =
@@ -260,6 +341,11 @@ export const InvitationModel =
   mongoose.model("BuckitInvitation", invitationSchema, "invitations");
 export const ExpenseModel =
   mongoose.models.BuckitExpense || mongoose.model("BuckitExpense", expenseSchema, "expenses");
+export const EmiPlanModel =
+  mongoose.models.BuckitEmiPlan || mongoose.model("BuckitEmiPlan", emiPlanSchema, "emi_plans");
+export const EmiInstallmentModel =
+  mongoose.models.BuckitEmiInstallment ||
+  mongoose.model("BuckitEmiInstallment", emiInstallmentSchema, "emi_installments");
 export const BudgetModel =
   mongoose.models.BuckitBudget || mongoose.model("BuckitBudget", budgetSchema, "budgets");
 export const BudgetPeriodModel =
@@ -274,6 +360,8 @@ export const AuditModel =
   mongoose.models.BuckitAudit || mongoose.model("BuckitAudit", auditSchema, "audit_events");
 export const RateLimitModel =
   mongoose.models.BuckitRateLimit || mongoose.model("BuckitRateLimit", limitSchema, "rate_limits");
+export const JobLeaseModel =
+  mongoose.models.BuckitJobLease || mongoose.model("BuckitJobLease", jobLeaseSchema, "job_leases");
 export const phaseOneModels = [
   UserModel,
   BucketModel,
@@ -286,3 +374,9 @@ export const phaseOneModels = [
 ];
 export const phaseTwoModels = [...phaseOneModels, ExpenseModel, CommentModel];
 export const phaseThreeModels = [...phaseTwoModels, BudgetModel, BudgetPeriodModel];
+export const phaseFourModels = [
+  ...phaseThreeModels,
+  EmiPlanModel,
+  EmiInstallmentModel,
+  JobLeaseModel,
+];

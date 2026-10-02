@@ -29,6 +29,7 @@ import {
   linkedRefunds,
   listComments,
   listExpenses,
+  resolveArchiveExpense,
 } from "@/features/expenses/service";
 import {
   listInvitations,
@@ -45,6 +46,16 @@ import {
   listBudgets,
 } from "@/features/insights/budget-service";
 import { dashboard, spendingReport } from "@/features/insights/report-service";
+import {
+  changeInstallment,
+  changePlan,
+  createPlan,
+  getPlan,
+  listInstallments,
+  listPlans,
+  listScheduled,
+  previewPlan,
+} from "@/features/scheduling/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,12 +101,25 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     else if (method === "GET" && path === "capabilities")
       data = {
         currencies: currencies.map((c) => ({ ...c, precision: c.code === "JPY" ? 0 : 2 })),
-        phase: 3,
+        phase: 4,
       };
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/dashboard$/i.test(path))
       data = await dashboard(identity, path.split("/")[1], url.searchParams);
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/reports\/spending$/i.test(path))
       data = await spendingReport(identity, path.split("/")[1], url.searchParams);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/scheduled-expenses$/i.test(path))
+      data = await listScheduled(identity, path.split("/")[1]);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/emi-plans$/i.test(path))
+      data = await listPlans(identity, path.split("/")[1], url.searchParams.get("state"));
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}$/i.test(path))
+      data = await getPlan(identity, path.split("/")[1], path.split("/")[3]);
+    else if (
+      method === "GET" &&
+      /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/installments$/i.test(path)
+    )
+      data = await listInstallments(identity, path.split("/")[1], path.split("/")[3]);
+    else if (method === "POST" && /^buckets\/[a-f\d]{24}\/emi-plans\/preview$/i.test(path))
+      data = await previewPlan(identity, path.split("/")[1], await readJson(request));
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/budgets$/i.test(path))
       data = await listBudgets(
         identity,
@@ -165,9 +189,14 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           (path === "me/bootstrap" ||
             path === "buckets" ||
             path === "invitations/join" ||
-            /^buckets\/[a-f\d]{24}\/(invitations|expenses|budgets|options\/(accounts|categories|platforms))$/i.test(
+            /^buckets\/[a-f\d]{24}\/(invitations|expenses|budgets|emi-plans|options\/(accounts|categories|platforms))$/i.test(
               path,
             ) ||
+            /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/end$/i.test(path) ||
+            /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/installments\/[a-f\d]{24}\/(skip|reschedule)$/i.test(
+              path,
+            ) ||
+            /^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}\/archive-resolution$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}\/restore$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}\/comments$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/options\/(accounts|categories|platforms)\/[a-f\d]{24}\/(archive|restore)$/i.test(
@@ -175,7 +204,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
             ))) ||
         (method === "PATCH" &&
           (path === "me" ||
-            /^buckets\/[a-f\d]{24}\/(budgets\/[a-f\d]{24}|expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
+            /^buckets\/[a-f\d]{24}\/(budgets\/[a-f\d]{24}|emi-plans\/[a-f\d]{24}|expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
               path,
             ))) ||
         (method === "DELETE" &&
@@ -188,7 +217,11 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         throw new ApiError(404, "RESOURCE_NOT_FOUND", "This endpoint is not available.");
       const key = requireIdempotencyKey(request);
       const body =
-        method === "DELETE" || path.endsWith("/archive") || path.endsWith("/restore")
+        method === "DELETE" ||
+        path.endsWith("/archive") ||
+        path.endsWith("/restore") ||
+        path.endsWith("/end") ||
+        path.endsWith("/skip")
           ? {}
           : await readJson(request);
       let result;
@@ -214,6 +247,39 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           key,
           request.headers.get("if-match"),
         );
+      else if (parts[2] === "emi-plans" && parts.length === 3 && method === "POST")
+        result = await createPlan(identity, bucketId, body, key);
+      else if (parts[2] === "emi-plans" && parts.length === 4 && method === "PATCH")
+        result = await changePlan(
+          identity,
+          bucketId,
+          parts[3],
+          "edit",
+          body,
+          key,
+          request.headers.get("if-match"),
+        );
+      else if (parts[2] === "emi-plans" && parts[4] === "end")
+        result = await changePlan(
+          identity,
+          bucketId,
+          parts[3],
+          "end",
+          body,
+          key,
+          request.headers.get("if-match"),
+        );
+      else if (parts[2] === "emi-plans" && parts[4] === "installments" && parts.length === 7)
+        result = await changeInstallment(
+          identity,
+          bucketId,
+          parts[3],
+          parts[5],
+          parts[6] as "skip" | "reschedule",
+          body,
+          key,
+          request.headers.get("if-match"),
+        );
       else if (optionKind && parts.length === 4 && method === "POST")
         result = await createOption(identity, bucketId, optionKind, body, key);
       else if (optionKind && parts.length >= 5)
@@ -234,6 +300,15 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         );
       else if (parts[2] === "expenses" && parts.length === 3 && method === "POST")
         result = await createExpense(identity, bucketId, body, key);
+      else if (parts[2] === "expenses" && parts[4] === "archive-resolution" && method === "POST")
+        result = await resolveArchiveExpense(
+          identity,
+          bucketId,
+          parts[3],
+          body,
+          key,
+          request.headers.get("if-match"),
+        );
       else if (
         parts[2] === "expenses" &&
         parts[4] === "comments" &&
@@ -300,7 +375,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       else throw new ApiError(404, "RESOURCE_NOT_FOUND", "This endpoint is not available.");
       data = result.data;
       status = result.status;
-      if ("location" in result && result.location) headers.set("Location", result.location);
+      if ("location" in result && typeof result.location === "string")
+        headers.set("Location", result.location);
     }
     if (data && typeof data === "object" && "revision" in data)
       headers.set("ETag", `"r${data.revision}"`);

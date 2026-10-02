@@ -4,6 +4,10 @@ import { ApiError, assertRevision } from "@/lib/api/errors";
 import {
   AuditModel,
   BudgetModel,
+  BucketModel,
+  EmiInstallmentModel,
+  EmiPlanModel,
+  ExpenseModel,
   InvitationModel,
   MembershipModel,
   UserModel,
@@ -64,6 +68,27 @@ export async function removeMember(
         { $set: { state: "historical" }, $inc: { revision: 1 } },
         { session },
       );
+      await EmiPlanModel.updateMany(
+        { bucketId, creatorMembershipId: member._id, state: "active" },
+        { $set: { state: "owner_departed" }, $inc: { revision: 1, generationVersion: 1 } },
+        { session },
+      );
+      await EmiInstallmentModel.updateMany(
+        { bucketId, creatorMembershipId: member._id, state: "scheduled" },
+        { $set: { state: "canceled" }, $inc: { revision: 1 } },
+        { session },
+      );
+      const canceled = await ExpenseModel.updateMany(
+        { bucketId, creatorMembershipId: member._id, postingState: "unposted", deletedAt: null },
+        { $set: { postingState: "canceled" }, $inc: { revision: 1 } },
+        { session },
+      );
+      if (canceled.modifiedCount)
+        await BucketModel.updateOne(
+          { _id: bucketId },
+          { $inc: { financialRevision: 1, exportRevision: 1 } },
+          { session },
+        );
       await UserModel.updateOne(
         { _id: member.userId, lastBucketId: bucket._id },
         { $set: { lastBucketId: null }, $inc: { revision: 1 } },

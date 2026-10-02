@@ -24,6 +24,8 @@ import {
   Users,
   Wallet,
   BarChart3,
+  CalendarClock,
+  CreditCard,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Brand } from "@/components/brand";
@@ -42,6 +44,7 @@ import { api, ClientError, friendlyError, operationKey } from "@/lib/api/client"
 import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { PhaseTwoScreen } from "@/features/expenses/phase-two-screen";
 import { PhaseThreeScreen } from "@/features/insights/phase-three-screen";
+import { PhaseFourScreen } from "@/features/scheduling/phase-four-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
 import { BucketSelector } from "./bucket-selector";
@@ -458,6 +461,20 @@ function Workspace() {
           >
             <BookOpen size={18} /> Budgets
           </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=emis` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`nav-item ${["emis", "emi-plan"].includes(phaseView ?? "") ? "active" : ""}`}
+          >
+            <CreditCard size={18} /> EMIs
+          </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=scheduled` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`nav-item ${phaseView === "scheduled" ? "active" : ""}`}
+          >
+            <CalendarClock size={18} /> Scheduled
+          </Link>
         </nav>
         <div className="sidebar-bottom">
           <button
@@ -505,7 +522,11 @@ function Workspace() {
                         ? "Reports"
                         : ["budgets", "budget", "budget-form"].includes(phaseView)
                           ? "Budgets"
-                          : "Expenses"}
+                          : ["emis", "emi-plan"].includes(phaseView)
+                            ? "EMIs"
+                            : phaseView === "scheduled"
+                              ? "Scheduled expenses"
+                              : "Expenses"}
                 </span>
               </>
             )}
@@ -577,6 +598,13 @@ function Workspace() {
               onClearMonth={() => setLedgerMonth("")}
               resolveRequested={params.get("resolve") === "1"}
               refundMode={params.get("mode") === "refund"}
+            />
+          ) : selected && ["emis", "emi-plan", "scheduled"].includes(phaseView ?? "") ? (
+            <PhaseFourScreen
+              key={`${selected.id}:${phaseView}:${params.get("plan") ?? ""}`}
+              bucket={selected}
+              view={phaseView as "emis" | "emi-plan" | "scheduled"}
+              planId={params.get("plan")}
             />
           ) : selected &&
             (!phaseView || ["reports", "budgets", "budget", "budget-form"].includes(phaseView)) ? (
