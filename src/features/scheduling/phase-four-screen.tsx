@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Dropdown } from "@/components/dropdown";
+import { controls } from "@/components/control-styles";
 import { Dialog, Notice, Pending } from "@/components/ui";
 import { currencies } from "@/features/identity/contracts";
 import type { Bucket } from "@/features/identity/contracts";
@@ -40,12 +41,9 @@ type Scheduled = {
 };
 const card =
   "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
-const secondary =
-  "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--green)] hover:bg-[var(--soft)]";
-const primary =
-  "button primary inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-[var(--button-primary)] px-3 text-xs font-semibold !text-[var(--button-primary-text)] transition hover:opacity-90 disabled:opacity-50";
-const field =
-  "h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)]";
+const secondary = controls.secondary;
+const primary = controls.primary;
+const field = controls.input;
 const modes = [
   { value: "upi", label: "UPI" },
   { value: "cash", label: "Cash" },
@@ -88,9 +86,9 @@ function statusStyle(status: string) {
   return status === "recorded"
     ? "bg-[var(--soft)] text-[var(--green)]"
     : status === "unpaid" ||
-      status === "skipped" ||
-      status === "conversion_needed" ||
-      status === "review_required"
+        status === "skipped" ||
+        status === "conversion_needed" ||
+        status === "review_required"
       ? "bg-[var(--error-bg)] text-[var(--error)]"
       : "bg-[var(--surface-2)] text-[var(--muted)]";
 }
@@ -249,15 +247,15 @@ export function PhaseFourScreen({
       const editing = dialog === "edit" && selected;
       const body = editing
         ? {
-          title: form.title,
-          installmentAmount: form.installmentAmount,
-          currency: form.currency,
-          categoryId: form.categoryId,
-          accountId: form.accountId,
-          platformId: form.platformId || undefined,
-          paymentMode: form.paymentMode,
-          paidByUserId: form.paidByUserId,
-        }
+            title: form.title,
+            installmentAmount: form.installmentAmount,
+            currency: form.currency,
+            categoryId: form.categoryId,
+            accountId: form.accountId,
+            platformId: form.platformId || undefined,
+            paymentMode: form.paymentMode,
+            paidByUserId: form.paidByUserId,
+          }
         : planBody();
       const result = await api<Plan>(
         editing
@@ -324,12 +322,12 @@ export function PhaseFourScreen({
         items.map((item) =>
           item.id === target.id
             ? {
-              ...item,
-              state: action === "skip" ? "skipped" : item.state,
-              scheduledDate: date ?? item.scheduledDate,
-              revision: item.revision + 1,
-              expenseRevision: (item.expenseRevision ?? 0) + 1,
-            }
+                ...item,
+                state: action === "skip" ? "skipped" : item.state,
+                scheduledDate: date ?? item.scheduledDate,
+                revision: item.revision + 1,
+                expenseRevision: (item.expenseRevision ?? 0) + 1,
+              }
             : item,
         ),
       );
@@ -912,7 +910,11 @@ export function PhaseFourScreen({
         </Dialog>
       )}
       {dialog === "end" && selected && (
-        <Dialog title="End this EMI plan?" subtitle="Future installments will be canceled. Recorded and unpaid history stays visible." onClose={() => setDialog(null)}>
+        <Dialog
+          title="End this EMI plan?"
+          subtitle="Future installments will be canceled. Recorded and unpaid history stays visible."
+          onClose={() => setDialog(null)}
+        >
           {error && <Notice>{error}</Notice>}
           <div className="flex justify-end gap-2">
             <button className={secondary} onClick={() => setDialog(null)}>
@@ -925,7 +927,11 @@ export function PhaseFourScreen({
         </Dialog>
       )}
       {dialog === "skip" && target && (
-        <Dialog title={`Skip installment #${target.number}?`} subtitle="Skipping creates no spending. This installment remains visible as unpaid." onClose={() => setDialog(null)}>
+        <Dialog
+          title={`Skip installment #${target.number}?`}
+          subtitle="Skipping creates no spending. This installment remains visible as unpaid."
+          onClose={() => setDialog(null)}
+        >
           {error && <Notice>{error}</Notice>}
           <div className="flex justify-end gap-2">
             <button className={secondary} onClick={() => setDialog(null)}>
@@ -938,7 +944,11 @@ export function PhaseFourScreen({
         </Dialog>
       )}
       {dialog === "reschedule" && target && (
-        <Dialog title={`Reschedule installment #${target.number}`} subtitle="Adjust the date for this installment." onClose={() => setDialog(null)}>
+        <Dialog
+          title={`Reschedule installment #${target.number}`}
+          subtitle="Adjust the date for this installment."
+          onClose={() => setDialog(null)}
+        >
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -971,7 +981,11 @@ export function PhaseFourScreen({
         </Dialog>
       )}
       {dialog === "review" && reviewTarget && (
-        <Dialog title="Review overdue expense" subtitle="Choose whether it should enter actual spending." onClose={() => setDialog(null)}>
+        <Dialog
+          title="Review overdue expense"
+          subtitle="Choose whether it should enter actual spending."
+          onClose={() => setDialog(null)}
+        >
           <p className="mb-4 text-xs text-[var(--muted)]">
             {reviewTarget.description} was due during a bucket archive. Choose whether it should
             enter actual spending. A conversion must be resolved before posting.

@@ -21,6 +21,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { Dropdown } from "@/components/dropdown";
+import { controls } from "@/components/control-styles";
 import { Dialog, Notice, Pending } from "@/components/ui";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
 import type { Bucket } from "@/features/identity/contracts";
@@ -56,12 +57,9 @@ type Dashboard = SpendingReport & {
 
 const card =
   "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
-const secondary =
-  "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--ink)] hover:border-[var(--green)] hover:bg-[var(--soft)]";
-const primary =
-  "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-[var(--button-primary)] px-3 text-xs font-semibold !text-[var(--button-primary-text)] hover:opacity-90 disabled:opacity-50";
-const field =
-  "h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)]";
+const secondary = controls.secondary;
+const primary = controls.primary;
+const field = controls.input;
 const thresholds = ["50", "75", "85", "90", "95", "100"];
 
 function url(bucketId: string, view: View, extra = "") {
@@ -1229,6 +1227,7 @@ export function PhaseThreeScreen({
                         className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${selectedCategories.includes(category.id) ? "border-[var(--green)] bg-[var(--soft)]" : "border-[var(--line)]"}`}
                       >
                         <input
+                          className={controls.checkbox}
                           type="checkbox"
                           checked={selectedCategories.includes(category.id)}
                           onChange={(event) =>
@@ -1346,7 +1345,11 @@ export function PhaseThreeScreen({
         <Notice>This budget is unavailable. Return to all budgets and choose another.</Notice>
       )}
       {deleteOpen && selected && (
-        <Dialog title="Delete this budget?" subtitle={`${selected.budget.name} will disappear from budget views. Expense records remain unchanged.`} onClose={() => setDeleteOpen(false)}>
+        <Dialog
+          title="Delete this budget?"
+          subtitle={`${selected.budget.name} will disappear from budget views. Expense records remain unchanged.`}
+          onClose={() => setDeleteOpen(false)}
+        >
           <div className="flex justify-end gap-2">
             <button className={secondary} onClick={() => setDeleteOpen(false)}>
               Cancel

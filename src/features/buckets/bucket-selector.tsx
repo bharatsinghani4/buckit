@@ -3,6 +3,7 @@
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 import type { Bucket } from "@/features/identity/contracts";
+import { controls } from "@/components/control-styles";
 
 function bucketCaption(bucket: Bucket) {
   const kind = bucket.status === "archived" ? "Archived bucket" : "Shared bucket";
@@ -31,7 +32,7 @@ export function BucketSelector({
     >
       <Select.Trigger
         id="bucket-picker"
-        className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-left shadow-sm transition-colors hover:border-[var(--muted)] focus-visible:border-[var(--green)]"
+        className={`${controls.dropdownTrigger} !h-auto min-h-10 py-2 shadow-sm hover:border-[var(--muted)]`}
       >
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
@@ -54,14 +55,14 @@ export function BucketSelector({
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content position="popper" sideOffset={6} className="dropdown-content">
-          <Select.ScrollUpButton className="dropdown-scroll">▲</Select.ScrollUpButton>
-          <Select.Viewport className="dropdown-viewport">
+        <Select.Content position="popper" sideOffset={6} className={controls.dropdownContent}>
+          <Select.ScrollUpButton className={controls.dropdownScroll}>▲</Select.ScrollUpButton>
+          <Select.Viewport className={controls.dropdownViewport}>
             {buckets.map((bucket) => (
               <Select.Item
                 key={bucket.id}
                 value={bucket.id}
-                className="dropdown-option flex items-center gap-3 data-[state=checked]:bg-[var(--sage)]"
+                className={`${controls.dropdownOption} gap-3`}
               >
                 <span
                   className={`mt-1 size-2 shrink-0 rounded-full ${bucket.status === "archived" ? "bg-[var(--muted)]" : "bg-[var(--mint)]"}`}
@@ -79,7 +80,7 @@ export function BucketSelector({
               </Select.Item>
             ))}
           </Select.Viewport>
-          <Select.ScrollDownButton className="dropdown-scroll">▼</Select.ScrollDownButton>
+          <Select.ScrollDownButton className={controls.dropdownScroll}>▼</Select.ScrollDownButton>
         </Select.Content>
       </Select.Portal>
     </Select.Root>

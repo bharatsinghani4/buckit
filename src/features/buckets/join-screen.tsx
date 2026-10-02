@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { controls } from "@/components/control-styles";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Link2, Users } from "lucide-react";
@@ -83,16 +84,21 @@ export function JoinScreen() {
   }
   const next = `/join${token ? `#${token}` : ""}`;
   return (
-    <main id="main" className="join-page">
-      <div className="join-top">
+    <main
+      id="main"
+      className="join-page [min-height:100svh] flex flex-col items-center justify-center [gap:24px] [padding:40px_20px] text-center"
+    >
+      <div className="join-top flex items-center justify-between [gap:14px] [width:min(480px,_100%)]">
         <Brand />
         <ThemeToggle />
       </div>
-      <section className="join-card">
-        <span className="large-icon">
+      <section className="join-card w-full [max-width:480px] [padding:40px] [border-radius:12px] bg-[var(--surface)] [border:1px_solid_var(--line)] flex flex-col [gap:20px] text-center [box-shadow:var(--shadow)] [&_label]:text-left [&_h1]:[font-size:27px] [&_h1]:[overflow-wrap:anywhere] [&_>_.eyebrow]:justify-center [&_>_p]:text-xs [&_>_.large-icon]:[align-self:center] max-[767px]:[padding:30px_24px]">
+        <span className="large-icon [width:66px] [height:66px] inline-flex items-center justify-center bg-[var(--sage)] [border-radius:16px] text-[var(--green)]">
           <Users size={30} />
         </span>
-        <span className="eyebrow">BETTER, TOGETHER</span>
+        <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
+          BETTER, TOGETHER
+        </span>
         <h1>{preview ? `Join ${preview.bucketName}` : "A shared space awaits."}</h1>
         <p>
           {preview?.alreadyMember
@@ -106,25 +112,37 @@ export function JoinScreen() {
           </Notice>
         )}
         {!token && (
-          <form onSubmit={pasteLink} className="form-stack">
-            <label>
+          <form
+            onSubmit={pasteLink}
+            className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]"
+          >
+            <label className="flex flex-col gap-[7px] text-xs font-medium">
               Invitation link
-              <input name="link" type="url" required placeholder="Paste your invitation link" />
+              <input
+                className={controls.input}
+                name="link"
+                type="url"
+                required
+                placeholder="Paste your invitation link"
+              />
             </label>
-            <button className="button primary full">
+            <button className={`${controls.primary} button w-full`}>
               <Link2 size={16} /> Continue with link
             </button>
           </form>
         )}
         {token && !auth.user && (
           <>
-            <p className="muted small-text">
+            <p className="muted text-[var(--muted)] small-text text-xs">
               Sign in to view this invitation. Nothing is joined until you confirm.
             </p>
-            <Link className="button primary full" href={authHref("/sign-in", next)}>
+            <Link className={`${controls.primary} button w-full`} href={authHref("/sign-in", next)}>
               Sign in to continue <ArrowRight size={16} />
             </Link>
-            <Link className="text-link centered" href={authHref("/sign-up", next)}>
+            <Link
+              className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] centered justify-center"
+              href={authHref("/sign-up", next)}
+            >
               Create an account
             </Link>
           </>
@@ -133,23 +151,26 @@ export function JoinScreen() {
         {auth.error && (
           <>
             <Notice>{auth.error}</Notice>
-            <button className="button secondary" onClick={() => auth.refresh()}>
+            <button className={`${controls.secondary} button`} onClick={() => auth.refresh()}>
               Try again
             </button>
           </>
         )}
         {preview && (
           <>
-            <p className="field-hint">
+            <p className="field-hint flex items-center [gap:6px] text-xs [line-height:1.7] text-[var(--muted)]">
               Link expires {new Date(preview.expiresAt).toLocaleDateString()}.
             </p>
-            <button className="button primary full" disabled={busy} onClick={join}>
+            <button className={`${controls.primary} button w-full`} disabled={busy} onClick={join}>
               {busy ? "Joining…" : preview.alreadyMember ? "Open bucket" : "Join bucket"}
               <ArrowRight size={16} />
             </button>
           </>
         )}
-        <Link className="back-link" href={auth.profile ? "/workspace" : "/"}>
+        <Link
+          className="back-link [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] flex justify-center items-center [gap:8px] [margin-top:26px] text-[var(--green)] text-xs"
+          href={auth.profile ? "/workspace" : "/"}
+        >
           Back to {auth.profile ? "your workspace" : "home"}
         </Link>
       </section>

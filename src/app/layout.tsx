@@ -16,8 +16,13 @@ export const runtime = "nodejs";
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
-      <body>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className="scroll-smooth scroll-pt-[30px]"
+      suppressHydrationWarning
+    >
+      <body className="m-0 bg-[var(--canvas)] font-['Plus_Jakarta_Sans_Variable',Arial,sans-serif] text-base leading-[1.6] text-[var(--ink)] antialiased">
         <Script src="/theme-init.js" strategy="beforeInteractive" />
         <SkipLink />
         <AuthProvider>{children}</AuthProvider>

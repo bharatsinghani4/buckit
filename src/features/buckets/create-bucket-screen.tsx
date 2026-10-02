@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { controls } from "@/components/control-styles";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Clock3, Home, Info, Link2, LockKeyhole, UserRound } from "lucide-react";
@@ -84,21 +85,27 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
     }
   }
   return (
-    <main id="main" className="onboarding-page">
-      <div className="onboarding-top">
+    <main
+      id="main"
+      className="onboarding-page [padding:25px_24px_50px] max-[767px]:[padding:22px_20px_40px]"
+    >
+      <div className="onboarding-top [max-width:1180px] m-auto flex items-center justify-between max-[767px]:[&_>_.brand]:m-auto max-[767px]:[&_.text-link]:hidden sticky top-0 z-20 bg-[var(--canvas)] py-2">
         <Brand />
-        <div className="onboarding-actions">
+        <div className="onboarding-actions flex items-center justify-between [gap:14px]">
           <ThemeToggle />
           {profile && (
-            <Link href="/workspace" className="text-link">
+            <Link
+              href="/workspace"
+              className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px]"
+            >
               Your workspace
             </Link>
           )}
         </div>
       </div>
-      <div className="onboarding-content">
-        <header className="onboarding-heading">
-          <span className="eyebrow">
+      <div className="onboarding-content [max-width:600px] [margin:36px_auto_0] max-[767px]:[margin-top:30px]">
+        <header className="onboarding-heading text-left [margin:0_0_28px] [&_h1]:[margin:13px_0_10px] [&_h1]:[font-size:30px] [&_.wordmark]:[font-size:33px] [&_p]:text-xs max-[767px]:[&_h1]:[font-size:27px] max-[420px]:[&_.wordmark]:[font-size:29px]">
+          <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
             {additional ? "A NEW SPACE" : "INITIAL SETUP · STEP 1 OF 1"}
           </span>
           <h1>
@@ -112,18 +119,26 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
           </h1>
           <p>Let’s set up your profile and create a space for the spending that matters to you.</p>
         </header>
-        <form className="onboarding-card form-stack" onSubmit={submit}>
+        <form
+          className="onboarding-card [padding:36px] [border-radius:11px] bg-[var(--surface)] [box-shadow:var(--shadow)] [gap:26px] max-[767px]:[padding:24px_20px] form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]"
+          onSubmit={submit}
+        >
           {error && <Notice>{error}</Notice>}
           <section>
-            <div className="section-label">
-              <span className="step-number">1</span>
+            <div className="section-label flex items-center [gap:10px] [margin-bottom:18px] [&_h2]:[font-size:15px] [&_h2]:[letter-spacing:-.02em] [&_.pill]:ml-auto">
+              <span className="step-number grid [place-items:center] [width:22px] [height:22px] rounded-full bg-[var(--soft)] text-[var(--green)] text-xs [&.filled]:[background:var(--green)] [&.filled]:[color:var(--surface)]">
+                1
+              </span>
               <h2>Your identity</h2>
-              <span className="pill">Your profile</span>
+              <span className="pill text-xs font-semibold bg-[var(--soft)] text-[var(--muted)] [padding:3px_8px] [border-radius:5px] whitespace-nowrap">
+                Your profile
+              </span>
             </div>
-            <div className="form-grid">
-              <label>
+            <div className="form-grid grid [grid-template-columns:1fr_1fr] [gap:16px] max-[420px]:[grid-template-columns:1fr]">
+              <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Display name
                 <input
+                  className={controls.input}
                   name="displayName"
                   placeholder="Your name"
                   defaultValue={profile?.displayName || user?.displayName || ""}
@@ -132,7 +147,7 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
                   autoComplete="name"
                 />
               </label>
-              <label>
+              <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Your timezone
                 <Dropdown
                   value={timezone}
@@ -143,16 +158,18 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
               </label>
             </div>
           </section>
-          <div className="rule" />
+          <div className="rule [height:1px] [background:var(--line)]" />
           <section>
-            <div className="section-label">
-              <span className="step-number filled">2</span>
+            <div className="section-label flex items-center [gap:10px] [margin-bottom:18px] [&_h2]:[font-size:15px] [&_h2]:[letter-spacing:-.02em] [&_.pill]:ml-auto">
+              <span className="step-number grid [place-items:center] [width:22px] [height:22px] rounded-full bg-[var(--soft)] text-[var(--green)] text-xs [&.filled]:[background:var(--green)] [&.filled]:[color:var(--surface)] filled">
+                2
+              </span>
               <h2>{additional ? "Your new bucket" : "Your first bucket"}</h2>
             </div>
-            <p className="section-description">
+            <p className="section-description text-xs [margin-top:-9px] [margin-bottom:18px] [padding-left:32px]">
               A bucket keeps spending for one part of your life together.
             </p>
-            <div className="suggestions">
+            <div className="suggestions flex flex-wrap items-center [gap:8px] [margin-bottom:22px] [&_>_span]:text-xs [&_>_span]:text-[var(--muted)] [&_>_span]:[letter-spacing:.08em] [&_>_span]:[margin-right:3px] [&_button]:bg-[var(--soft)] [&_button]:[border:none] [&_button]:[padding:7px_11px] [&_button]:text-xs [&_button]:inline-flex [&_button]:items-center [&_button]:[gap:5px] [&_button.selected]:[background:var(--ink)] [&_button.selected]:[color:var(--surface)] max-[420px]:[gap:6px] max-[420px]:[&_>_span]:w-full">
               <span>SUGGESTIONS</span>
               <button
                 type="button"
@@ -171,10 +188,11 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
                 <UserRound size={14} /> Personal
               </button>
             </div>
-            <div className="form-stack">
-              <label>
+            <div className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]">
+              <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Bucket name
                 <input
+                  className={controls.input}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -182,8 +200,8 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
                   placeholder="e.g. House Expenses, Personal, Travel"
                 />
               </label>
-              <label>
-                <span className="label-row">
+              <label className="flex flex-col gap-[7px] text-xs font-medium">
+                <span className="label-row flex items-center justify-between [gap:8px] [&_>_a]:text-xs [&_>_a]:text-[var(--green)] [&_small]:text-[var(--muted)] [&_small]:text-xs [&_small]:[font-weight:400]">
                   Primary currency<small>Fixed after first expense</small>
                 </span>
                 <Dropdown
@@ -196,22 +214,28 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
                   placeholder="Choose currency"
                 />
               </label>
-              <div className="timezone-note">
+              <div className="timezone-note flex items-center justify-between [gap:12px] bg-[var(--soft)] [border-radius:7px] [padding:11px_13px] text-xs [&_>_span]:flex [&_>_span]:[gap:8px] [&_>_span]:items-center [&_>_span]:text-[var(--muted)] [&_b]:[font-weight:500] [&_b]:[overflow-wrap:anywhere]">
                 <span>
                   <Clock3 size={16} /> Bucket timezone
                 </span>
                 <b>{timezone}</b>
               </div>
-              <p className="field-hint">
+              <p className="field-hint flex items-center [gap:6px] text-xs [line-height:1.7] text-[var(--muted)]">
                 <Info size={14} /> Currency is fixed after your first expense.
               </p>
             </div>
           </section>
-          <button className="button primary forest full" disabled={!configured || !profile || busy}>
+          <button
+            className={`${controls.primary} button bg-[var(--ink)] w-full`}
+            disabled={!configured || !profile || busy}
+          >
             {busy ? "Creating your bucket…" : "Create bucket"}
             <ArrowRight size={16} />
           </button>
-          <Link className="join-link" href="/join">
+          <Link
+            className="join-link flex justify-between items-center [gap:10px] bg-[var(--soft)] [padding:14px] text-xs [border-radius:7px] [&_>_span]:flex [&_>_span]:items-center [&_>_span]:[gap:7px] [&_>_b]:flex [&_>_b]:items-center [&_>_b]:[gap:7px] [&_>_b]:font-semibold max-[767px]:items-start max-[767px]:flex-col max-[767px]:[gap:12px] max-[767px]:[&_>_b]:[margin-left:23px]"
+            href="/join"
+          >
             <span>
               <Link2 size={16} /> Have an invite link?
             </span>
@@ -220,7 +244,7 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
             </b>
           </Link>
         </form>
-        <div className="onboarding-trust">
+        <div className="onboarding-trust flex items-center justify-center [gap:20px] [margin-top:24px] text-[var(--muted)] text-xs [&_span]:flex [&_span]:items-center [&_span]:[gap:5px] max-[767px]:[gap:12px] max-[767px]:flex-wrap">
           <span>
             <LockKeyhole size={13} /> Private by design
           </span>

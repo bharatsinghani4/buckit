@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { controls } from "@/components/control-styles";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import {
@@ -217,10 +218,13 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
       </main>
     );
   return (
-    <main id="main" className="auth-page">
-      <div className="auth-card">
-        <section className="auth-form-panel">
-          <div className="auth-top">
+    <main
+      id="main"
+      className="auth-page [min-height:100svh] flex items-center justify-center flex-col [padding:20px_24px] max-[767px]:[padding:24px_16px] max-[767px]:[padding:10px]"
+    >
+      <div className="auth-card w-full [max-width:1024px] bg-[var(--surface)] [border-radius:12px] grid [grid-template-columns:7fr_5fr] overflow-hidden [box-shadow:var(--shadow)] [border:1px_solid_#172f2805] max-[767px]:[display:block] max-[767px]:[max-width:500px] [max-height:calc(100svh_-_48px)] max-[767px]:[max-height:calc(100svh_-_36px)] max-[767px]:overflow-y-auto">
+        <section className="auth-form-panel [padding:34px] overflow-y-auto [&_>_.brand]:[margin-bottom:22px] [&_input]:bg-[var(--surface)] [&_input]:[border-color:var(--line)] max-[1000px]:[padding:32px] max-[767px]:[padding:30px_24px] max-[767px]:[&_>_.brand]:[margin-bottom:30px] max-[767px]:[padding:14px_20px] max-[767px]:[&_.auth-top]:[margin-bottom:12px] max-[767px]:[&_.form-stack]:[gap:12px] max-[767px]:[&_.divider]:[margin:8px_0] max-[767px]:[&_.form-switch]:[margin-top:10px] max-[767px]:[&_.form-heading]:[margin-bottom:18px] max-[767px]:[&_.trust-note]:[margin-top:20px]">
+          <div className="auth-top flex items-center justify-between [gap:14px] [margin-bottom:16px] [&_.brand]:[margin-bottom:0]">
             <Brand />
             <ThemeToggle />
           </div>
@@ -229,7 +233,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
               <Mail size={16} /> Sign in to continue to your invitation.
             </Notice>
           )}
-          <div className="form-heading">
+          <div className="form-heading [margin-bottom:20px] [&_h1]:[font-size:26px] [&_h1]:[font-weight:650] [&_h1]:[letter-spacing:-.035em] [&_.wordmark]:[font-size:28px] [&_p]:text-xs [&_p]:[margin-top:8px]">
             <h1>{title}</h1>
             <p>{subtitle}</p>
           </div>
@@ -241,11 +245,15 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
           {error && <Notice>{error}</Notice>}
           {message && <Notice kind="success">{message}</Notice>}
           {(emailForm || (mode === "auth-action" && action === "resetPassword" && actionReady)) && (
-            <form onSubmit={submit} className="form-stack">
+            <form
+              onSubmit={submit}
+              className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]"
+            >
               {signup && (
-                <label>
+                <label className="flex flex-col gap-[7px] text-xs font-medium">
                   Display name
                   <input
+                    className={controls.input}
                     name="displayName"
                     autoComplete="name"
                     placeholder="Your name"
@@ -255,9 +263,10 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                 </label>
               )}
               {emailForm && (
-                <label>
+                <label className="flex flex-col gap-[7px] text-xs font-medium">
                   Email address
                   <input
+                    className={controls.input}
                     name="email"
                     type="email"
                     autoComplete="email"
@@ -268,8 +277,8 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                 </label>
               )}
               {mode !== "forgot-password" && (
-                <label>
-                  <span className="label-row">
+                <label className="flex flex-col gap-[7px] text-xs font-medium">
+                  <span className="label-row flex items-center justify-between [gap:8px] [&_>_a]:text-xs [&_>_a]:text-[var(--green)] [&_small]:text-[var(--muted)] [&_small]:text-xs [&_small]:[font-weight:400]">
                     Password
                     {mode === "sign-in" && <Link href="/forgot-password">Forgot password?</Link>}
                   </span>
@@ -287,8 +296,10 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
               )}
               {mode === "auth-action" && (
                 <>
-                  <p className="muted small-text">Resetting the password for {resetEmail}</p>
-                  <label>
+                  <p className="muted text-[var(--muted)] small-text text-xs">
+                    Resetting the password for {resetEmail}
+                  </p>
+                  <label className="flex flex-col gap-[7px] text-xs font-medium">
                     Confirm password
                     <PasswordField
                       name="confirmPassword"
@@ -300,7 +311,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                 </>
               )}
               <button
-                className="button primary full"
+                className={`${controls.primary} button w-full`}
                 disabled={busy || !auth.configured || (mode === "forgot-password" && cooldown > 0)}
               >
                 {busy
@@ -319,17 +330,20 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
           )}
           {(signup || mode === "sign-in") && (
             <>
-              <div className="divider">
+              <div className="divider flex items-center gap-3.5 my-3 text-xs text-[var(--muted)] before:flex-1 before:border-t before:border-[var(--line)] before:content-[''] after:flex-1 after:border-t after:border-[var(--line)] after:content-['']">
                 <span>OR</span>
               </div>
               <button
                 onClick={google}
                 disabled={busy || !auth.configured}
-                className="button secondary full"
+                className={`${controls.secondary} button w-full`}
               >
-                <span className="google-mark">G</span> Continue with Google
+                <span className="google-mark [font-family:Arial,_sans-serif] [color:#4285f4] [font-size:19px] font-bold">
+                  G
+                </span>{" "}
+                Continue with Google
               </button>
-              <p className="form-switch">
+              <p className="form-switch [margin-top:14px] text-center text-xs [&_a]:text-[var(--green)] [&_a]:[font-weight:650] [&_a]:[margin-left:4px]">
                 {signup ? "Already have an account?" : "Don’t have an account?"}{" "}
                 <Link href={authHref(`/${signup ? "sign-in" : "sign-up"}`, next)}>
                   {signup ? "Sign in" : "Create account"}
@@ -338,52 +352,66 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
             </>
           )}
           {mode === "verify-email" && (
-            <div className="form-stack">
-              <div className="email-illustration">
+            <div className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]">
+              <div className="email-illustration [align-self:center] text-[var(--green)] [padding:20px] bg-[var(--sage)] rounded-full">
                 <Mail size={34} />
               </div>
               <button
-                className="button primary full"
+                className={`${controls.primary} button w-full`}
                 disabled={busy || !auth.user}
                 onClick={() => verify(false)}
               >
                 I’ve verified my email <ArrowRight size={16} />
               </button>
               <button
-                className="button secondary full"
+                className={`${controls.secondary} button w-full`}
                 disabled={busy || !auth.user || cooldown > 0}
                 onClick={() => verify(true)}
               >
                 {cooldown ? `Resend in ${cooldown}s` : "Resend verification email"}
               </button>
-              <Link className="text-link centered" href={next}>
+              <Link
+                className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] centered justify-center"
+                href={next}
+              >
                 Continue for now
               </Link>
             </div>
           )}
           {mode === "auth-action" && action === "verifyEmail" && actionReady && (
-            <button className="button primary full" onClick={() => verify(false)} disabled={busy}>
+            <button
+              className={`${controls.primary} button w-full`}
+              onClick={() => verify(false)}
+              disabled={busy}
+            >
               Verify email
             </button>
           )}
           {["forgot-password", "auth-action"].includes(mode) && (
-            <Link className="back-link" href="/sign-in">
+            <Link
+              className="back-link [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] flex justify-center items-center [gap:8px] [margin-top:26px] text-[var(--green)] text-xs"
+              href="/sign-in"
+            >
               <ArrowLeft size={16} /> Back to sign in
             </Link>
           )}
-          <p className="trust-note">
+          <p className="trust-note flex items-center justify-center [gap:6px] text-xs [margin-top:16px] max-[767px]:[margin-top:34px]">
             <LockKeyhole size={13} /> Your sign-in is secured by Firebase.
           </p>
         </section>
-        <aside className="auth-art">
-          <div className="art-heading">
-            <span className="eyebrow">A SPACE FOR EVERYDAY LIFE</span>
-            <span className="pill">A little clarity</span>
+        <aside className="auth-art [background:radial-gradient(at_top_right,_#c6f1df42,_transparent_55%),_var(--soft)] [padding:30px] flex flex-col justify-between [min-height:0] max-[1000px]:[padding:26px] max-[767px]:hidden">
+          <div className="art-heading flex items-center justify-between [gap:12px] [&_.eyebrow]:text-xs [&_.pill]:bg-[var(--surface)] [&_.pill]:text-xs max-[1000px]:[&_.pill]:hidden">
+            <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
+              A SPACE FOR EVERYDAY LIFE
+            </span>
+            <span className="pill text-xs font-semibold bg-[var(--soft)] text-[var(--muted)] [padding:3px_8px] [border-radius:5px] whitespace-nowrap">
+              A little clarity
+            </span>
           </div>
-          <div className="art-middle">
-            <div className="mini-ledger">
-              <div className="mini-ledger-top">
-                <span className="tile-icon">
+          <div className="art-middle [&_blockquote]:text-center [&_blockquote]:[font-size:18px] [&_blockquote]:italic [&_blockquote]:font-semibold [&_blockquote]:[line-height:1.5] [&_blockquote]:[margin:28px_0_8px] [&_blockquote]:[letter-spacing:-.04em] [&_>_p]:text-xs [&_>_p]:text-center">
+            <div className="mini-ledger bg-[var(--surface)] [padding:20px] [border-radius:9px] [box-shadow:var(--shadow)] [&_.tile-icon]:[width:30px] [&_.tile-icon]:[height:30px]">
+              <div className="mini-ledger-top flex items-center [gap:10px] [&_small]:[display:block] [&_small]:text-[var(--muted)] [&_small]:text-xs [&_b]:[display:block] [&_b]:text-xs [&_strong]:text-base [&_strong]:ml-auto">
+                <span className="tile-icon [width:38px] [height:38px] rounded-lg inline-flex items-center justify-center bg-[var(--soft)] text-[var(--green)]">
                   <Wallet size={19} />
                 </span>
                 <div>
@@ -392,14 +420,14 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                 </div>
                 <strong>₹4,850</strong>
               </div>
-              <div className="meter-label">
+              <div className="meter-label flex justify-between text-xs text-[var(--muted)] [margin:18px_0_6px] [&_span:last-child]:text-[var(--green)]">
                 <span>Monthly spending</span>
                 <span>In one place</span>
               </div>
-              <div className="meter">
+              <div className="meter [height:5px] [border-radius:4px] bg-[var(--soft)] overflow-hidden [&_span]:[display:block] [&_span]:[background:var(--mint)] [&_span]:[width:78%] [&_span]:h-full">
                 <span />
               </div>
-              <div className="mini-totals">
+              <div className="mini-totals [&_small]:[display:block] [&_small]:text-[var(--muted)] [&_small]:text-xs grid [grid-template-columns:1fr_1fr] [gap:6px] [margin-top:16px] [&_>_div]:[padding:10px] [&_>_div]:[border-radius:6px] [&_>_div]:bg-[var(--soft)] [&_b]:text-xs">
                 <div>
                   <small>Groceries</small>
                   <b>₹3,200</b>
@@ -417,7 +445,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
             </blockquote>
             <p>Your spaces. Your people. Your pace.</p>
           </div>
-          <div className="art-footer">
+          <div className="art-footer flex justify-between items-center [&_>_span:first-child]:text-xs [&_>_span:first-child]:flex [&_>_span:first-child]:[gap:5px] [&_>_span:first-child]:items-center [&_>_span:first-child]:text-[var(--muted)] [&_.wordmark]:[font-size:17px]">
             <span>
               <ShieldCheck size={14} /> No bank linking required
             </span>
@@ -426,7 +454,10 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
         </aside>
       </div>
       {!authPage && (
-        <Link href="/" className="auth-home">
+        <Link
+          href="/"
+          className="auth-home flex items-center [gap:7px] text-[var(--muted)] text-xs [margin-top:26px]"
+        >
           <ArrowLeft size={14} /> Back to home
         </Link>
       )}

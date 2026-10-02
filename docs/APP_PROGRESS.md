@@ -1,6 +1,6 @@
 # Buckit progress
 
-Updated: 2 October 2026.
+Updated: 3 October 2026.
 
 Update this file with each development phase or significant fix. Record what changed, the checks actually run, and any work still unverified before finishing the task. Keep prior verification distinct from checks run for the latest change.
 
@@ -13,7 +13,9 @@ Update this file with each development phase or significant fix. Record what cha
 
 ## Current local work (not pushed)
 
-- Added Tailwind v4 and prefixed daisyUI. Existing visual rules now use Tailwind `@apply`; the remaining CSS declarations are palette tokens and reduced-motion/keyframe rules. Radix Select replaces visible native selects/datalists. Lucide remains the icon library.
+- Added Tailwind v4 and prefixed daisyUI. Visual rules now live as Tailwind utility classes in JSX or shared control-style constants; `globals.css` contains only theme tokens, semantic browser defaults, and reduced-motion behavior. Radix Select replaces visible native selects/datalists. Lucide remains the icon library.
+- Shared Tailwind controls now give primary, secondary, action, quiet/destructive actions, text/search/date fields, dropdowns, and the ledger month picker matching heights, radii, borders, focus treatment, and theme colors. The bucket selector keeps its two-line content while sharing the dropdown surface and option styling. A CSS migration exposed a mobile sidebar cascade conflict; compact and expanded navigation were corrected and checked in the local browser.
+- Fixed the desktop workspace regression from the Tailwind migration: the fixed sidebar was removed from the grid flow, but the shell retained its two-column grid, placing the entire workspace in the 248px sidebar track. The shell now uses block flow with the existing sidebar-width margin on the main region.
 - Balanced dark mode with Stitch's charcoal/neutral surface range and mint accent. Small 14px supporting text is 12px.
 - Applied the approved roughly 20% spacing reduction: auth form padding 42→34px, workspace horizontal padding 40→32px, field gaps 20→16px, sidebar section gaps 28→22px.
 - Added a theme toggle to the home, auth, onboarding, invitation, and workspace headers. Choice survives reload and sign-out in local storage. Profile appearance saves to the API too.
@@ -55,6 +57,8 @@ See [PHASE_ROADMAP.md](PHASE_ROADMAP.md). Phases 5–7 cover notifications, cont
 
 ## Verification
 
+- Latest workspace layout fix: checked signed-in EMI, Expenses, Reference Settings, Reports, Budgets, Scheduled, and Overview at 1346px desktop width; each main area fills the space beside the fixed sidebar. Checked the Expenses ledger at 390px mobile width and the expanded sidebar at 900px; the Add Expense form also renders at full desktop width. `npm run check` passed formatting, lint, TypeScript, and 59 tests; `npm run build` passed. No financial records were changed.
+- Latest Tailwind/control pass: `npm run check` passed Prettier, lint, TypeScript, and 59 tests; `npm run build` passed. Signed-in local browser checked the compact and expanded sidebar, EMI setup dialog with the Radix dropdown above its backdrop, the Expenses ledger and month picker, and the Add Expense text/date controls. No financial records were created; the browser returned to the EMI overview with the dev server running.
 - Phase 4 local: `npm run check` passed Prettier, lint, TypeScript, and 59 tests; `npm run build` passed. The HTTP integration suite uses a temporary MongoDB replica set and covers month-end preview, prior-paid count, skipped installment, daily posting without double counting, recorded expense deletion/restoration, single-date reschedule, stale revisions, plan ending, archive-review resolution, membership departure/rejoin, and cron authentication rejection. Calendar tests cover month-end and timezone due boundaries. Signed-in local browser rendered the empty EMI overview, plan form, scheduled ledger, and dashboard summary with the shared sidebar. It did not create financial records in the user's bucket. `npm run db:setup` created the Phase 4 collections and indexes, including the job lease, without dropping existing data.
 - Phase 3 local: `npm run check` passed formatting, lint, types, and 53 tests; `npm run build` passed after the final fixes. Phase 3 HTTP integration against a temporary MongoDB replica set covers budget CRUD and access rules, threshold crossings, refunds, custom date boundaries, dashboard/report agreement, overlapping budgets, member removal, category deletion protection, and expense deletion. Signed-in local browser rendered dashboard, reports, budget overview, budget form, custom dates, and report filters with the existing bucket's empty states. The browser did not create or edit real bucket data. `npm run db:setup` applied Phase 1–3 collections and indexes successfully against the configured local database connection without dropping existing indexes.
 - Latest Reference Settings styling: compared the Stitch screenshot with the signed-in local screen, confirmed computed Add/Edit/Archive/Delete button colors and 12px sizing, and opened the category action menu to check its presentation. `npm run check` passed formatting, lint, TypeScript, and 49 tests.
