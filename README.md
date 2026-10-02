@@ -2,7 +2,7 @@
 
 A responsive spending app for individuals and groups, built with Next.js App Router, TypeScript, Firebase Authentication and MongoDB/Mongoose.
 
-Phase 1 implements access and the first bucket: the public home, sign-in/sign-up, verification/recovery, create/join bucket, invitations, bucket selection, profile preferences and a welcome tour. The visuals follow the Buckit Stitch designs. Expense entry and analytical dashboards belong to later phases.
+The app currently covers access and buckets, everyday expenses, spending insights, and scheduled spending with EMI plans. The shared workspace follows the Buckit Stitch designs.
 
 ## Run locally
 
@@ -24,6 +24,8 @@ npm run dev
 
 See [Phase 1 implementation and setup](docs/PHASE_1_IMPLEMENTATION.md) for Firebase providers, authorized domains, email action URLs, database indexes, supported flows and limitations. [App progress](docs/APP_PROGRESS.md) tracks completed work, current changes and remaining checks. Never commit `.env.local`. No infrastructure is provisioned by this repository.
 
+The Phase 4 daily worker is configured in `vercel.json` for 03:00 UTC. Set a random `CRON_SECRET` in the deployment environment; Vercel sends it to the protected `/api/internal/jobs/daily` route. Local development does not run the cron automatically. The UI presents an approximate daily processing window.
+
 ## Verify
 
 ```sh
@@ -44,12 +46,13 @@ src/components/             Shared brand and accessible UI primitives
 src/features/identity/      Authentication, profile contracts and Phase 1 services
 src/features/buckets/       Setup, invitation and workspace UI
 src/lib/api/                Token verification, HTTP validation and client requests
-src/lib/db/                 Cached Mongoose connection and Phase 1 models
+src/features/scheduling/    EMI plans, installment schedule and daily processing
+src/lib/db/                 Cached Mongoose connection and phase models
 src/lib/firebase/           Separate browser and Admin SDK helpers
 scripts/setup-db.ts         Explicit additive collection/index setup
 public/buckit-mark.svg      Supplied Stitch vector logo
 ```
 
-The existing [phase roadmap](docs/PHASE_ROADMAP.md) sequences the remaining requirements. Business services recheck active users and memberships; Paid By and Added By do not grant permissions. Future money operations must use decimal strings/Decimal128 and decimal arithmetic.
+The existing [phase roadmap](docs/PHASE_ROADMAP.md) sequences the remaining requirements. Business services recheck active users and memberships; Paid By and Added By do not grant permissions. Money operations use decimal strings/Decimal128 and decimal arithmetic.
 
 Dependency notes: Next.js's current lint plugins require ESLint 9, which remains pinned despite its upstream deprecation notice. The previously identified two moderate transitive npm advisories (`uuid`, `gaxios`) originate in Firebase Admin's optional Cloud Storage dependency tree. Storage is not used here; standard `npm audit fix` did not resolve them. No forced dependency overrides were applied.

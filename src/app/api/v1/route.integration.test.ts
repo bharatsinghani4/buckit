@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
-import { AuditModel, phaseThreeModels } from "@/lib/db/models";
+import { AuditModel, ExpenseModel, phaseFourModels } from "@/lib/db/models";
+import { processDaily } from "@/features/scheduling/service";
+import { GET as dailyGET } from "../internal/jobs/daily/route";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/mongoose", () => ({ connectDatabase: async () => mongoose.connection }));
@@ -26,7 +28,7 @@ beforeAll(async () => {
     autoIndex: false,
     autoCreate: false,
   });
-  for (const model of phaseThreeModels) {
+  for (const model of phaseFourModels) {
     await model.createCollection();
     await model.createIndexes();
   }
@@ -36,6 +38,322 @@ afterAll(async () => {
   await mongoose.disconnect();
   await database?.stop();
   delete process.env.API_CURSOR_SECRET;
+});
+
+describe("Phase 4 scheduled spending and EMI flows", () => {
+  it("generates a month-end plan, posts once, and keeps skipped installments unpaid", async () => {
+    const actor = "phase4owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "buckets", actor, {
+      name: "Phase 4 test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const profile = (await request("GET", "me", actor)).payload.data;
+    const account = await request("POST", `${root}/accounts`, actor, { name: "Installment card" });
+    const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, actor)).payload.data[0];
+    const definition = {
+      title: "Air conditioner",
+      installmentAmount: "5000.00",
+      currency: "INR",
+      totalInstallments: 4,
+      previouslyPaidCount: 1,
+      firstInstallmentDate: "2026-01-31",
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "credit_card",
+      paidByUserId: profile.id,
+    };
+    const preview = await request("POST", `${root}/emi-plans/preview`, actor, definition);
+    expect(preview.payload.data.dates.map((item: { date: string }) => item.date)).toEqual([
+      "2026-02-28",
+      "2026-03-31",
+      "2026-04-30",
+    ]);
+    const plan = await request("POST", `${root}/emi-plans`, actor, definition);
+    expect(plan.response.status).toBe(201);
+    expect(plan.payload.data.generatedThroughNumber).toBe(4);
+    expect(plan.payload.data.recordedCount).toBe(1);
+    expect(
+      (await request("GET", `${root}/dashboard?period=month&anchorDate=2026-03-15`, actor)).payload
+        .data.emi.activePlans,
+    ).toBe(1);
+    const planId = plan.payload.data.id;
+    const installments = await request("GET", `${root}/emi-plans/${planId}/installments`, actor);
+    expect(installments.payload.data).toHaveLength(3);
+    const first = installments.payload.data[0];
+    expect(
+      (
+        await request(
+          "POST",
+          `${root}/emi-plans/${planId}/installments/${first.id}/skip`,
+          actor,
+          undefined,
+          { "If-Match": `"r${first.expenseRevision}"` },
+        )
+      ).response.status,
+    ).toBe(200);
+    expect(
+      (await request("GET", `${root}/expenses/summary?month=2026-02`, actor)).payload.data
+        .scheduledCount,
+    ).toBe(0);
+    const processed = await processDaily();
+    expect(processed.posted).toBeGreaterThanOrEqual(2);
+    const after = await request("GET", `${root}/emi-plans/${planId}/installments`, actor);
+    expect(after.payload.data.map((item: { state: string }) => item.state)).toEqual([
+      "skipped",
+      "recorded",
+      "recorded",
+    ]);
+    const report = await request(
+      "GET",
+      `${root}/reports/spending?period=custom&from=2026-01-01&toExclusive=2026-05-01`,
+      actor,
+    );
+    expect(report.payload.data.totalAmount).toBe("10000.00");
+    await processDaily();
+    const reportAgain = await request(
+      "GET",
+      `${root}/reports/spending?period=custom&from=2026-01-01&toExclusive=2026-05-01`,
+      actor,
+    );
+    expect(reportAgain.payload.data.totalAmount).toBe("10000.00");
+    const recorded = after.payload.data[1];
+    expect(
+      (
+        await request("DELETE", `${root}/expenses/${recorded.expenseId}`, actor, undefined, {
+          "If-Match": `"r${recorded.expenseRevision}"`,
+        })
+      ).response.status,
+    ).toBe(200);
+    expect(
+      (await request("GET", `${root}/emi-plans/${planId}/installments`, actor)).payload.data[1]
+        .state,
+    ).toBe("unpaid");
+    const deleted = await request("GET", `${root}/expenses/${recorded.expenseId}`, actor);
+    expect(
+      (
+        await request("POST", `${root}/expenses/${recorded.expenseId}/restore`, actor, undefined, {
+          "If-Match": deleted.response.headers.get("ETag")!,
+        })
+      ).response.status,
+    ).toBe(200);
+    expect(
+      (await request("GET", `${root}/emi-plans/${planId}/installments`, actor)).payload.data[1]
+        .state,
+    ).toBe("recorded");
+  });
+
+  it("reschedules one installment, ends a future plan, and protects the daily job", async () => {
+    const actor = "phase4future";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "buckets", actor, {
+      name: "Future schedule",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const ownerId = (await request("GET", "me", actor)).payload.data.id;
+    const account = await request("POST", `${root}/accounts`, actor, { name: "Card" });
+    const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, actor)).payload.data[0];
+    const plan = await request("POST", `${root}/emi-plans`, actor, {
+      title: "Future purchase",
+      installmentAmount: "100.00",
+      currency: "INR",
+      totalInstallments: 2,
+      previouslyPaidCount: 0,
+      firstInstallmentDate: "2028-01-31",
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "credit_card",
+      paidByUserId: ownerId,
+    });
+    expect(plan.response.status).toBe(201);
+    const planId = plan.payload.data.id;
+    const before = (await request("GET", `${root}/emi-plans/${planId}/installments`, actor)).payload
+      .data;
+    const changed = await request(
+      "POST",
+      `${root}/emi-plans/${planId}/installments/${before[0].id}/reschedule`,
+      actor,
+      { expenseDate: "2028-03-05" },
+      { "If-Match": `"r${before[0].expenseRevision}"` },
+    );
+    expect(changed.response.status).toBe(200);
+    const after = (await request("GET", `${root}/emi-plans/${planId}/installments`, actor)).payload
+      .data;
+    expect(after.map((item: { scheduledDate: string }) => item.scheduledDate)).toEqual([
+      "2028-03-05",
+      "2028-02-29",
+    ]);
+    expect(
+      (
+        await request(
+          "POST",
+          `${root}/emi-plans/${planId}/installments/${before[0].id}/skip`,
+          actor,
+          undefined,
+          { "If-Match": `"r${before[0].expenseRevision}"` },
+        )
+      ).response.status,
+    ).toBe(412);
+    const latest = await request("GET", `${root}/emi-plans/${planId}`, actor);
+    const ended = await request("POST", `${root}/emi-plans/${planId}/end`, actor, undefined, {
+      "If-Match": latest.response.headers.get("ETag")!,
+    });
+    expect(ended.payload.data.state).toBe("ended");
+    expect(
+      (await request("GET", `${root}/emi-plans/${planId}/installments`, actor)).payload.data.every(
+        (item: { state: string }) => item.state === "canceled",
+      ),
+    ).toBe(true);
+    expect(
+      (await request("GET", `${root}/expenses?from=2028-01-01&toExclusive=2028-05-01`, actor))
+        .payload.data,
+    ).toHaveLength(0);
+    expect(
+      (await dailyGET(new Request("http://localhost:3000/api/internal/jobs/daily"))).status,
+    ).toBe(401);
+  });
+
+  it("keeps archive-review entries out of the daily run until their creator decides", async () => {
+    const actor = "phase4review";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "buckets", actor, {
+      name: "Review test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const ownerId = (await request("GET", "me", actor)).payload.data.id;
+    const account = await request("POST", `${root}/accounts`, actor, { name: "Card" });
+    const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, actor)).payload.data[0];
+    const expense = await request("POST", `${root}/expenses`, actor, {
+      expenseDate: "2026-01-15",
+      description: "Archive backlog",
+      paidByUserId: ownerId,
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "upi",
+      originalAmount: "150.00",
+      originalCurrency: "INR",
+    });
+    const expenseId = expense.payload.data.id;
+    await ExpenseModel.updateOne(
+      { _id: expenseId },
+      {
+        $set: {
+          postingState: "unposted",
+          reviewState: "archive_review_required",
+          dueAt: new Date("2026-01-14T18:30:00Z"),
+        },
+        $unset: { postedAt: "" },
+      },
+    );
+    const pending = await request("GET", `${root}/scheduled-expenses`, actor);
+    expect(pending.payload.data[0].status).toBe("review_required");
+    await processDaily();
+    expect(
+      (await request("GET", `${root}/expenses/${expenseId}`, actor)).payload.data.displayStatus,
+    ).toBe("archive_review");
+    const resolved = await request(
+      "POST",
+      `${root}/expenses/${expenseId}/archive-resolution`,
+      actor,
+      { decision: "post" },
+      { "If-Match": expense.response.headers.get("ETag")! },
+    );
+    expect(resolved.payload.data.displayStatus).toBe("actual");
+    expect((await request("GET", `${root}/scheduled-expenses`, actor)).payload.data).toHaveLength(
+      0,
+    );
+    expect(
+      (
+        await request(
+          "POST",
+          `${root}/expenses/${expenseId}/archive-resolution`,
+          actor,
+          { decision: "post" },
+          { "If-Match": expense.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(404);
+  });
+
+  it("cancels a removed creator's future installments without granting edit rights on rejoin", async () => {
+    const owner = "phase4memberowner";
+    const member = "phase4member";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", member, {});
+    const created = await request("POST", "buckets", owner, {
+      name: "Member EMI",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const invite = await request("POST", `${root}/invitations`, owner, {});
+    const token = new URL(invite.payload.data.shareUrl).hash.slice(1);
+    await request("POST", "invitations/join", member, { token });
+    const account = await request("POST", `${root}/accounts`, owner, { name: "Shared card" });
+    const category = (await request("GET", `${root}/categories`, owner)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, owner)).payload.data[0];
+    const memberId = (await request("GET", "me", member)).payload.data.id;
+    const plan = await request("POST", `${root}/emi-plans`, member, {
+      title: "Member plan",
+      installmentAmount: "75.00",
+      currency: "INR",
+      totalInstallments: 2,
+      previouslyPaidCount: 0,
+      firstInstallmentDate: "2028-01-15",
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "credit_card",
+      paidByUserId: memberId,
+    });
+    expect(plan.response.status).toBe(201);
+    const membership = (await request("GET", `${root}/members`, owner)).payload.data.find(
+      (item: { id: string }) => item.id === memberId,
+    );
+    expect(
+      (
+        await request("DELETE", `${root}/members/${membership.membershipId}`, owner, undefined, {
+          "If-Match": `"r${membership.revision}"`,
+        })
+      ).response.status,
+    ).toBe(200);
+    const planId = plan.payload.data.id;
+    expect((await request("GET", `${root}/emi-plans/${planId}`, owner)).payload.data.state).toBe(
+      "owner_departed",
+    );
+    expect(
+      (await request("GET", `${root}/emi-plans/${planId}/installments`, owner)).payload.data.every(
+        (item: { state: string }) => item.state === "canceled",
+      ),
+    ).toBe(true);
+    await request("POST", "invitations/join", member, { token });
+    expect(
+      (await request("GET", `${root}/emi-plans/${planId}`, member)).payload.data.isCreator,
+    ).toBe(false);
+    expect(
+      (
+        await request(
+          "PATCH",
+          `${root}/emi-plans/${planId}`,
+          member,
+          { title: "Reopened" },
+          { "If-Match": plan.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(404);
+  });
 });
 
 async function request(
@@ -116,7 +434,7 @@ describe("Phase 1 HTTP API flows", () => {
     ).toBe("light");
     expect((await request("GET", `buckets/${id}`)).payload.data.name).toBe("Shared Living");
     expect((await request("GET", "buckets")).payload.data).toHaveLength(1);
-    expect((await request("GET", "capabilities")).payload.data.phase).toBe(3);
+    expect((await request("GET", "capabilities")).payload.data.phase).toBe(4);
     const invite = await request("POST", `buckets/${id}/invitations`, "owner", {});
     expect(invite.response.status).toBe(201);
     const token = new URL(invite.payload.data.shareUrl).hash.slice(1);

@@ -16,6 +16,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
+  CreditCard,
   X,
 } from "lucide-react";
 import { Dropdown } from "@/components/dropdown";
@@ -35,6 +36,12 @@ type Dashboard = SpendingReport & {
   trend: SpendingGroup[];
   budgets: BudgetEntry[];
   budgetCount: number;
+  emi: {
+    activePlans: number;
+    upcomingInstallments: number;
+    unpaidInstallments: number;
+    nextDate: string | null;
+  };
   recentExpenses: {
     id: string;
     description: string;
@@ -664,6 +671,43 @@ export function PhaseThreeScreen({
                   No ledger activity yet.
                 </p>
               )}
+            </section>
+            <section className={`${card} md:col-span-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="rounded-lg bg-[var(--soft)] p-2.5 text-[var(--green)]">
+                    <CreditCard size={19} />
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-bold text-[var(--ink)]">EMI commitments</h2>
+                    <p className="text-xs text-[var(--muted)]">
+                      Scheduled installments are separate from actual spending.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/workspace?bucket=${bucket.id}&view=emis`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--green)]"
+                >
+                  View plans <ArrowRight size={14} />
+                </Link>
+              </div>
+              <div className="mt-4 grid gap-3 border-t border-[var(--line)] pt-4 sm:grid-cols-3">
+                <div>
+                  <p className="text-[11px] text-[var(--muted)]">Active plans</p>
+                  <strong className="mt-1 block text-lg">{dashboard.emi.activePlans}</strong>
+                </div>
+                <div>
+                  <p className="text-[11px] text-[var(--muted)]">Upcoming installments</p>
+                  <strong className="mt-1 block text-lg">
+                    {dashboard.emi.upcomingInstallments}
+                  </strong>
+                </div>
+                <div>
+                  <p className="text-[11px] text-[var(--muted)]">Unpaid obligations</p>
+                  <strong className="mt-1 block text-lg">{dashboard.emi.unpaidInstallments}</strong>
+                </div>
+              </div>
             </section>
           </div>
         </>

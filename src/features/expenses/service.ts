@@ -7,6 +7,8 @@ import {
   BucketModel,
   CommentModel,
   ExpenseModel,
+  EmiInstallmentModel,
+  EmiPlanModel,
   MembershipModel,
   OptionModel,
   UserModel,
@@ -22,6 +24,8 @@ import {
 } from "./contracts";
 import { convertAmount, minorUnits, precision } from "./money";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
+import { z } from "zod";
+import { dueInstant } from "@/features/scheduling/dates";
 
 const missing = () => new ApiError(404, "RESOURCE_NOT_FOUND", "This expense is not available.");
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
@@ -51,6 +55,12 @@ type ExpenseRow = {
     rateDate?: string;
   };
   postingState: string;
+  reviewState?: string;
+  source?: {
+    kind?: string;
+    emiPlanId?: mongoose.Types.ObjectId;
+    emiInstallmentId?: mongoose.Types.ObjectId;
+  };
   deletedAt?: Date | null;
   restoreUntil?: Date | null;
   revision: number;
@@ -83,13 +93,15 @@ async function expenseDto(expense: ExpenseRow, userId: string, session?: ClientS
   const creator = String(expense.actualCreatorUserId) === userId && Boolean(currentMembership);
   const displayStatus = deleted
     ? "deleted"
-    : expense.expenseDate > today
-      ? "scheduled"
-      : expense.conversion?.status === "missing"
-        ? "conversion_needed"
-        : expense.postingState === "posted"
-          ? "actual"
-          : "pending_processing";
+    : expense.reviewState === "archive_review_required"
+      ? "archive_review"
+      : expense.expenseDate > today
+        ? "scheduled"
+        : expense.conversion?.status === "missing"
+          ? "conversion_needed"
+          : expense.postingState === "posted"
+            ? "actual"
+            : "pending_processing";
   return {
     id: String(expense._id),
     bucketId: String(expense.bucketId),
@@ -120,6 +132,14 @@ async function expenseDto(expense: ExpenseRow, userId: string, session?: ClientS
     deletedAt: expense.deletedAt?.toISOString() ?? null,
     restoreUntil: expense.restoreUntil?.toISOString() ?? null,
     revision: expense.revision,
+    source:
+      expense.source?.kind === "emi"
+        ? {
+            kind: "emi",
+            planId: String(expense.source.emiPlanId),
+            installmentId: String(expense.source.emiInstallmentId),
+          }
+        : { kind: "manual" },
     permissions: {
       canEdit: creator && !deleted && bucket?.status === "active",
       canDelete: creator && !deleted && bucket?.status === "active",
@@ -156,7 +176,7 @@ async function replayExpense(
   return expenseDto(expense, String(user._id), session);
 }
 
-async function conversionFor(
+export async function conversionFor(
   input: Pick<
     ExpenseInput,
     "expenseDate" | "originalAmount" | "originalCurrency" | "manualConversion"
@@ -264,11 +284,11 @@ export async function conversionPreview(identity: DecodedIdToken, bucketId: stri
   };
 }
 
-async function validateReferences(
+export async function validateReferences(
   input: ExpenseInput,
   bucketId: string,
   session: ClientSession,
-  existing?: ExpenseRow,
+  existing?: Pick<ExpenseRow, "categoryId" | "accountId" | "platformId">,
 ) {
   const member = await MembershipModel.exists({
     bucketId,
@@ -324,7 +344,10 @@ export async function listExpenses(
     query.restoreUntil = { $gt: new Date() };
     query.actualCreatorUserId = user._id;
     query.creatorMembershipId = membership?._id;
-  } else query.deletedAt = null;
+  } else {
+    query.deletedAt = null;
+    query.postingState = { $ne: "canceled" };
+  }
   for (const [param, field] of [
     ["categoryId", "categoryId"],
     ["accountId", "accountId"],
@@ -347,6 +370,7 @@ export async function listExpenses(
   const today = dateInZone((await BucketModel.findById(bucketId))?.timezone ?? "UTC");
   if (status === "scheduled") query.expenseDate = { ...(query.expenseDate as object), $gt: today };
   if (status === "conversion_needed") query["conversion.status"] = "missing";
+  if (status === "archive_review") query.reviewState = "archive_review_required";
   if (status === "actual") {
     query.postingState = "posted";
     query.expenseDate = { ...(query.expenseDate as object), $lte: today };
@@ -392,6 +416,7 @@ export async function expenseSummary(
   const match: Record<string, unknown> = {
     bucketId: new mongoose.Types.ObjectId(bucketId),
     deletedAt: null,
+    postingState: { $ne: "canceled" },
   };
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [year, number] = month.split("-").map(Number);
@@ -478,7 +503,8 @@ export async function getExpense(identity: DecodedIdToken, bucketId: string, exp
       userId: user._id,
       state: "active",
     }));
-  if (!expense || (expense.deletedAt && !creatorMembership)) throw missing();
+  if (!expense || expense.postingState === "canceled" || (expense.deletedAt && !creatorMembership))
+    throw missing();
   return expenseDto(expense, String(user._id));
 }
 
@@ -592,6 +618,7 @@ export async function createExpense(
             postingState: future || conversion.status === "missing" ? "unposted" : "posted",
             postedAt: future || conversion.status === "missing" ? null : new Date(),
             scheduleTimezone: target.timezone,
+            dueAt: future ? dueInstant(input.expenseDate, target.timezone) : undefined,
             refundOfExpenseId: input.refundOfExpenseId,
           },
         ],
@@ -648,7 +675,12 @@ export async function changeExpense(
     userId: user._id,
     state: "active",
   });
-  if (!existing || String(existing.actualCreatorUserId) !== String(user._id) || !creatorMembership)
+  if (
+    !existing ||
+    existing.postingState === "canceled" ||
+    String(existing.actualCreatorUserId) !== String(user._id) ||
+    !creatorMembership
+  )
     throw missing();
   const merged = {
     expenseDate: existing.expenseDate,
@@ -686,6 +718,12 @@ export async function changeExpense(
       }).session(session);
       if (!expense) throw missing();
       assertRevision(revisionHeader, expense.revision);
+      if (action === "edit" && expense.source?.kind === "emi" && "expenseDate" in edits)
+        throw new ApiError(
+          409,
+          "INVALID_STATE_TRANSITION",
+          "Reschedule this date from the installment schedule.",
+        );
       const affectedDates = [...new Set([expense.expenseDate, merged.expenseDate])];
       const budgetBefore = await captureBudgetUsage(bucketId, affectedDates, session);
       const changedFields =
@@ -728,13 +766,60 @@ export async function changeExpense(
           originalCurrency: merged.originalCurrency,
           conversion,
           postingState:
-            merged.expenseDate > dateInZone(bucket.timezone) || conversion?.status === "missing"
+            expense.reviewState === "archive_review_required" ||
+            merged.expenseDate > dateInZone(bucket.timezone) ||
+            conversion?.status === "missing"
               ? "unposted"
               : "posted",
+          dueAt: dueInstant(merged.expenseDate, bucket.timezone),
+          postedAt:
+            expense.reviewState === "archive_review_required" ||
+            merged.expenseDate > dateInZone(bucket.timezone) ||
+            conversion?.status === "missing"
+              ? null
+              : new Date(),
         });
       }
       expense.revision += 1;
       await expense.save({ session });
+      if (expense.source?.kind === "emi" && expense.source.emiInstallmentId) {
+        const installment = await EmiInstallmentModel.findOne({
+          _id: expense.source.emiInstallmentId,
+          expenseId: expense._id,
+        }).session(session);
+        if (installment) {
+          if (action === "delete") installment.state = "unpaid";
+          else if (action === "restore" || action === "edit") {
+            installment.state = expense.postingState === "posted" ? "recorded" : "scheduled";
+            installment.scheduledDate = expense.expenseDate;
+            installment.amount = expense.originalAmount;
+            installment.currency = expense.originalCurrency;
+          }
+          installment.revision += 1;
+          await installment.save({ session });
+          if (action === "delete" && expense.source.emiPlanId)
+            await EmiPlanModel.updateOne(
+              { _id: expense.source.emiPlanId, state: "completed" },
+              { $set: { state: "active" }, $inc: { revision: 1 } },
+              { session },
+            );
+          if (action === "restore" && expense.source.emiPlanId) {
+            const plan = await EmiPlanModel.findById(expense.source.emiPlanId).session(session);
+            if (
+              plan?.state === "active" &&
+              plan.generatedThroughNumber === plan.totalInstallments &&
+              !(await EmiInstallmentModel.exists({
+                planId: plan._id,
+                state: { $ne: "recorded" },
+              }).session(session))
+            ) {
+              plan.state = "completed";
+              plan.revision += 1;
+              await plan.save({ session });
+            }
+          }
+        }
+      }
       await BucketModel.updateOne(
         { _id: bucketId },
         { $inc: { financialRevision: 1, exportRevision: 1 } },
@@ -761,6 +846,132 @@ export async function changeExpense(
       };
     },
     async (id, session) => replayExpense(identity, bucketId, id, session),
+  );
+}
+
+export async function resolveArchiveExpense(
+  identity: DecodedIdToken,
+  bucketId: string,
+  expenseId: string,
+  raw: unknown,
+  key: string,
+  revisionHeader: string | null,
+) {
+  objectId.parse(expenseId);
+  const { decision } = z
+    .object({ decision: z.enum(["post", "cancel"]) })
+    .strict()
+    .parse(raw);
+  const user = await activeUser(identity);
+  const bucket = await bucketForUser(bucketId, user);
+  const candidate = await ExpenseModel.findOne({
+    _id: expenseId,
+    bucketId,
+    actualCreatorUserId: user._id,
+    reviewState: "archive_review_required",
+    postingState: "unposted",
+    deletedAt: null,
+  });
+  if (!candidate) throw missing();
+  if (candidate.expenseDate > dateInZone(bucket.timezone))
+    throw new ApiError(409, "INVALID_STATE_TRANSITION", "This expense is not due yet.");
+  const conversion =
+    decision === "post"
+      ? candidate.conversion?.manualFixed && candidate.conversion.convertedAmount
+        ? {
+            status: "final",
+            method: candidate.conversion.method,
+            convertedAmount: candidate.conversion.convertedAmount,
+            rate: candidate.conversion.rate,
+            rateDate: candidate.conversion.rateDate,
+            manualFixed: true,
+          }
+        : await conversionFor(
+            {
+              expenseDate: candidate.expenseDate,
+              originalAmount: candidate.originalAmount.toString(),
+              originalCurrency: candidate.originalCurrency,
+            },
+            bucket.primaryCurrency,
+            bucket.timezone,
+          )
+      : null;
+  if (decision === "post" && conversion?.status !== "final")
+    throw new ApiError(
+      422,
+      "INVALID_CONVERSION",
+      "Resolve this expense's conversion before posting it.",
+    );
+  return mutate(
+    identity,
+    `expense:${bucketId}:${expenseId}:archive-resolution`,
+    key,
+    { decision, revisionHeader },
+    async (session) => {
+      const actor = await activeUser(identity, session);
+      await bucketForUser(bucketId, actor, session, true);
+      const membership = await MembershipModel.findOne({
+        bucketId,
+        userId: actor._id,
+        state: "active",
+      }).session(session);
+      const expense = await ExpenseModel.findOne({
+        _id: expenseId,
+        bucketId,
+        actualCreatorUserId: actor._id,
+        creatorMembershipId: membership?._id,
+        reviewState: "archive_review_required",
+        postingState: "unposted",
+        deletedAt: null,
+      }).session(session);
+      if (!expense) throw missing();
+      assertRevision(revisionHeader, expense.revision);
+      const before = await captureBudgetUsage(bucketId, [expense.expenseDate], session);
+      if (decision === "post") {
+        expense.conversion = conversion!;
+        expense.postingState = "posted";
+        expense.postedAt = new Date();
+      } else expense.postingState = "canceled";
+      expense.reviewState = "none";
+      expense.revision += 1;
+      await expense.save({ session });
+      if (expense.source?.emiInstallmentId)
+        await EmiInstallmentModel.updateOne(
+          { _id: expense.source.emiInstallmentId },
+          { $set: { state: decision === "post" ? "recorded" : "unpaid" }, $inc: { revision: 1 } },
+          { session },
+        );
+      await BucketModel.updateOne(
+        { _id: bucketId },
+        { $inc: { financialRevision: 1, exportRevision: 1 } },
+        { session },
+      );
+      await reconcileBudgetThresholds(bucketId, [expense.expenseDate], before, session);
+      await AuditModel.create(
+        [
+          {
+            bucketId,
+            actorUserId: actor._id,
+            action: `scheduled.archive_${decision}`,
+            entityId: expense._id,
+            operationKey: key,
+          },
+        ],
+        { session },
+      );
+      return {
+        resourceId: expenseId,
+        status: 200,
+        data: await expenseDto(expense, String(actor._id), session),
+      };
+    },
+    async (id, session) => {
+      const actor = await activeUser(identity, session);
+      await bucketForUser(bucketId, actor, session);
+      const expense = await ExpenseModel.findById(id).session(session);
+      if (!expense || String(expense.actualCreatorUserId) !== String(actor._id)) throw missing();
+      return expenseDto(expense, String(actor._id), session);
+    },
   );
 }
 

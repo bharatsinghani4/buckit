@@ -90,11 +90,18 @@ export type Expense = {
   conversionStatus: "final" | "estimated" | "missing";
   rate: string | null;
   rateDate: string | null;
-  displayStatus: "actual" | "scheduled" | "pending_processing" | "conversion_needed" | "deleted";
+  displayStatus:
+    | "actual"
+    | "scheduled"
+    | "pending_processing"
+    | "conversion_needed"
+    | "archive_review"
+    | "deleted";
   refundOfExpenseId: string | null;
   deletedAt: string | null;
   restoreUntil: string | null;
   revision: number;
+  source?: { kind: "manual" } | { kind: "emi"; planId: string; installmentId: string };
   permissions: { canEdit: boolean; canDelete: boolean; canRestore: boolean; canComment: boolean };
 };
 export type Option = {
