@@ -1,7 +1,13 @@
 import "server-only";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { ApiError, assertRevision } from "@/lib/api/errors";
-import { AuditModel, InvitationModel, MembershipModel, UserModel } from "@/lib/db/models";
+import {
+  AuditModel,
+  BudgetModel,
+  InvitationModel,
+  MembershipModel,
+  UserModel,
+} from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
 import { objectId } from "./contracts";
 
@@ -53,6 +59,11 @@ export async function removeMember(
       member.state = "removed";
       member.revision += 1;
       await member.save({ session });
+      await BudgetModel.updateMany(
+        { bucketId, creatorMembershipId: member._id, scope: "member", state: "active" },
+        { $set: { state: "historical" }, $inc: { revision: 1 } },
+        { session },
+      );
       await UserModel.updateOne(
         { _id: member.userId, lastBucketId: bucket._id },
         { $set: { lastBucketId: null }, $inc: { revision: 1 } },

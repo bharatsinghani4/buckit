@@ -1961,6 +1961,7 @@ export function PhaseTwoScreen({
                                   ? "No expenses yet"
                                   : `${item.usageCount} expenses logged`}
                                 {item.ownerLabel ? ` · ${item.ownerLabel}` : ""}
+                                {item.budgetCount ? ` · ${item.budgetCount} budgets` : ""}
                               </div>
                             </div>
                           </div>
@@ -2004,18 +2005,20 @@ export function PhaseTwoScreen({
                                     )}
                                     {item.state === "active" ? "Archive" : "Restore"}
                                   </button>
-                                  {item.usageCount === 0 && !item.systemKey && (
-                                    <button
-                                      className={`${referenceDeleteAction} justify-start`}
-                                      disabled={busy}
-                                      onClick={() =>
-                                        setDeleteOptionTarget({ option: item, kind: group.key })
-                                      }
-                                    >
-                                      <Trash2 size={14} aria-hidden="true" />
-                                      Delete unused
-                                    </button>
-                                  )}
+                                  {item.usageCount === 0 &&
+                                    !item.budgetCount &&
+                                    !item.systemKey && (
+                                      <button
+                                        className={`${referenceDeleteAction} justify-start`}
+                                        disabled={busy}
+                                        onClick={() =>
+                                          setDeleteOptionTarget({ option: item, kind: group.key })
+                                        }
+                                      >
+                                        <Trash2 size={14} aria-hidden="true" />
+                                        Delete unused
+                                      </button>
+                                    )}
                                 </div>
                               </details>
                             )}
@@ -2076,6 +2079,7 @@ export function PhaseTwoScreen({
                                 )}
                                 {group.key !== "categories" &&
                                   item.usageCount === 0 &&
+                                  !item.budgetCount &&
                                   !item.systemKey && (
                                     <button
                                       className={referenceDeleteAction}

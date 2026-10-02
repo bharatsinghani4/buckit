@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
-import { phaseTwoModels } from "@/lib/db/models";
+import { AuditModel, phaseThreeModels } from "@/lib/db/models";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/mongoose", () => ({ connectDatabase: async () => mongoose.connection }));
@@ -26,7 +26,7 @@ beforeAll(async () => {
     autoIndex: false,
     autoCreate: false,
   });
-  for (const model of phaseTwoModels) {
+  for (const model of phaseThreeModels) {
     await model.createCollection();
     await model.createIndexes();
   }
@@ -116,7 +116,7 @@ describe("Phase 1 HTTP API flows", () => {
     ).toBe("light");
     expect((await request("GET", `buckets/${id}`)).payload.data.name).toBe("Shared Living");
     expect((await request("GET", "buckets")).payload.data).toHaveLength(1);
-    expect((await request("GET", "capabilities")).payload.data.phase).toBe(2);
+    expect((await request("GET", "capabilities")).payload.data.phase).toBe(3);
     const invite = await request("POST", `buckets/${id}/invitations`, "owner", {});
     expect(invite.response.status).toBe(201);
     const token = new URL(invite.payload.data.shareUrl).hash.slice(1);
@@ -395,5 +395,293 @@ describe("Phase 2 HTTP API flows", () => {
         )
       ).response.status,
     ).toBe(404);
+  });
+});
+
+describe("Phase 3 spending insights", () => {
+  it("keeps budget, dashboard, and report totals aligned through refunds and deletion", async () => {
+    const actor = "phase3owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Insights test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, actor)).payload.data[0];
+    const account = await request("POST", `${root}/accounts`, actor, { name: "Checking" });
+    const profile = await request("GET", "me", actor);
+    const definition = {
+      name: "Household",
+      scope: "shared",
+      categoryIds: [category.id],
+      limitAmount: "100.00",
+      periodType: "monthly",
+      thresholdPercentages: ["50", "100"],
+    };
+    const budget = await request("POST", `${root}/budgets`, actor, definition);
+    expect(budget.response.status).toBe(201);
+    expect((await request("GET", `${root}/categories`, actor)).payload.data[0].budgetCount).toBe(1);
+    expect(
+      (
+        await request("DELETE", `${root}/categories/${category.id}`, actor, undefined, {
+          "If-Match": `"r${category.revision}"`,
+        })
+      ).response.status,
+    ).toBe(409);
+    expect(
+      (await request("GET", `${root}/budgets/${budget.payload.data.id}`, actor)).payload.data.name,
+    ).toBe("Household");
+    const expenseBody = {
+      expenseDate: "2026-01-15",
+      description: "Groceries",
+      paidByUserId: profile.payload.data.id,
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "upi",
+      originalAmount: "60.00",
+      originalCurrency: "INR",
+    };
+    const expense = await request("POST", `${root}/expenses`, actor, expenseBody);
+    expect(expense.response.status).toBe(201);
+    const usagePath = `${root}/budgets/${budget.payload.data.id}/usage?month=2026-01`;
+    let usage = (await request("GET", usagePath, actor)).payload.data;
+    expect(usage.usedAmount).toBe("60.00");
+    expect(usage.remainingAmount).toBe("40.00");
+    expect(usage.handledThresholds.map((item: { percentage: string }) => item.percentage)).toEqual([
+      "50",
+    ]);
+    const second = await request("POST", `${root}/expenses`, actor, {
+      ...expenseBody,
+      description: "More groceries",
+      originalAmount: "50.00",
+    });
+    expect(second.response.status).toBe(201);
+    usage = (await request("GET", usagePath, actor)).payload.data;
+    expect(usage.usedAmount).toBe("110.00");
+    expect(usage.exceededAmount).toBe("10.00");
+    expect(usage.handledThresholds.map((item: { percentage: string }) => item.percentage)).toEqual([
+      "50",
+      "100",
+    ]);
+    const refund = await request("POST", `${root}/expenses`, actor, {
+      ...expenseBody,
+      description: "Refund",
+      originalAmount: "-20.00",
+      refundOfExpenseId: expense.payload.data.id,
+    });
+    expect(refund.response.status).toBe(201);
+    const report = await request(
+      "GET",
+      `${root}/reports/spending?period=custom&from=2026-01-01&toExclusive=2026-02-01&groupBy=category`,
+      actor,
+    );
+    expect(report.payload.data.totalAmount).toBe("90.00");
+    expect(report.payload.data.groups[0].amount).toBe("90.00");
+    const dashboard = await request(
+      "GET",
+      `${root}/dashboard?period=month&anchorDate=2026-01-15`,
+      actor,
+    );
+    expect(dashboard.payload.data.totalAmount).toBe("90.00");
+    const deleted = await request(
+      "DELETE",
+      `${root}/expenses/${second.payload.data.id}`,
+      actor,
+      undefined,
+      { "If-Match": second.response.headers.get("ETag")! },
+    );
+    expect(deleted.response.status).toBe(200);
+    usage = (await request("GET", usagePath, actor)).payload.data;
+    expect(usage.usedAmount).toBe("40.00");
+    expect(usage.handledThresholds).toHaveLength(2);
+    const changed = await request(
+      "PATCH",
+      `${root}/budgets/${budget.payload.data.id}`,
+      actor,
+      { name: "Household revised" },
+      { "If-Match": budget.response.headers.get("ETag")! },
+    );
+    expect(changed.payload.data.name).toBe("Household revised");
+    expect(
+      (
+        await request("DELETE", `${root}/budgets/${budget.payload.data.id}`, actor, undefined, {
+          "If-Match": changed.response.headers.get("ETag")!,
+        })
+      ).response.status,
+    ).toBe(200);
+    expect((await request("GET", `${root}/budgets`, actor)).payload.data).toHaveLength(0);
+    const custom = await request("POST", `${root}/budgets`, actor, {
+      ...definition,
+      name: "January only",
+      periodType: "custom",
+      from: "2026-01-01",
+      toExclusive: "2026-02-01",
+      thresholdPercentages: ["50", "75", "100"],
+    });
+    expect(custom.response.status).toBe(201);
+    expect(
+      (await request("GET", `${root}/budgets/${custom.payload.data.id}/usage`, actor)).payload.data
+        .usedAmount,
+    ).toBe("40.00");
+    expect(
+      (
+        await request("POST", `${root}/expenses`, actor, {
+          ...expenseBody,
+          description: "January bulk purchase",
+          originalAmount: "70.00",
+        })
+      ).response.status,
+    ).toBe(201);
+    const crossed = await request("GET", `${root}/budgets/${custom.payload.data.id}/usage`, actor);
+    expect(
+      crossed.payload.data.handledThresholds.map((item: { percentage: string }) => item.percentage),
+    ).toEqual(["50", "75", "100"]);
+    const thresholdEvents = await AuditModel.find({
+      entityId: custom.payload.data.id,
+      action: "budget.threshold_crossed",
+    });
+    expect(thresholdEvents).toHaveLength(1);
+    expect(thresholdEvents[0].changedFields).toEqual(["100"]);
+    expect(
+      (
+        await request("POST", `${root}/expenses`, actor, {
+          ...expenseBody,
+          expenseDate: "2026-02-01",
+          description: "February purchase",
+          originalAmount: "12.00",
+        })
+      ).response.status,
+    ).toBe(201);
+    expect(
+      (await request("GET", `${root}/budgets/${custom.payload.data.id}/usage`, actor)).payload.data
+        .usedAmount,
+    ).toBe("110.00");
+  });
+
+  it("restricts shared budgets to owners and counts member budgets by Paid By", async () => {
+    const owner = "phase3scopeowner";
+    const member = "phase3scopemember";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", member, {});
+    const bucket = await request("POST", "buckets", owner, {
+      name: "Scope test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const invitation = await request("POST", `${root}/invitations`, owner, {});
+    const token = new URL(invitation.payload.data.shareUrl).hash.slice(1);
+    expect((await request("POST", "invitations/join", member, { token })).response.status).toBe(
+      201,
+    );
+    const category = (await request("GET", `${root}/categories`, owner)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, owner)).payload.data[0];
+    const account = await request("POST", `${root}/accounts`, owner, { name: "Shared card" });
+    const ownerId = (await request("GET", "me", owner)).payload.data.id;
+    const memberId = (await request("GET", "me", member)).payload.data.id;
+    const input = {
+      name: "Mine",
+      scope: "member",
+      categoryIds: [category.id],
+      limitAmount: "200.00",
+      periodType: "monthly",
+      thresholdPercentages: [],
+    };
+    expect(
+      (await request("POST", `${root}/budgets`, member, { ...input, scope: "shared" })).response
+        .status,
+    ).toBe(403);
+    const budget = await request("POST", `${root}/budgets`, member, input);
+    expect(budget.response.status).toBe(201);
+    expect((await request("GET", `${root}/budgets`, owner)).payload.data).toHaveLength(1);
+    const body = {
+      expenseDate: "2026-01-15",
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "upi",
+      originalAmount: "70.00",
+      originalCurrency: "INR",
+    };
+    expect(
+      (
+        await request("POST", `${root}/expenses`, owner, {
+          ...body,
+          description: "Owner paid",
+          paidByUserId: ownerId,
+        })
+      ).response.status,
+    ).toBe(201);
+    expect(
+      (
+        await request("POST", `${root}/expenses`, owner, {
+          ...body,
+          description: "Member paid",
+          paidByUserId: memberId,
+        })
+      ).response.status,
+    ).toBe(201);
+    const usage = await request(
+      "GET",
+      `${root}/budgets/${budget.payload.data.id}/usage?month=2026-01`,
+      owner,
+    );
+    expect(usage.payload.data.usedAmount).toBe("70.00");
+    const shared = await request("POST", `${root}/budgets`, owner, {
+      ...input,
+      name: "Shared",
+      scope: "shared",
+    });
+    expect(shared.response.status).toBe(201);
+    expect(
+      (await request("GET", `${root}/budgets/${shared.payload.data.id}/usage?month=2026-01`, owner))
+        .payload.data.usedAmount,
+    ).toBe("140.00");
+    expect(
+      (await request("GET", `${root}/dashboard?period=month&anchorDate=2026-01-15`, owner)).payload
+        .data.totalAmount,
+    ).toBe("140.00");
+    expect(
+      (
+        await request(
+          "GET",
+          `${root}/reports/spending?period=custom&from=2026-01-01&toExclusive=2026-02-01&groupBy=member&paidByUserId=${memberId}`,
+          owner,
+        )
+      ).payload.data.totalAmount,
+    ).toBe("70.00");
+    expect(
+      (
+        await request(
+          "PATCH",
+          `${root}/budgets/${budget.payload.data.id}`,
+          owner,
+          { name: "Changed" },
+          { "If-Match": budget.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(403);
+    const membership = (await request("GET", `${root}/members`, owner)).payload.data.find(
+      (person: { id: string }) => person.id === memberId,
+    );
+    expect(
+      (
+        await request("DELETE", `${root}/members/${membership.membershipId}`, owner, undefined, {
+          "If-Match": `"r${membership.revision}"`,
+        })
+      ).response.status,
+    ).toBe(200);
+    const history = await request("GET", `${root}/budgets`, owner);
+    expect(
+      history.payload.data.find(
+        (entry: { budget: { id: string } }) => entry.budget.id === budget.payload.data.id,
+      ).budget.state,
+    ).toBe("historical");
+    expect(
+      (await request("GET", `${root}/budgets?scope=member&state=historical`, owner)).payload.data,
+    ).toHaveLength(1);
   });
 });

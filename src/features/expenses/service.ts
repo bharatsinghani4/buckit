@@ -21,6 +21,7 @@ import {
   type ExpenseInput,
 } from "./contracts";
 import { convertAmount, minorUnits, precision } from "./money";
+import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 
 const missing = () => new ApiError(404, "RESOURCE_NOT_FOUND", "This expense is not available.");
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
@@ -562,6 +563,7 @@ export async function createExpense(
             "A refund must be negative and link to a current expense.",
           );
       }
+      const budgetBefore = await captureBudgetUsage(bucketId, [input.expenseDate], session);
       const future = input.expenseDate > dateInZone(target.timezone);
       const [expense] = await ExpenseModel.create(
         [
@@ -603,6 +605,7 @@ export async function createExpense(
         },
         { session },
       );
+      await reconcileBudgetThresholds(bucketId, [input.expenseDate], budgetBefore, session);
       await AuditModel.create(
         [
           {
@@ -683,6 +686,8 @@ export async function changeExpense(
       }).session(session);
       if (!expense) throw missing();
       assertRevision(revisionHeader, expense.revision);
+      const affectedDates = [...new Set([expense.expenseDate, merged.expenseDate])];
+      const budgetBefore = await captureBudgetUsage(bucketId, affectedDates, session);
       const changedFields =
         action === "edit"
           ? Object.keys(edits).filter(
@@ -735,6 +740,7 @@ export async function changeExpense(
         { $inc: { financialRevision: 1, exportRevision: 1 } },
         { session },
       );
+      await reconcileBudgetThresholds(bucketId, affectedDates, budgetBefore, session);
       await AuditModel.create(
         [
           {

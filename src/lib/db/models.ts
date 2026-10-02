@@ -158,6 +158,47 @@ const expenseSchema = new Schema(
 expenseSchema.index({ bucketId: 1, expenseDate: -1, _id: -1 });
 expenseSchema.index({ bucketId: 1, actualCreatorUserId: 1, deletedAt: -1 });
 expenseSchema.index({ bucketId: 1, postingState: 1, deletedAt: 1, expenseDate: 1 });
+expenseSchema.index({ bucketId: 1, categoryId: 1, expenseDate: -1 });
+expenseSchema.index({ bucketId: 1, paidByUserId: 1, expenseDate: -1 });
+
+const budgetSchema = new Schema(
+  {
+    bucketId: ref,
+    name: { type: String, required: true },
+    scope: { type: String, enum: ["shared", "member"], required: true },
+    createdByUserId: ref,
+    memberUserId: Schema.Types.ObjectId,
+    creatorMembershipId: Schema.Types.ObjectId,
+    categoryIds: { type: [Schema.Types.ObjectId], required: true },
+    limitAmount: { type: Schema.Types.Decimal128, required: true },
+    periodType: { type: String, enum: ["monthly", "custom"], required: true },
+    startDate: String,
+    endDateExclusive: String,
+    thresholdPercentages: { type: [String], default: [] },
+    state: { type: String, enum: ["active", "historical", "deleted"], default: "active" },
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+budgetSchema.index({ bucketId: 1, state: 1 });
+budgetSchema.index({ creatorMembershipId: 1, state: 1 });
+
+const budgetPeriodSchema = new Schema(
+  {
+    bucketId: ref,
+    budgetId: ref,
+    periodKey: { type: String, required: true },
+    startDate: { type: String, required: true },
+    endDateExclusive: { type: String, required: true },
+    usedAmount: { type: Schema.Types.Decimal128, required: true },
+    computedFinancialRevision: { type: Number, required: true },
+    computedBudgetRevision: { type: Number, required: true },
+    handledThresholds: [{ percentage: String, handledAt: Date, reason: String }],
+  },
+  common,
+);
+budgetPeriodSchema.index({ budgetId: 1, periodKey: 1 }, { unique: true });
+budgetPeriodSchema.index({ bucketId: 1, budgetId: 1 });
 
 const commentSchema = new Schema(
   {
@@ -219,6 +260,11 @@ export const InvitationModel =
   mongoose.model("BuckitInvitation", invitationSchema, "invitations");
 export const ExpenseModel =
   mongoose.models.BuckitExpense || mongoose.model("BuckitExpense", expenseSchema, "expenses");
+export const BudgetModel =
+  mongoose.models.BuckitBudget || mongoose.model("BuckitBudget", budgetSchema, "budgets");
+export const BudgetPeriodModel =
+  mongoose.models.BuckitBudgetPeriod ||
+  mongoose.model("BuckitBudgetPeriod", budgetPeriodSchema, "budget_periods");
 export const CommentModel =
   mongoose.models.BuckitComment || mongoose.model("BuckitComment", commentSchema, "comments");
 export const ReceiptModel =
@@ -239,3 +285,4 @@ export const phaseOneModels = [
   RateLimitModel,
 ];
 export const phaseTwoModels = [...phaseOneModels, ExpenseModel, CommentModel];
+export const phaseThreeModels = [...phaseTwoModels, BudgetModel, BudgetPeriodModel];
