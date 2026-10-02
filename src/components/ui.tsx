@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
-import { Eye, EyeOff, LoaderCircle, X } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle, Search, X } from "lucide-react";
+import { controls } from "./control-styles";
 export function Notice({
   children,
   kind = "error",
@@ -9,27 +10,51 @@ export function Notice({
   kind?: "error" | "success" | "info";
 }) {
   return (
-    <div className={`d-alert notice ${kind}`} role={kind === "error" ? "alert" : "status"}>
+    <div
+      className={`d-alert notice [background:var(--error-bg)] [color:var(--error)] [border:1px_solid_currentColor] [border-radius:7px] [padding:12px_14px] flex items-center [gap:8px] text-xs [line-height:1.7] [margin-bottom:18px] [overflow-wrap:anywhere] [&.info]:bg-[var(--sage)] [&.info]:text-[var(--green)] [&.info]:[border-color:transparent] [&.success]:bg-[var(--sage)] [&.success]:text-[var(--green)] [&.success]:[border-color:transparent] [&_a]:[text-decoration:underline] ${kind}`}
+      role={kind === "error" ? "alert" : "status"}
+    >
       {children}
     </div>
   );
 }
 export function Pending({ label = "Loading your workspace…" }: { label?: string }) {
   return (
-    <div className="pending" role="status">
-      <LoaderCircle className="spin" size={22} />
+    <div
+      className="pending px-6 py-[70px] flex items-center justify-center gap-3 text-[var(--muted)] text-xs"
+      role="status"
+    >
+      <LoaderCircle className="animate-spin" size={22} />
       <span>{label}</span>
     </div>
   );
 }
+export function SearchField(props: InputHTMLAttributes<HTMLInputElement>) {
+  const { className, ...inputProps } = props;
+  return (
+    <label className="relative block min-w-48 flex-1">
+      <Search
+        size={16}
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+      />
+      <input {...inputProps} type="search" className={`${controls.search} ${className ?? ""}`} />
+    </label>
+  );
+}
 export function PasswordField(props: InputHTMLAttributes<HTMLInputElement>) {
   const [visible, setVisible] = useState(false);
+  const { className, ...inputProps } = props;
   return (
-    <div className="password-field">
-      <input {...props} type={visible ? "text" : "password"} />
+    <div className="password-field relative [&_input]:[padding-right:48px] [&_.icon-button]:absolute [&_.icon-button]:[right:1px] [&_.icon-button]:[top:1px]">
+      <input
+        {...inputProps}
+        className={`${controls.input} pr-12 ${className ?? ""}`}
+        type={visible ? "text" : "password"}
+      />
       <button
         type="button"
-        className="icon-button"
+        className="icon-button inline-flex items-center justify-center [width:44px] [height:44px] border-0 bg-transparent text-[var(--muted)] [&:hover]:bg-[var(--soft)]"
         onClick={() => setVisible(!visible)}
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
@@ -64,14 +89,18 @@ export function Dialog({
         onClose();
       }}
       aria-labelledby="dialog-title"
-      className="dialog"
+      className="dialog fixed inset-0 m-auto h-fit overflow-y-auto text-[var(--ink)] bg-[var(--surface)] [border:1px_solid_var(--line)] [border-radius:14px] [padding:30px] [width:min(600px,_calc(100%_-_32px))] [max-height:calc(100svh_-_48px)] [box-shadow:0_20px_48px_#172f2825] [&::backdrop]:[background:#172f2860] [&::backdrop]:[backdrop-filter:blur(4px)] [&_>_header]:flex [&_>_header]:[align-items:start] [&_>_header]:justify-between [&_>_header]:[gap:14px] [&_>_header]:[margin-bottom:22px] [&_>_header_h2]:[font-size:21px] [&_p]:text-xs max-[767px]:[padding:24px]"
     >
       <header>
         <div>
           <h2 id="dialog-title">{title}</h2>
           {subtitle && <p className="text-[var(--muted)]">{subtitle}</p>}
         </div>
-        <button className="icon-button" onClick={onClose} aria-label="Close dialog">
+        <button
+          className="icon-button inline-flex items-center justify-center [width:44px] [height:44px] border-0 bg-transparent text-[var(--muted)] [&:hover]:bg-[var(--soft)]"
+          onClick={onClose}
+          aria-label="Close dialog"
+        >
           <X size={20} />
         </button>
       </header>

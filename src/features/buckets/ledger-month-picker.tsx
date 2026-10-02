@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { controls } from "@/components/control-styles";
 
 const months = Array.from({ length: 12 }, (_, index) =>
   new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(
@@ -61,7 +62,7 @@ export function LedgerMonthPicker({
       <button
         ref={trigger}
         type="button"
-        className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--ink)] shadow-sm hover:bg-[var(--soft)]"
+        className={`${controls.secondary} shrink-0 shadow-sm`}
         aria-label={`Ledger month: ${monthLabel(value, "long")}`}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -81,7 +82,7 @@ export function LedgerMonthPicker({
           id="ledger-month-menu"
           role="dialog"
           aria-label="Choose ledger month"
-          className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-[var(--ink)] shadow-xl"
+          className={controls.pickerContent}
         >
           <div className="mb-3 flex items-center justify-between">
             <button

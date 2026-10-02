@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { controls } from "@/components/control-styles";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
@@ -48,6 +49,9 @@ import { PhaseFourScreen } from "@/features/scheduling/phase-four-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
 import { BucketSelector } from "./bucket-selector";
+
+const navItem =
+  "nav-item flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-3 text-left text-xs text-[var(--muted)] hover:bg-[var(--soft)] [&.active]:bg-[var(--sage)] [&.active]:font-semibold [&.active]:text-[var(--green)]";
 
 export function WorkspaceScreen() {
   return (
@@ -329,11 +333,11 @@ function Workspace() {
   }
   return (
     <div
-      className={`workspace-layout ${sidebarExpanded ? "sidebar-expanded" : "sidebar-collapsed"}`}
+      className={`workspace-layout block min-h-svh ${sidebarExpanded ? "sidebar-expanded max-[767px]:[&_.sidebar]:[width:min(248px,_85vw)] max-[767px]:[&_.sidebar-top]:flex-row max-[767px]:[&_.sidebar_.sidebar-section]:flex max-[767px]:[&_.sidebar_.nav-item]:[justify-content:flex-start] max-[767px]:[&_.sidebar_.nav-item]:[gap:11px] max-[767px]:[&_.sidebar_.nav-item]:text-xs max-[767px]:[&_.sidebar_.nav-item]:[padding:13px_12px] max-[767px]:[&_.sidebar_.compact-create]:hidden" : "sidebar-collapsed [&_.compact-create]:flex [&_.workspace-main]:[margin-left:68px] [&_.sidebar]:[width:68px] [&_.sidebar]:[padding-left:9px] [&_.sidebar]:[padding-right:9px] [&_.sidebar-top]:flex-col [&_.sidebar-top]:[gap:12px] [&_.sidebar-section]:hidden [&_.sidebar_nav_.nav-item_small]:hidden [&_.nav-item]:justify-center [&_.nav-item]:[gap:0] [&_.nav-item]:[font-size:0] [&_.nav-item]:[padding:13px_0] [&_.nav-item_svg]:[width:20px] [&_.nav-item_svg]:[height:20px] max-[767px]:[&_.sidebar]:flex max-[767px]:[&_.sidebar]:fixed max-[767px]:[&_.sidebar]:[inset:0_auto_0_0] max-[767px]:[&_.sidebar]:[width:68px] max-[767px]:[&_.sidebar]:[padding:14px_9px] max-[767px]:[&_.sidebar]:[border-right:1px_solid_var(--line)] max-[767px]:[&_.sidebar]:[border-bottom:0] max-[767px]:[&_.workspace-main]:[margin-left:68px]"}`}
     >
       <aside
         ref={sidebarRef}
-        className="sidebar"
+        className={`sidebar bg-[var(--surface)] [border-right:1px_solid_var(--line)] [padding:22px_16px_18px] flex flex-col [gap:22px] fixed [inset:0_auto_0_0] [width:248px] [z-index:30] [transition:width_.2s] overflow-y-auto overflow-x-hidden [&_>_.brand]:[margin:0_10px] [&_nav]:flex [&_nav]:flex-col [&_nav]:[gap:5px] max-[767px]:[padding:18px_20px] max-[767px]:[gap:17px] max-[767px]:[border-right:0] max-[767px]:[border-bottom:1px_solid_var(--line)] max-[767px]:[&_>_.brand]:[margin:0] max-[767px]:flex max-[767px]:fixed max-[767px]:[inset:0_auto_0_0] max-[767px]:[width:68px] max-[767px]:[padding:14px_9px] max-[767px]:[border-right:1px_solid_var(--line)] max-[767px]:[border-bottom:0] max-[767px]:[&_.sidebar-section]:hidden max-[767px]:[&_.compact-create]:flex max-[767px]:[&_.sidebar-top]:flex-col max-[767px]:[&_.sidebar-top]:[gap:12px] max-[767px]:[&_.nav-item]:flex max-[767px]:[&_.nav-item]:justify-center max-[767px]:[&_.nav-item]:[gap:0] max-[767px]:[&_.nav-item]:[padding:13px_0] max-[767px]:[&_.sidebar-bottom_.nav-item_svg]:[width:20px] max-[767px]:[&_.sidebar-bottom_.nav-item_svg]:[height:20px] ${sidebarExpanded ? "max-[767px]:[&_.nav-item]:!text-xs" : "[&_.nav-item]:!text-[0px]"}`}
         onMouseEnter={() => {
           if (!sidebarPinned) {
             sidebarHoverTimer.current = setTimeout(() => setSidebarExpanded(true), 250);
@@ -344,7 +348,7 @@ function Workspace() {
           if (!sidebarPinned && !bucketPickerOpen.current) setSidebarExpanded(false);
         }}
       >
-        <div className="sidebar-top">
+        <div className="sidebar-top flex items-center justify-between [min-height:38px] [&_.brand]:[margin:0]">
           <Brand
             compact={!sidebarExpanded}
             ariaLabel={sidebarExpanded ? "Buckit home" : "Expand sidebar"}
@@ -358,7 +362,7 @@ function Workspace() {
           {sidebarExpanded && (
             <button
               type="button"
-              className="icon-button sidebar-toggle"
+              className="icon-button inline-flex items-center justify-center [width:44px] [height:44px] border-0 bg-transparent text-[var(--muted)] [&:hover]:bg-[var(--soft)] sidebar-toggle [width:34px] [height:34px] [flex:none]"
               onClick={minimizeSidebar}
               aria-label="Minimize sidebar"
               title="Minimize sidebar"
@@ -367,12 +371,14 @@ function Workspace() {
             </button>
           )}
         </div>
-        <div className="sidebar-section">
-          <div className="sidebar-heading">
-            <span className="eyebrow">YOUR SPACE</span>
+        <div className="sidebar-section flex flex-col [gap:12px] max-[767px]:grid max-[767px]:[grid-template-columns:minmax(0,1fr)_auto] max-[767px]:items-center max-[767px]:[gap:10px]">
+          <div className="sidebar-heading flex items-center justify-between pl-[10px]">
+            <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
+              YOUR SPACE
+            </span>
             <button
               type="button"
-              className="sidebar-pin-icon"
+              className="sidebar-pin-icon inline-grid size-[30px] place-items-center rounded-md text-[var(--muted)] hover:bg-[var(--soft)] hover:text-[var(--green)]"
               onClick={togglePin}
               aria-label={sidebarPinned ? "Unpin sidebar" : "Pin sidebar"}
               aria-pressed={sidebarPinned}
@@ -381,7 +387,10 @@ function Workspace() {
               {sidebarPinned ? <Pin size={16} /> : <PinOff size={16} />}
             </button>
           </div>
-          <label className="sr-only" htmlFor="bucket-picker">
+          <label
+            className="sr-only absolute [width:1px] [height:1px] [padding:0] [margin:-1px] [clip:rect(0,0,0,0)] overflow-hidden"
+            htmlFor="bucket-picker"
+          >
             Current bucket
           </label>
           <BucketSelector
@@ -397,88 +406,97 @@ function Workspace() {
             }}
           />
           {cursor && (
-            <button className="text-link" onClick={moreBuckets} disabled={busy}>
+            <button
+              className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px]"
+              onClick={moreBuckets}
+              disabled={busy}
+            >
               Load more buckets
             </button>
           )}
-          <Link className="sidebar-create" href="/buckets/new">
+          <Link
+            className="sidebar-create flex items-center [gap:9px] text-xs [padding:0_11px] text-[var(--muted)]"
+            href="/buckets/new"
+          >
             <Plus size={15} /> Create a bucket
           </Link>
         </div>
         <Link
-          className="compact-create"
+          className="compact-create hidden items-center justify-center rounded-lg p-3 text-[var(--green)] hover:bg-[var(--soft)]"
           href="/buckets/new"
           aria-label="Create a bucket"
           title="Create a bucket"
         >
           <Plus size={20} />
         </Link>
-        <nav aria-label="Workspace">
+        <nav aria-label="Workspace" className="!flex flex-col gap-1">
           <Link
             href={selected ? `/workspace?bucket=${selected.id}` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${!phaseView ? "active" : ""}`}
+            className={`${navItem} ${!phaseView ? "active" : ""}`}
           >
             <LayoutDashboard size={18} /> Overview
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=expenses` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${["expenses", "deleted", "add-expense", "expense"].includes(phaseView ?? "") ? "active" : ""}`}
+            className={`${navItem} ${["expenses", "deleted", "add-expense", "expense"].includes(phaseView ?? "") ? "active" : ""}`}
           >
             <Wallet size={18} /> Expenses
           </Link>
           {sidebarExpanded && (
-            <div className="sidebar-heading mt-4">
-              <span className="eyebrow">MANAGEMENT</span>
+            <div className="sidebar-heading flex items-center justify-between pl-[10px] mt-4">
+              <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
+                MANAGEMENT
+              </span>
             </div>
           )}
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=references` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${phaseView === "references" ? "active" : ""}`}
+            className={`${navItem} ${phaseView === "references" ? "active" : ""}`}
           >
             <SlidersHorizontal size={18} /> Reference settings
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=members` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${phaseView === "members" ? "active" : ""}`}
+            className={`${navItem} ${phaseView === "members" ? "active" : ""}`}
           >
             <Users size={18} /> Members
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=reports` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${phaseView === "reports" ? "active" : ""}`}
+            className={`${navItem} ${phaseView === "reports" ? "active" : ""}`}
           >
             <BarChart3 size={18} /> Reports
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=budgets` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${["budgets", "budget", "budget-form"].includes(phaseView ?? "") ? "active" : ""}`}
+            className={`${navItem} ${["budgets", "budget", "budget-form"].includes(phaseView ?? "") ? "active" : ""}`}
           >
             <BookOpen size={18} /> Budgets
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=emis` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${["emis", "emi-plan"].includes(phaseView ?? "") ? "active" : ""}`}
+            className={`${navItem} ${["emis", "emi-plan"].includes(phaseView ?? "") ? "active" : ""}`}
           >
             <CreditCard size={18} /> EMIs
           </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}&view=scheduled` : "/workspace"}
             onClick={navigateWithinWorkspace}
-            className={`nav-item ${phaseView === "scheduled" ? "active" : ""}`}
+            className={`${navItem} ${phaseView === "scheduled" ? "active" : ""}`}
           >
             <CalendarClock size={18} /> Scheduled
           </Link>
         </nav>
-        <div className="sidebar-bottom">
+        <div className="sidebar-bottom mt-auto flex flex-col gap-1 pt-10 max-[767px]:!flex max-[767px]:!flex-col max-[767px]:!gap-1 max-[767px]:!p-0">
           <button
-            className="nav-item"
+            className={navItem}
             onClick={() => {
               setStep(0);
               setModal("tour");
@@ -487,16 +505,16 @@ function Workspace() {
           >
             <HelpCircle size={18} /> Help & tour
           </button>
-          <button className="nav-item" onClick={() => setModal("profile")}>
+          <button className={navItem} onClick={() => setModal("profile")}>
             <Settings2 size={18} /> Profile & appearance
           </button>
-          <button className="nav-item" onClick={() => auth.logout()}>
+          <button className={navItem} onClick={() => auth.logout()}>
             <LogOut size={18} /> Sign out
           </button>
         </div>
       </aside>
-      <div className="workspace-main">
-        <header className="workspace-header">
+      <div className="workspace-main [margin-left:248px] [min-width:0] [transition:margin-left_.2s] max-[767px]:[margin-left:68px]">
+        <header className="workspace-header flex [min-height:64px] justify-between items-center [padding:0_32px] [border-bottom:1px_solid_var(--line)] text-xs [gap:16px] sticky [top:0] [z-index:20] [background:var(--canvas)] max-[767px]:[padding:15px_20px] max-[767px]:[padding:12px_16px]">
           <nav
             aria-label="Breadcrumb"
             className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium"
@@ -531,14 +549,14 @@ function Workspace() {
               </>
             )}
           </nav>
-          <div className="workspace-header-actions max-sm:!gap-2">
+          <div className="workspace-header-actions flex items-center justify-between [gap:14px] max-sm:!gap-2">
             {phaseView === "expenses" && (
               <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
             )}
             <ThemeToggle />
             {selected?.isOwner && selected.status === "active" && phaseView && (
               <button
-                className="button primary max-sm:!size-9 max-sm:!min-h-9 max-sm:!p-0"
+                className={`${controls.primary} button max-sm:!size-9 max-sm:!min-h-9 max-sm:!p-0`}
                 aria-label="Invite people"
                 onClick={() => {
                   setInvite(null);
@@ -550,13 +568,19 @@ function Workspace() {
                 <Users size={16} /> <span className="max-sm:hidden">Invite people</span>
               </button>
             )}
-            <button className="profile-chip max-sm:!hidden" onClick={() => setModal("profile")}>
+            <button
+              className="profile-chip border-0 flex items-center [gap:9px] bg-transparent text-xs [&_>_span]:grid [&_>_span]:[place-items:center] [&_>_span]:[width:31px] [&_>_span]:[height:31px] [&_>_span]:rounded-full [&_>_span]:bg-[var(--sage)] [&_>_span]:text-[var(--green)] max-[767px]:[font-size:0] max-sm:!hidden"
+              onClick={() => setModal("profile")}
+            >
               <span>{profile.displayName.charAt(0).toUpperCase()}</span>
               {profile.displayName}
             </button>
           </div>
         </header>
-        <main id="main" className="workspace-content">
+        <main
+          id="main"
+          className="workspace-content [max-width:1160px] m-auto [padding:24px] max-[1000px]:[padding:24px] max-[767px]:[padding:20px] max-[767px]:[padding:16px]"
+        >
           {!profile.emailVerified && (
             <Notice kind="info">
               <Mail size={16} /> Your email isn’t verified yet.{" "}
@@ -567,7 +591,7 @@ function Workspace() {
             <>
               <Notice>{error}</Notice>
               <button
-                className="button secondary"
+                className={`${controls.secondary} button`}
                 onClick={() => {
                   requestedBucketTarget.current = bucketQuery || profile.lastBucketId || "";
                   invalidate("buckets");
@@ -619,9 +643,11 @@ function Workspace() {
             />
           ) : (
             <>
-              <div className="workspace-title">
+              <div className="workspace-title flex justify-between items-center [gap:20px] [margin-bottom:32px] [&_h1]:[font-size:31px] [&_h1]:[margin:11px_0_10px] [&_p]:text-xs max-[1000px]:items-start max-[1000px]:[&_h1]:[font-size:26px] max-[1000px]:[&_>_.button]:[padding:10px_14px] max-[1000px]:[&_>_.button]:text-xs max-[767px]:flex-col max-[767px]:[gap:20px]">
                 <div>
-                  <span className="eyebrow">A LITTLE MORE CLARITY</span>
+                  <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
+                    A LITTLE MORE CLARITY
+                  </span>
                   <h1>Welcome, {profile.displayName.split(" ")[0]}.</h1>
                   <p>
                     {selected
@@ -631,7 +657,7 @@ function Workspace() {
                 </div>
                 {selected?.isOwner && selected.status === "active" && (
                   <button
-                    className="button primary"
+                    className={`${controls.primary} button`}
                     onClick={() => {
                       setInvite(null);
                       inviteKey.current = null;
@@ -645,8 +671,8 @@ function Workspace() {
               </div>
               {selected ? (
                 <>
-                  <section className="bucket-summary">
-                    <span className="large-icon">
+                  <section className="bucket-summary flex [gap:20px] items-center bg-[var(--surface)] [border:1px_solid_var(--line)] [border-radius:12px] [padding:24px] [&_h2]:[font-size:20px] [&_h2]:[overflow-wrap:anywhere] [&_p]:text-xs [&_p]:[margin-top:7px] [&_p_span]:[margin:0_5px] [&_>_.pill]:ml-auto max-[767px]:[padding:18px] max-[767px]:flex-wrap max-[767px]:[gap:14px] max-[767px]:[&_.large-icon]:[width:46px] max-[767px]:[&_.large-icon]:[height:46px] max-[767px]:[&_.large-icon]:[border-radius:12px] max-[767px]:[&_h2]:[font-size:17px] max-[767px]:[&_>_.pill]:[margin-left:0]">
+                    <span className="large-icon [width:66px] [height:66px] inline-flex items-center justify-center bg-[var(--sage)] [border-radius:16px] text-[var(--green)]">
                       <Home size={27} />
                     </span>
                     <div>
@@ -656,7 +682,7 @@ function Workspace() {
                         {selected.memberCount} {selected.memberCount === 1 ? "member" : "members"}
                       </p>
                     </div>
-                    <span className="pill">
+                    <span className="pill text-xs font-semibold bg-[var(--soft)] text-[var(--muted)] [padding:3px_8px] [border-radius:5px] whitespace-nowrap">
                       {selected.status === "archived"
                         ? "Archived · read only"
                         : selected.isOwner
@@ -664,8 +690,8 @@ function Workspace() {
                           : "Member"}
                     </span>
                   </section>
-                  <section className="workspace-empty">
-                    <span className="empty-art">
+                  <section className="workspace-empty flex flex-col items-center text-center [padding:64px_24px] [gap:20px] [&_h2]:[font-size:26px] [&_p]:text-xs [&_p]:[line-height:1.9] max-[767px]:[padding:44px_12px] max-[767px]:[&_h2]:[font-size:23px]">
+                    <span className="empty-art [padding:25px] text-[var(--green)] bg-[var(--sage)] [border-radius:28px]">
                       <FolderOpen size={52} strokeWidth={1.2} />
                     </span>
                     <h2>Your bucket is ready.</h2>
@@ -676,7 +702,7 @@ function Workspace() {
                     </p>
                     {selected.status === "active" ? (
                       <button
-                        className="button secondary"
+                        className={`${controls.secondary} button`}
                         onClick={() =>
                           window.history.pushState(
                             null,
@@ -689,7 +715,7 @@ function Workspace() {
                       </button>
                     ) : (
                       <button
-                        className="button secondary"
+                        className={`${controls.secondary} button`}
                         onClick={() => {
                           setStep(0);
                           setModal("tour");
@@ -699,7 +725,7 @@ function Workspace() {
                       </button>
                     )}
                   </section>
-                  <div className="workspace-tip">
+                  <div className="workspace-tip bg-[var(--soft)] flex items-center [gap:14px] [padding:20px_24px] [border-radius:9px] text-[var(--green)] [&_p]:text-xs max-[767px]:[padding:16px]">
                     <ShieldCheck size={20} />
                     <p>
                       Only current members of this bucket can access its spending. Your other
@@ -709,16 +735,19 @@ function Workspace() {
                 </>
               ) : (
                 !error && (
-                  <section className="workspace-empty">
-                    <span className="empty-art">
+                  <section className="workspace-empty flex flex-col items-center text-center [padding:64px_24px] [gap:20px] [&_h2]:[font-size:26px] [&_p]:text-xs [&_p]:[line-height:1.9] max-[767px]:[padding:44px_12px] max-[767px]:[&_h2]:[font-size:23px]">
+                    <span className="empty-art [padding:25px] text-[var(--green)] bg-[var(--sage)] [border-radius:28px]">
                       <FolderOpen size={52} />
                     </span>
                     <h2>One bucket. A fresh beginning.</h2>
                     <p>Start with personal spending, a shared home, or something else.</p>
-                    <Link className="button primary" href="/onboarding">
+                    <Link className={`${controls.primary} button`} href="/onboarding">
                       Create your first bucket <Plus size={16} />
                     </Link>
-                    <Link className="text-link" href="/join">
+                    <Link
+                      className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px]"
+                      href="/join"
+                    >
                       Join with an invitation
                     </Link>
                   </section>
@@ -742,13 +771,17 @@ function Workspace() {
         >
           {error && <Notice>{error}</Notice>}
           {modal === "invite" && (
-            <div className="form-stack">
+            <div className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]">
               <p>
                 Invite someone to <b>{selected?.name}</b>. The link works for seven days and can be
                 used by more than one person.
               </p>
               {!invite ? (
-                <button className="button primary full" disabled={busy} onClick={generateInvite}>
+                <button
+                  className={`${controls.primary} button w-full`}
+                  disabled={busy}
+                  onClick={generateInvite}
+                >
                   {busy ? "Creating link…" : "Create invitation link"}
                   <Link2 size={16} />
                 </button>
@@ -759,7 +792,7 @@ function Workspace() {
                     share; the original expires in seven days.
                   </Notice>
                   <button
-                    className="button primary"
+                    className={`${controls.primary} button`}
                     disabled={busy}
                     onClick={() => {
                       inviteKey.current = null;
@@ -772,19 +805,24 @@ function Workspace() {
               ) : (
                 invite.shareUrl && (
                   <>
-                    <div className="qr-wrap">
+                    <div className="qr-wrap flex justify-center [padding:20px] [background:white] rounded-lg">
                       <QRCodeSVG
                         value={invite.shareUrl}
                         size={168}
                         title={`Invitation to ${selected?.name}`}
                       />
                     </div>
-                    <label>
+                    <label className="flex flex-col gap-[7px] text-xs font-medium">
                       Invitation link
-                      <input value={invite.shareUrl} readOnly onFocus={(e) => e.target.select()} />
+                      <input
+                        className={controls.input}
+                        value={invite.shareUrl}
+                        readOnly
+                        onFocus={(e) => e.target.select()}
+                      />
                     </label>
                     <button
-                      className="button primary full"
+                      className={`${controls.primary} button w-full`}
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(invite.shareUrl!);
@@ -798,14 +836,14 @@ function Workspace() {
                       {copied ? "Copied" : "Copy link"}
                     </button>
                     <a
-                      className="button secondary full"
+                      className={`${controls.secondary} button w-full`}
                       href={`https://wa.me/?text=${encodeURIComponent(`Join my Buckit bucket:\n ${invite.shareUrl}`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
                       Share on WhatsApp
                     </a>
-                    <p className="field-hint">
+                    <p className="field-hint flex items-center [gap:6px] text-xs [line-height:1.7] text-[var(--muted)]">
                       Expires {new Date(invite.expiresAt).toLocaleDateString()}. Anyone with this
                       link can join after signing in.
                     </p>
@@ -815,17 +853,21 @@ function Workspace() {
             </div>
           )}
           {modal === "profile" && (
-            <form className="form-stack" onSubmit={saveProfile}>
-              <label>
+            <form
+              className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]"
+              onSubmit={saveProfile}
+            >
+              <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Display name
                 <input
+                  className={controls.input}
                   name="displayName"
                   defaultValue={profile.displayName}
                   required
                   maxLength={80}
                 />
               </label>
-              <label>
+              <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Timezone
                 <Dropdown
                   name="timezone"
@@ -836,7 +878,7 @@ function Workspace() {
                   placeholder="Choose timezone"
                 />
               </label>
-              <label>
+              <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Appearance
                 <Dropdown
                   name="theme"
@@ -849,19 +891,21 @@ function Workspace() {
                   placeholder="Appearance"
                 />
               </label>
-              <button className="button primary full" disabled={busy}>
+              <button className={`${controls.primary} button w-full`} disabled={busy}>
                 {busy ? "Saving…" : "Save changes"}
               </button>
-              <p className="field-hint">{profile.email}</p>
+              <p className="field-hint flex items-center [gap:6px] text-xs [line-height:1.7] text-[var(--muted)]">
+                {profile.email}
+              </p>
             </form>
           )}
           {modal === "tour" && (
-            <div className="tour-body">
-              <span className="large-icon">
+            <div className="tour-body flex flex-col [gap:22px] [&_>_p]:[line-height:1.9]">
+              <span className="large-icon [width:66px] [height:66px] inline-flex items-center justify-center bg-[var(--sage)] [border-radius:16px] text-[var(--green)]">
                 {currentStep === 0 ? <FolderOpen size={32} /> : <HelpCircle size={32} />}
               </span>
               <p>{steps[currentStep].text}</p>
-              <div className="tour-progress">
+              <div className="tour-progress flex items-center [gap:6px] [&_>_span]:[width:20px] [&_>_span]:[height:4px] [&_>_span]:[border-radius:4px] [&_>_span]:[background:var(--line)] [&_>_span.active]:[background:var(--green)] [&_>_small]:ml-auto [&_>_small]:text-xs [&_>_small]:text-[var(--muted)]">
                 {steps.map((item, index) => (
                   <span key={item.title} className={index === currentStep ? "active" : ""} />
                 ))}
@@ -869,9 +913,9 @@ function Workspace() {
                   {currentStep + 1} of {steps.length}
                 </small>
               </div>
-              <div className="tour-actions">
+              <div className="tour-actions flex justify-between items-center [gap:10px] [&_>_div]:flex [&_>_div]:justify-between [&_>_div]:items-center [&_>_div]:[gap:10px] max-[767px]:[&_.button]:[padding:10px_14px]">
                 <button
-                  className="text-link"
+                  className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px]"
                   disabled={busy}
                   onClick={() => tour(currentStep, "skipped")}
                 >
@@ -880,7 +924,7 @@ function Workspace() {
                 <div>
                   {currentStep > 0 && (
                     <button
-                      className="button secondary"
+                      className={`${controls.secondary} button`}
                       disabled={busy}
                       onClick={() => tour(currentStep - 1)}
                     >
@@ -888,7 +932,7 @@ function Workspace() {
                     </button>
                   )}
                   <button
-                    className="button primary"
+                    className={`${controls.primary} button`}
                     disabled={busy}
                     onClick={() =>
                       tour(

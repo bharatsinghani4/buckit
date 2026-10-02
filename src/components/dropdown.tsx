@@ -2,6 +2,7 @@
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 import { useRef, useState } from "react";
+import { controls } from "./control-styles";
 
 type Option = { value: string; label: string };
 export function Dropdown({
@@ -44,18 +45,22 @@ export function Dropdown({
       name={name}
       disabled={disabled}
     >
-      <Select.Trigger ref={trigger} id={id} className="dropdown-trigger">
+      <Select.Trigger ref={trigger} id={id} className={controls.dropdownTrigger}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon>
           <ChevronDown size={16} />
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal container={portalContainer}>
-        <Select.Content position="popper" sideOffset={5} className="dropdown-content">
-          <Select.ScrollUpButton className="dropdown-scroll">▲</Select.ScrollUpButton>
-          <Select.Viewport className="dropdown-viewport">
+        <Select.Content position="popper" sideOffset={5} className={controls.dropdownContent}>
+          <Select.ScrollUpButton className={controls.dropdownScroll}>▲</Select.ScrollUpButton>
+          <Select.Viewport className={controls.dropdownViewport}>
             {options.map((option) => (
-              <Select.Item key={option.value} value={option.value} className="dropdown-option">
+              <Select.Item
+                key={option.value}
+                value={option.value}
+                className={controls.dropdownOption}
+              >
                 <Select.ItemText>{option.label}</Select.ItemText>
                 <Select.ItemIndicator>
                   <Check size={15} />
@@ -63,7 +68,7 @@ export function Dropdown({
               </Select.Item>
             ))}
           </Select.Viewport>
-          <Select.ScrollDownButton className="dropdown-scroll">▼</Select.ScrollDownButton>
+          <Select.ScrollDownButton className={controls.dropdownScroll}>▼</Select.ScrollDownButton>
         </Select.Content>
       </Select.Portal>
     </Select.Root>

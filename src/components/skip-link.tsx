@@ -3,7 +3,7 @@
 export function SkipLink() {
   return (
     <a
-      className="skip-link"
+      className="skip-link fixed [top:-80px] [left:20px] [background:var(--ink)] [color:var(--surface)] [z-index:100] [padding:12px_20px] [&:focus]:[top:10px]"
       href="#main"
       onClick={(event) => {
         const main = document.getElementById("main");
