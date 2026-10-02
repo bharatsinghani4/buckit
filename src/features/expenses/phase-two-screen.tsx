@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import {
+  Archive,
   ArrowLeft,
   CheckCircle2,
   Clock3,
@@ -11,6 +11,7 @@ import {
   LockKeyhole,
   MessageCircle,
   MoreVertical,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
@@ -31,6 +32,15 @@ import type { Comment, Expense, Member, Option, OptionKind } from "./contracts";
 import { ReferenceGlyph } from "./reference-icon";
 
 type View = "expenses" | "deleted" | "add-expense" | "expense" | "references" | "members";
+type LedgerSummary = {
+  currency: string;
+  actualTotal: string;
+  actualCount: number;
+  scheduledTotal: string;
+  scheduledCount: number;
+  conversionNeededCount: number;
+  incomplete: boolean;
+};
 const groups: { key: OptionKind; title: string }[] = [
   { key: "accounts", title: "Accounts" },
   { key: "categories", title: "Categories" },
@@ -50,9 +60,54 @@ const field =
 const muted = "text-xs text-[var(--muted)]";
 const action =
   "inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 !py-2 !text-xs font-semibold !text-[var(--ink)] hover:border-[var(--green)] hover:bg-[var(--soft)]";
+const referencePrimaryAction =
+  "inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 !rounded-md bg-[var(--button-primary)] px-3 !text-xs !font-semibold whitespace-nowrap !text-[var(--button-primary-text)] transition-colors hover:bg-[var(--ink)] disabled:opacity-50";
+const referenceRowAction =
+  "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md px-2 !text-xs !font-medium whitespace-nowrap !text-[var(--ink)] transition-colors hover:bg-[var(--soft)] disabled:opacity-50";
+const referenceMutedAction =
+  "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md px-2 !text-xs !font-medium whitespace-nowrap !text-[var(--muted)] transition-colors hover:bg-[var(--soft)] hover:!text-[var(--ink)] disabled:opacity-50";
+const referenceDeleteAction =
+  "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md px-2 !text-xs !font-medium whitespace-nowrap !text-[var(--error)] transition-colors hover:bg-[var(--error-bg)] disabled:opacity-50";
+
+function applyOptionResult(
+  current: Record<OptionKind, Option[]>,
+  kind: OptionKind,
+  result: Option | { id: string; deleted: true },
+) {
+  const remaining = current[kind].filter((item) => item.id !== result.id);
+  return {
+    ...current,
+    [kind]:
+      "deleted" in result
+        ? remaining
+        : [...remaining, result].sort((a, b) =>
+            a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+          ),
+  };
+}
 
 function path(bucket: string, view: View, expense?: string) {
   return `/workspace?bucket=${bucket}&view=${view}${expense ? `&expense=${expense}` : ""}`;
+}
+
+function listPath(
+  bucket: string,
+  view: "expenses" | "deleted",
+  month: string,
+  appliedFilters = "",
+) {
+  const filters = new URLSearchParams(appliedFilters);
+  if (view === "deleted") filters.set("deleted", "only");
+  else if (month && !filters.has("from") && !filters.has("toExclusive")) {
+    filters.set("from", `${month}-01`);
+    const [year, number] = month.split("-").map(Number);
+    filters.set("toExclusive", new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10));
+  }
+  return `buckets/${bucket}/expenses${filters.size ? `?${filters}` : ""}`;
+}
+
+function summaryPath(bucket: string, month: string) {
+  return `buckets/${bucket}/expenses/summary${month ? `?month=${month}` : ""}`;
 }
 
 function today(zone: string) {
@@ -95,29 +150,40 @@ export function PhaseTwoScreen({
   resolveRequested?: boolean;
   refundMode?: boolean;
 }) {
-  const router = useRouter();
-  const { read, invalidate } = useWorkspaceData();
+  const { read, peek, invalidate } = useWorkspaceData();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [summary, setSummary] = useState<{
-    currency: string;
-    actualTotal: string;
-    actualCount: number;
-    scheduledTotal: string;
-    scheduledCount: number;
-    conversionNeededCount: number;
-    incomplete: boolean;
-  } | null>(null);
+  const [loading, setLoading] = useState(() => {
+    if (view === "expenses")
+      return (
+        !peek<Expense[]>(listPath(bucket.id, view, month)) ||
+        !peek<LedgerSummary>(summaryPath(bucket.id, month))
+      );
+    if (view === "deleted") return !peek<Expense[]>(listPath(bucket.id, view, month));
+    if (view === "add-expense" && !refundOf)
+      return !["accounts", "categories", "platforms", "members"].every((kind) =>
+        peek(`buckets/${bucket.id}/${kind}`),
+      );
+    return true;
+  });
+  const [expenses, setExpenses] = useState<Expense[]>(() =>
+    view === "expenses" || view === "deleted"
+      ? (peek<Expense[]>(listPath(bucket.id, view, month))?.data ?? [])
+      : [],
+  );
+  const [summary, setSummary] = useState<LedgerSummary | null>(
+    () => peek<LedgerSummary>(summaryPath(bucket.id, month))?.data ?? null,
+  );
   const [expense, setExpense] = useState<Expense | null>(null);
   const [refundSource, setRefundSource] = useState<Expense | null>(null);
-  const [options, setOptions] = useState<Record<OptionKind, Option[]>>({
-    accounts: [],
-    categories: [],
-    platforms: [],
-  });
-  const [members, setMembers] = useState<Member[]>([]);
+  const [options, setOptions] = useState<Record<OptionKind, Option[]>>(() => ({
+    accounts: peek<Option[]>(`buckets/${bucket.id}/accounts`)?.data ?? [],
+    categories: peek<Option[]>(`buckets/${bucket.id}/categories`)?.data ?? [],
+    platforms: peek<Option[]>(`buckets/${bucket.id}/platforms`)?.data ?? [],
+  }));
+  const [members, setMembers] = useState<Member[]>(
+    () => peek<Member[]>(`buckets/${bucket.id}/members`)?.data ?? [],
+  );
   const [comments, setComments] = useState<Comment[]>([]);
   const [refunds, setRefunds] = useState<Expense[]>([]);
   const [activity, setActivity] = useState<
@@ -181,32 +247,42 @@ export function PhaseTwoScreen({
   const filterOptionsLoaded = useRef(false);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    const hasSnapshot =
+      view === "expenses"
+        ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters)) &&
+          !!peek<LedgerSummary>(summaryPath(bucket.id, month))
+        : view === "deleted"
+          ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters))
+          : view === "add-expense" && !refundOf
+            ? ["accounts", "categories", "platforms", "members"].every((kind) =>
+                peek(`buckets/${bucket.id}/${kind}`),
+              )
+            : false;
+    if (!hasSnapshot) setLoading(true);
     setError("");
     try {
       if (view === "expenses" || view === "deleted") {
-        const filters = new URLSearchParams(appliedFilters);
-        if (view === "deleted") filters.set("deleted", "only");
-        else if (month && !filters.has("from") && !filters.has("toExclusive")) {
-          filters.set("from", `${month}-01`);
-          const [year, number] = month.split("-").map(Number);
-          filters.set(
-            "toExclusive",
-            new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10),
-          );
-        }
-        const endpoint = `buckets/${bucket.id}/expenses${filters.size ? `?${filters}` : ""}`;
+        const endpoint = listPath(bucket.id, view, month, appliedFilters);
         const [result, totals] = await Promise.all([
           read<Expense[]>(endpoint),
           view === "expenses"
-            ? read<NonNullable<typeof summary>>(
-              `buckets/${bucket.id}/expenses/summary${month ? `?month=${month}` : ""}`,
-            )
+            ? read<LedgerSummary>(summaryPath(bucket.id, month))
             : Promise.resolve(null),
         ]);
         setExpenses(result.data);
         setCursor(result.meta.nextCursor ?? null);
         if (totals) setSummary(totals.data);
+        if (!appliedFilters) {
+          await Promise.all([
+            read<Expense[]>(listPath(bucket.id, "expenses", month)),
+            read<LedgerSummary>(summaryPath(bucket.id, month)),
+            read<Expense[]>(listPath(bucket.id, "deleted", month)),
+            read<Option[]>(`buckets/${bucket.id}/accounts`),
+            read<Option[]>(`buckets/${bucket.id}/categories`),
+            read<Option[]>(`buckets/${bucket.id}/platforms`),
+            read<Member[]>(`buckets/${bucket.id}/members`),
+          ]);
+        }
       } else if (view === "add-expense") {
         const [accounts, categories, platforms, people] = await Promise.all([
           read<Option[]>(`buckets/${bucket.id}/accounts`),
@@ -220,6 +296,11 @@ export function PhaseTwoScreen({
           platforms: platforms.data,
         });
         setMembers(people.data);
+        await Promise.all([
+          read<Expense[]>(listPath(bucket.id, "expenses", month)),
+          read<LedgerSummary>(summaryPath(bucket.id, month)),
+          read<Expense[]>(listPath(bucket.id, "deleted", month)),
+        ]);
         if (refundOf) {
           const source = (await read<Expense>(`buckets/${bucket.id}/expenses/${refundOf}`)).data;
           setRefundSource(source);
@@ -275,6 +356,7 @@ export function PhaseTwoScreen({
     bucket.primaryCurrency,
     expenseId,
     month,
+    peek,
     read,
     refundOf,
     view,
@@ -313,19 +395,21 @@ export function PhaseTwoScreen({
     );
   }, [bucket.id, filtersOpen, read, view]);
 
-  const navigate = (next: View, id?: string) => router.push(path(bucket.id, next, id));
+  const navigatePath = (url: string) => window.history.pushState(null, "", url);
+  const navigate = (next: View, id?: string) => navigatePath(path(bucket.id, next, id));
 
   async function mutation<T>(
     endpoint: string,
     method: string,
     body?: unknown,
     revision?: number,
+    invalidatePrefix = `buckets/${bucket.id}/`,
   ): Promise<T | null> {
     setBusy(true);
     setError("");
     try {
       const result = await api<T>(endpoint, { method, body, revision, key: crypto.randomUUID() });
-      invalidate(`buckets/${bucket.id}/`);
+      invalidate(invalidatePrefix);
       return result.data;
     } catch (cause) {
       setError(friendlyError(cause));
@@ -412,14 +496,23 @@ export function PhaseTwoScreen({
 
   async function addOption(event: FormEvent<HTMLFormElement>, kind: OptionKind) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const body = {
       name: String(form.get("name") ?? "").trim(),
       ...(kind === "accounts" ? { ownerLabel: String(form.get("ownerLabel") ?? "").trim() } : {}),
     };
-    if (await mutation(`buckets/${bucket.id}/${kind}`, "POST", body)) {
-      event.currentTarget.reset();
-      await refresh();
+    const created = await mutation<Option>(
+      `buckets/${bucket.id}/${kind}`,
+      "POST",
+      body,
+      undefined,
+      `buckets/${bucket.id}/${kind}`,
+    );
+    if (created) {
+      formElement.reset();
+      setOptions((current) => applyOptionResult(current, kind, created));
+      setAddingOption(null);
     }
   }
 
@@ -428,15 +521,14 @@ export function PhaseTwoScreen({
     kind: OptionKind,
     act: "archive" | "restore" | "delete",
   ) {
-    if (
-      await mutation(
-        `buckets/${bucket.id}/${kind}/${option.id}${act === "delete" ? "" : `/${act}`}`,
-        act === "delete" ? "DELETE" : "POST",
-        undefined,
-        option.revision,
-      )
-    )
-      await refresh();
+    const result = await mutation<Option | { id: string; deleted: true }>(
+      `buckets/${bucket.id}/${kind}/${option.id}${act === "delete" ? "" : `/${act}`}`,
+      act === "delete" ? "DELETE" : "POST",
+      undefined,
+      option.revision,
+      `buckets/${bucket.id}/${kind}`,
+    );
+    if (result) setOptions((current) => applyOptionResult(current, kind, result));
   }
 
   async function renameOption(option: Option, kind: OptionKind, nextName: string) {
@@ -446,16 +538,16 @@ export function PhaseTwoScreen({
       setEditingOptionId(null);
       return;
     }
-    if (
-      await mutation(
-        `buckets/${bucket.id}/${kind}/${option.id}`,
-        "PATCH",
-        { name },
-        option.revision,
-      )
-    ) {
+    const renamed = await mutation<Option>(
+      `buckets/${bucket.id}/${kind}/${option.id}`,
+      "PATCH",
+      { name },
+      option.revision,
+      `buckets/${bucket.id}/${kind}`,
+    );
+    if (renamed) {
       setEditingOptionId(null);
-      await refresh();
+      setOptions((current) => applyOptionResult(current, kind, renamed));
     }
   }
 
@@ -500,13 +592,14 @@ export function PhaseTwoScreen({
   async function postComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!expense) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     if (
       await mutation(`buckets/${bucket.id}/expenses/${expense.id}/comments`, "POST", {
         body: String(form.get("body") ?? ""),
       })
     ) {
-      event.currentTarget.reset();
+      formElement.reset();
       setComments(
         (await api<Comment[]>(`buckets/${bucket.id}/expenses/${expense.id}/comments`)).data,
       );
@@ -553,7 +646,7 @@ export function PhaseTwoScreen({
                   <div className="flex flex-wrap items-center gap-4">
                     <button
                       className="text-link"
-                      onClick={() => router.push(`${path(bucket.id, "add-expense")}&mode=refund`)}
+                      onClick={() => navigatePath(`${path(bucket.id, "add-expense")}&mode=refund`)}
                     >
                       <History size={17} /> Record refund / credit
                     </button>
@@ -609,11 +702,11 @@ export function PhaseTwoScreen({
                     <div className="mt-3 text-3xl font-bold tabular-nums text-amber-900 dark:text-amber-200">
                       {expenses.find((item) => item.displayStatus === "conversion_needed")
                         ? money(
-                          expenses.find((item) => item.displayStatus === "conversion_needed")!
-                            .originalAmount,
-                          expenses.find((item) => item.displayStatus === "conversion_needed")!
-                            .originalCurrency,
-                        )
+                            expenses.find((item) => item.displayStatus === "conversion_needed")!
+                              .originalAmount,
+                            expenses.find((item) => item.displayStatus === "conversion_needed")!
+                              .originalCurrency,
+                          )
                         : summary.conversionNeededCount}
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2 border-t border-amber-200 pt-3 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-300">
@@ -626,17 +719,17 @@ export function PhaseTwoScreen({
                         (item) =>
                           item.displayStatus === "conversion_needed" && item.permissions.canEdit,
                       ) && (
-                          <button
-                            className="font-semibold underline"
-                            onClick={() =>
-                              router.push(
-                                `${path(bucket.id, "expense", expenses.find((item) => item.displayStatus === "conversion_needed" && item.permissions.canEdit)!.id)}&resolve=1`,
-                              )
-                            }
-                          >
-                            Resolve
-                          </button>
-                        )}
+                        <button
+                          className="font-semibold underline"
+                          onClick={() =>
+                            navigatePath(
+                              `${path(bucket.id, "expense", expenses.find((item) => item.displayStatus === "conversion_needed" && item.permissions.canEdit)!.id)}&resolve=1`,
+                            )
+                          }
+                        >
+                          Resolve
+                        </button>
+                      )}
                     </div>
                   </section>
                   <section className={`${card} flex min-h-36 flex-col justify-between`}>
@@ -1001,7 +1094,7 @@ export function PhaseTwoScreen({
                                     ? `${Math.max(0, Math.ceil((new Date(item.restoreUntil).getTime() - renderTime) / 86_400_000))} days remaining`
                                     : "Recovery unavailable"
                                   : (paymentModes.find((mode) => mode.value === item.paymentMode)
-                                    ?.label ?? item.paymentMode)}
+                                      ?.label ?? item.paymentMode)}
                               </span>
                             </td>
                             <td className="py-4 pr-4 text-right font-semibold tabular-nums">
@@ -1026,7 +1119,7 @@ export function PhaseTwoScreen({
                                   <button
                                     className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--ink)] px-2 py-1 text-[11px] text-[var(--surface)]"
                                     onClick={() =>
-                                      router.push(
+                                      navigatePath(
                                         `${path(bucket.id, "expense", item.id)}&resolve=1`,
                                       )
                                     }
@@ -1199,7 +1292,7 @@ export function PhaseTwoScreen({
                         setCurrencyValue(
                           checked
                             ? (currencies.find((item) => item.code !== bucket.primaryCurrency)
-                              ?.code ?? bucket.primaryCurrency)
+                                ?.code ?? bucket.primaryCurrency)
                             : bucket.primaryCurrency,
                         );
                       }}
@@ -1460,7 +1553,7 @@ export function PhaseTwoScreen({
                     <button
                       className={action}
                       onClick={() =>
-                        router.push(`${path(bucket.id, "add-expense")}&refundOf=${expense.id}`)
+                        navigatePath(`${path(bucket.id, "add-expense")}&refundOf=${expense.id}`)
                       }
                     >
                       Record refund
@@ -1560,7 +1653,7 @@ export function PhaseTwoScreen({
                       [
                         "Payment mode",
                         paymentModes.find((mode) => mode.value === expense.paymentMode)?.label ??
-                        expense.paymentMode,
+                          expense.paymentMode,
                       ],
                       [
                         "Currency & conversion",
@@ -1779,11 +1872,13 @@ export function PhaseTwoScreen({
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
                     <div>
                       <h2 className="flex items-center gap-2">
-                        <span>{group.key === "accounts"
-                          ? "Payment accounts"
-                          : group.key === "categories"
-                            ? "Expense categories"
-                            : "Platforms & merchants"}{" "}</span>
+                        <span>
+                          {group.key === "accounts"
+                            ? "Payment accounts"
+                            : group.key === "categories"
+                              ? "Expense categories"
+                              : "Platforms & merchants"}{" "}
+                        </span>
                         <span className="rounded-full bg-[var(--soft)] px-2 py-1 text-xs text-[var(--muted)]">
                           {options[group.key].filter((item) => item.state === "active").length}{" "}
                           active
@@ -1800,13 +1895,13 @@ export function PhaseTwoScreen({
                     {bucket.isOwner && bucket.status === "active" && (
                       <button
                         type="button"
-                        className="button primary small"
+                        className={referencePrimaryAction}
                         onClick={() =>
                           setAddingOption(addingOption === group.key ? null : group.key)
                         }
                         aria-expanded={addingOption === group.key}
                       >
-                        <Plus size={16} /> Add{" "}
+                        <Plus size={15} aria-hidden="true" /> Add{" "}
                         {group.key === "accounts"
                           ? "payment account"
                           : group.key === "categories"
@@ -1822,166 +1917,182 @@ export function PhaseTwoScreen({
                         : "grid gap-1"
                     }
                   >
-                    {options[group.key].length > 0 ? options[group.key].map((item) => (
-                      <div
-                        key={item.id}
-                        className={`relative flex min-w-0 items-center justify-between gap-3 rounded-lg ${group.key === "categories" ? "border border-[var(--line)] bg-[var(--soft)] p-3" : "border-b border-[var(--line)] px-1 py-3 last:border-0"}`}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sage)] text-[var(--green)]">
-                            <ReferenceGlyph
-                              kind={group.key}
-                              name={item.name}
-                              iconKey={item.iconKey}
-                            />
-                          </span>
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold">
-                              {editingOptionId === item.id ? (
-                                <input
-                                  className={`${field} max-w-56`}
-                                  value={editingOptionName}
-                                  onChange={(event) => setEditingOptionName(event.target.value)}
-                                  maxLength={80}
-                                  aria-label={`Rename ${item.name}`}
-                                />
-                              ) : (
-                                <span className="truncate">{item.name}</span>
-                              )}
-                              {group.key !== "categories" && (
-                                <span
-                                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.state === "active" ? "bg-[var(--sage)] text-[var(--green)]" : "bg-[var(--soft)] text-[var(--muted)]"}`}
-                                >
-                                  {item.systemKey === "other"
-                                    ? "Permanent fallback"
-                                    : item.state === "active"
-                                      ? "Active"
-                                      : "Archived"}
-                                </span>
-                              )}
-                            </div>
-                            <div className={muted}>
-                              {item.usageCount === 0
-                                ? "No expenses yet"
-                                : `${item.usageCount} expenses logged`}
-                              {item.ownerLabel ? ` · ${item.ownerLabel}` : ""}
-                            </div>
-                          </div>
-                        </div>
-                        {bucket.isOwner &&
-                          bucket.status === "active" &&
-                          group.key === "categories" &&
-                          editingOptionId !== item.id && (
-                            <details className="group shrink-0">
-                              <summary
-                                className="grid size-9 cursor-pointer list-none place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--sage)] hover:text-[var(--ink)]"
-                                aria-label={`Actions for ${item.name}`}
-                              >
-                                <MoreVertical size={17} />
-                              </summary>
-                              <div className="absolute right-2 top-12 z-20 flex min-w-36 flex-col rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 shadow-lg">
-                                <button
-                                  className="rounded-lg px-3 py-2 text-left text-xs hover:bg-[var(--soft)]"
-                                  onClick={() => {
-                                    setEditingOptionId(item.id);
-                                    setEditingOptionName(item.name);
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  className="rounded-lg px-3 py-2 text-left text-xs hover:bg-[var(--soft)]"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    optionAction(
-                                      item,
-                                      group.key,
-                                      item.state === "active" ? "archive" : "restore",
-                                    )
-                                  }
-                                >
-                                  {item.state === "active" ? "Archive" : "Restore"}
-                                </button>
-                                {item.usageCount === 0 && !item.systemKey && (
-                                  <button
-                                    className="rounded-lg px-3 py-2 text-left text-xs text-[var(--error)] hover:bg-[var(--error-bg)]"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      setDeleteOptionTarget({ option: item, kind: group.key })
-                                    }
+                    {options[group.key].length > 0 ? (
+                      options[group.key].map((item) => (
+                        <div
+                          key={item.id}
+                          className={`relative flex min-w-0 items-center justify-between gap-3 rounded-lg ${group.key === "categories" ? "border border-[var(--line)] bg-[var(--soft)] p-3" : "border-b border-[var(--line)] px-1 py-3 last:border-0"}`}
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sage)] text-[var(--green)]">
+                              <ReferenceGlyph
+                                kind={group.key}
+                                name={item.name}
+                                iconKey={item.iconKey}
+                              />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold">
+                                {editingOptionId === item.id ? (
+                                  <input
+                                    className={`${field} max-w-56`}
+                                    value={editingOptionName}
+                                    onChange={(event) => setEditingOptionName(event.target.value)}
+                                    maxLength={80}
+                                    aria-label={`Rename ${item.name}`}
+                                  />
+                                ) : (
+                                  <span className="truncate">{item.name}</span>
+                                )}
+                                {group.key !== "categories" && (
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.state === "active" ? "bg-[var(--sage)] text-[var(--green)]" : "bg-[var(--soft)] text-[var(--muted)]"}`}
                                   >
-                                    Delete unused
-                                  </button>
+                                    {item.systemKey === "other"
+                                      ? "Permanent fallback"
+                                      : item.state === "active"
+                                        ? "Active"
+                                        : "Archived"}
+                                  </span>
                                 )}
                               </div>
-                            </details>
-                          )}
-                        {bucket.isOwner &&
-                          bucket.status === "active" &&
-                          (group.key !== "categories" || editingOptionId === item.id) && (
-                            <div className="flex flex-wrap justify-end gap-1">
-                              {editingOptionId === item.id ? (
-                                <>
+                              <div className={muted}>
+                                {item.usageCount === 0
+                                  ? "No expenses yet"
+                                  : `${item.usageCount} expenses logged`}
+                                {item.ownerLabel ? ` · ${item.ownerLabel}` : ""}
+                              </div>
+                            </div>
+                          </div>
+                          {bucket.isOwner &&
+                            bucket.status === "active" &&
+                            group.key === "categories" &&
+                            editingOptionId !== item.id && (
+                              <details className="group shrink-0">
+                                <summary
+                                  className="grid size-9 cursor-pointer list-none place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--sage)] hover:text-[var(--ink)]"
+                                  aria-label={`Actions for ${item.name}`}
+                                >
+                                  <MoreVertical size={17} />
+                                </summary>
+                                <div className="absolute right-2 top-12 z-20 flex min-w-36 flex-col rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 shadow-lg">
                                   <button
-                                    className={action}
-                                    disabled={busy || !editingOptionName.trim()}
-                                    onClick={() =>
-                                      void renameOption(item, group.key, editingOptionName)
-                                    }
+                                    className={`${referenceRowAction} justify-start`}
+                                    onClick={() => {
+                                      setEditingOptionId(item.id);
+                                      setEditingOptionName(item.name);
+                                    }}
                                   >
-                                    Save
+                                    <Pencil size={14} aria-hidden="true" />
+                                    Edit
                                   </button>
                                   <button
-                                    className={action}
-                                    onClick={() => setEditingOptionId(null)}
-                                  >
-                                    Cancel
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  className={action}
-                                  disabled={busy}
-                                  onClick={() => {
-                                    setEditingOptionId(item.id);
-                                    setEditingOptionName(item.name);
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                              )}
-                              {group.key !== "categories" && (
-                                <button
-                                  className={action}
-                                  disabled={busy || item.systemKey === "other"}
-                                  onClick={() =>
-                                    optionAction(
-                                      item,
-                                      group.key,
-                                      item.state === "active" ? "archive" : "restore",
-                                    )
-                                  }
-                                >
-                                  {item.state === "active" ? "Archive" : "Restore"}
-                                </button>
-                              )}
-                              {group.key !== "categories" &&
-                                item.usageCount === 0 &&
-                                !item.systemKey && (
-                                  <button
-                                    className={action}
+                                    className={`${referenceMutedAction} justify-start`}
                                     disabled={busy}
                                     onClick={() =>
-                                      setDeleteOptionTarget({ option: item, kind: group.key })
+                                      optionAction(
+                                        item,
+                                        group.key,
+                                        item.state === "active" ? "archive" : "restore",
+                                      )
                                     }
                                   >
-                                    Delete
+                                    {item.state === "active" ? (
+                                      <Archive size={14} aria-hidden="true" />
+                                    ) : (
+                                      <RotateCcw size={14} aria-hidden="true" />
+                                    )}
+                                    {item.state === "active" ? "Archive" : "Restore"}
+                                  </button>
+                                  {item.usageCount === 0 && !item.systemKey && (
+                                    <button
+                                      className={`${referenceDeleteAction} justify-start`}
+                                      disabled={busy}
+                                      onClick={() =>
+                                        setDeleteOptionTarget({ option: item, kind: group.key })
+                                      }
+                                    >
+                                      <Trash2 size={14} aria-hidden="true" />
+                                      Delete unused
+                                    </button>
+                                  )}
+                                </div>
+                              </details>
+                            )}
+                          {bucket.isOwner &&
+                            bucket.status === "active" &&
+                            (group.key !== "categories" || editingOptionId === item.id) && (
+                              <div className="flex flex-wrap justify-end gap-1">
+                                {editingOptionId === item.id ? (
+                                  <>
+                                    <button
+                                      className={referencePrimaryAction}
+                                      disabled={busy || !editingOptionName.trim()}
+                                      onClick={() =>
+                                        void renameOption(item, group.key, editingOptionName)
+                                      }
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      className={referenceMutedAction}
+                                      onClick={() => setEditingOptionId(null)}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    className={referenceRowAction}
+                                    disabled={busy}
+                                    onClick={() => {
+                                      setEditingOptionId(item.id);
+                                      setEditingOptionName(item.name);
+                                    }}
+                                  >
+                                    <Pencil size={14} aria-hidden="true" />
+                                    Edit
                                   </button>
                                 )}
-                            </div>
-                          )}
-                      </div>
-                    )) : (
+                                {group.key !== "categories" && (
+                                  <button
+                                    className={referenceMutedAction}
+                                    disabled={busy || item.systemKey === "other"}
+                                    onClick={() =>
+                                      optionAction(
+                                        item,
+                                        group.key,
+                                        item.state === "active" ? "archive" : "restore",
+                                      )
+                                    }
+                                  >
+                                    {item.state === "active" ? (
+                                      <Archive size={14} aria-hidden="true" />
+                                    ) : (
+                                      <RotateCcw size={14} aria-hidden="true" />
+                                    )}
+                                    {item.state === "active" ? "Archive" : "Restore"}
+                                  </button>
+                                )}
+                                {group.key !== "categories" &&
+                                  item.usageCount === 0 &&
+                                  !item.systemKey && (
+                                    <button
+                                      className={referenceDeleteAction}
+                                      disabled={busy}
+                                      onClick={() =>
+                                        setDeleteOptionTarget({ option: item, kind: group.key })
+                                      }
+                                    >
+                                      <Trash2 size={14} aria-hidden="true" />
+                                      Delete unused
+                                    </button>
+                                  )}
+                              </div>
+                            )}
+                        </div>
+                      ))
+                    ) : (
                       <span></span>
                     )}
                   </div>
@@ -2005,8 +2116,8 @@ export function PhaseTwoScreen({
                           placeholder="Owner label (optional)"
                         />
                       )}
-                      <button className="button primary" disabled={busy}>
-                        <Plus size={15} /> Add
+                      <button className={referencePrimaryAction} disabled={busy}>
+                        <Plus size={15} aria-hidden="true" /> Add
                       </button>
                     </form>
                   )}
@@ -2047,7 +2158,10 @@ export function PhaseTwoScreen({
                     {members.length}
                   </span>
                 </h2>
-                <p className="text-xs">Members can record expenses, view the ledger, and participate in comments. Only the owner can remove members or manage invitations.</p>
+                <p className="text-xs">
+                  Members can record expenses, view the ledger, and participate in comments. Only
+                  the owner can remove members or manage invitations.
+                </p>
                 <div className="flex flex-col gap-2">
                   {members.map((member) => (
                     <div
@@ -2096,8 +2210,10 @@ export function PhaseTwoScreen({
                   <div className="flex items-center justify-between gap-3 pb-6">
                     <div>
                       <h2 className="text-lg">Active invitation links</h2>
-                      <p className="mb-4 !mt-1 text-xs">Invitation links are valid for seven days and can be used by multiple people.
-                        The full secret link is shown only when it is created.</p>
+                      <p className="mb-4 !mt-1 text-xs">
+                        Invitation links are valid for seven days and can be used by multiple
+                        people. The full secret link is shown only when it is created.
+                      </p>
                     </div>
                     {bucket.status === "active" && (
                       <button
@@ -2174,46 +2290,47 @@ export function PhaseTwoScreen({
                       <span>Action</span>
                     </div>
                     {invitations.map((invitation) => {
-                      if(invitation.status !== "revoked") return (
-                        <div
-                          key={invitation.id}
-                          className="grid gap-2 border-b border-[var(--line)] py-3 text-xs last:border-0 sm:grid-cols-[1.1fr_1fr_1fr_1fr_auto] sm:items-center sm:gap-3"
-                        >
-                          <strong>Link ••••{invitation.id.slice(-4)}</strong>
-                          <span>{invitation.createdByName}</span>
-                          <span>7-day multi-use</span>
-                          <span
-                            className={
-                              invitation.status === "active"
-                                ? "text-[var(--green)]"
-                                : "text-[var(--muted)]"
-                            }
+                      if (invitation.status !== "revoked")
+                        return (
+                          <div
+                            key={invitation.id}
+                            className="grid gap-2 border-b border-[var(--line)] py-3 text-xs last:border-0 sm:grid-cols-[1.1fr_1fr_1fr_1fr_auto] sm:items-center sm:gap-3"
                           >
-                            {invitation.status === "active"
-                              ? `Expires ${new Date(invitation.expiresAt).toLocaleDateString()}`
-                              : invitation.status}
-                          </span>
-                          {invitation.status === "active" && (
-                            <button
-                              className={action}
-                              disabled={busy}
-                              onClick={async () => {
-                                if (
-                                  await mutation(
-                                    `buckets/${bucket.id}/invitations/${invitation.id}`,
-                                    "DELETE",
-                                    undefined,
-                                    invitation.revision,
-                                  )
-                                )
-                                  await refresh();
-                              }}
+                            <strong>Link ••••{invitation.id.slice(-4)}</strong>
+                            <span>{invitation.createdByName}</span>
+                            <span>7-day multi-use</span>
+                            <span
+                              className={
+                                invitation.status === "active"
+                                  ? "text-[var(--green)]"
+                                  : "text-[var(--muted)]"
+                              }
                             >
-                              Revoke link
-                            </button>
-                          )}
-                        </div>
-                      )
+                              {invitation.status === "active"
+                                ? `Expires ${new Date(invitation.expiresAt).toLocaleDateString()}`
+                                : invitation.status}
+                            </span>
+                            {invitation.status === "active" && (
+                              <button
+                                className={action}
+                                disabled={busy}
+                                onClick={async () => {
+                                  if (
+                                    await mutation(
+                                      `buckets/${bucket.id}/invitations/${invitation.id}`,
+                                      "DELETE",
+                                      undefined,
+                                      invitation.revision,
+                                    )
+                                  )
+                                    await refresh();
+                                }}
+                              >
+                                Revoke link
+                              </button>
+                            )}
+                          </div>
+                        );
                     })}
                   </div>
                 </section>

@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import {
   Banknote,
   BriefcaseBusiness,
@@ -62,6 +63,5 @@ export function ReferenceGlyph({
   iconKey?: string;
   size?: number;
 }) {
-  const Icon = referenceIcon(kind, name, iconKey);
-  return <Icon size={size} aria-hidden="true" />;
+  return createElement(referenceIcon(kind, name, iconKey), { size, "aria-hidden": true });
 }
