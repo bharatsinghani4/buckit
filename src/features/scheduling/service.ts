@@ -20,6 +20,7 @@ import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insigh
 import { dueInstant, installmentDate, localDate } from "./dates";
 import { planEditInput, planInput, type PlanInput } from "./contracts";
 import { requireConfig } from "@/lib/config/required";
+import { recordDomainEvent } from "@/features/notifications/event-service";
 
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
 const unavailable = () =>
@@ -493,6 +494,14 @@ export async function createPlan(
         ],
         { session },
       );
+      await recordDomainEvent(session, {
+        eventKey: `emi.plan_created:${key}`,
+        type: "emi.plan_changed",
+        actorUserId: user._id,
+        bucketId,
+        entityType: "emiPlan",
+        entityId: plan._id,
+      });
       return { resourceId: String(plan._id), status: 201, data: { id: String(plan._id) } };
     },
     async (id) => ({ id }),
@@ -710,6 +719,14 @@ export async function changePlan(
         ],
         { session },
       );
+      await recordDomainEvent(session, {
+        eventKey: `emi.plan_${action}:${key}`,
+        type: action === "end" ? "emi.plan_ended" : "emi.plan_changed",
+        actorUserId: actor._id,
+        bucketId,
+        entityType: "emiPlan",
+        entityId: plan._id,
+      });
       return { resourceId: planId, status: 200, data: { id: planId } };
     },
     async (id) => ({ id }),
@@ -842,6 +859,14 @@ export async function changeInstallment(
         ],
         { session },
       );
+      await recordDomainEvent(session, {
+        eventKey: `emi.installment_${action}:${key}`,
+        type: action === "skip" ? "emi.installment_skipped" : "emi.plan_changed",
+        actorUserId: user._id,
+        bucketId,
+        entityType: "emiPlan",
+        entityId: installment.planId,
+      });
       return { resourceId: installmentId, status: 200, data: { id: installmentId } };
     },
     async (id) => ({ id }),
@@ -989,6 +1014,14 @@ export async function processDaily(limit = 100) {
         expense.conversion = conversion;
         expense.revision += 1;
         await expense.save({ session });
+        await recordDomainEvent(session, {
+          eventKey: `scheduled.conversion_needed:${expense._id}`,
+          type: "scheduled.conversion_needed",
+          bucketId: expense.bucketId,
+          entityType: "expense",
+          entityId: expense._id,
+          recipientUserId: expense.actualCreatorUserId,
+        });
         conversionNeeded += 1;
         return;
       }
@@ -1045,6 +1078,13 @@ export async function processDaily(limit = 100) {
         ],
         { session },
       );
+      await recordDomainEvent(session, {
+        eventKey: `scheduled.posted:${expense._id}`,
+        type: "scheduled.posted",
+        bucketId: expense.bucketId,
+        entityType: "expense",
+        entityId: expense._id,
+      });
       posted += 1;
     });
   }

@@ -56,6 +56,26 @@ import {
   listScheduled,
   previewPlan,
 } from "@/features/scheduling/service";
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from "@/features/notifications/preferences-service";
+import {
+  changeReminder,
+  createReminder,
+  listReminders,
+} from "@/features/notifications/reminder-service";
+import {
+  fanoutPendingEvents,
+  listNotifications,
+  markNotificationsRead,
+  unreadCount,
+} from "@/features/notifications/inbox-service";
+import {
+  listPushInstallations,
+  registerPushInstallation,
+  revokePushInstallation,
+} from "@/features/notifications/push-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,7 +112,82 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     let meta: Record<string, unknown> = { requestId };
     if (method === "GET" && path === "me")
       data = await profileDto(await activeUser(identity), identity);
-    else if (method === "GET" && path === "buckets") {
+    else if (method === "GET" && path === "me/notification-preferences")
+      data = await getNotificationPreferences(identity);
+    else if (method === "GET" && path === "me/reminders") data = await listReminders(identity);
+    else if (method === "GET" && path === "me/push-installations")
+      data = await listPushInstallations(identity);
+    else if (method === "PUT" && /^me\/push-installations\/[0-9a-f-]{36}$/i.test(path)) {
+      const result = await registerPushInstallation(
+        identity,
+        path.split("/")[2],
+        await readJson(request),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "DELETE" && /^me\/push-installations\/[0-9a-f-]{36}$/i.test(path)) {
+      const result = await revokePushInstallation(
+        identity,
+        path.split("/")[2],
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "GET" && path === "notifications/unread-count")
+      data = await unreadCount(identity);
+    else if (method === "GET" && path === "notifications") {
+      await fanoutPendingEvents(5);
+      const result = await listNotifications(
+        identity,
+        url.searchParams.get("filter") === "unread",
+        url.searchParams.get("cursor"),
+      );
+      data = result.data;
+      meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
+    } else if (method === "POST" && path === "notifications/read") {
+      const result = await markNotificationsRead(
+        identity,
+        await readJson(request),
+        requireIdempotencyKey(request),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "POST" && path === "me/reminders") {
+      const result = await createReminder(
+        identity,
+        await readJson(request),
+        requireIdempotencyKey(request),
+      );
+      data = result.data;
+      status = result.status;
+      if ("location" in result && result.location) headers.set("Location", result.location);
+    } else if (
+      (method === "PATCH" || method === "DELETE") &&
+      /^me\/reminders\/[a-f\d]{24}$/i.test(path)
+    ) {
+      const result = await changeReminder(
+        identity,
+        path.split("/")[2],
+        method === "DELETE" ? "delete" : "edit",
+        method === "DELETE" ? {} : await readJson(request),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "PATCH" && path === "me/notification-preferences") {
+      const result = await updateNotificationPreferences(
+        identity,
+        await readJson(request),
+        request.headers.get("if-match"),
+        requireIdempotencyKey(request),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "GET" && path === "buckets") {
       const result = await listBuckets(identity, url.searchParams.get("cursor"));
       data = result.data;
       meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
@@ -101,7 +196,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     else if (method === "GET" && path === "capabilities")
       data = {
         currencies: currencies.map((c) => ({ ...c, precision: c.code === "JPY" ? 0 : 2 })),
-        phase: 4,
+        phase: 5,
       };
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/dashboard$/i.test(path))
       data = await dashboard(identity, path.split("/")[1], url.searchParams);
@@ -387,6 +482,14 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     }
     if (data && typeof data === "object" && "revision" in data)
       headers.set("ETag", `"r${data.revision}"`);
+    if (
+      method !== "GET" &&
+      ((path.startsWith("buckets/") && !path.endsWith("/preview")) || path === "invitations/join")
+    )
+      await fanoutPendingEvents(5).catch(() => {
+        // The event is durable; the daily worker retries delivery independently.
+      });
+    if (status === 204) return new Response(null, { status, headers });
     return Response.json({ data, meta }, { status, headers });
   } catch (error) {
     if (error instanceof ZodError)

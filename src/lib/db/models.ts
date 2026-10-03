@@ -359,6 +359,7 @@ const reminderSchema = new Schema(
     nextLocalDate: String,
     nextDueAt: Date,
     lastEmittedOccurrenceKey: String,
+    deletedAt: Date,
     revision: { type: Number, default: 1 },
   },
   common,
@@ -419,7 +420,10 @@ const pushInstallationSchema = new Schema(
   },
   common,
 );
-pushInstallationSchema.index({ tokenHash: 1 }, { unique: true });
+pushInstallationSchema.index(
+  { tokenHash: 1 },
+  { unique: true, partialFilterExpression: { state: "active" } },
+);
 pushInstallationSchema.index({ userId: 1, installationId: 1 }, { unique: true });
 pushInstallationSchema.index({ userId: 1, state: 1 });
 
@@ -447,6 +451,7 @@ const pushDeliverySchema = new Schema(
 );
 pushDeliverySchema.index({ eventId: 1, recipientUserId: 1, installationId: 1 }, { unique: true });
 pushDeliverySchema.index({ state: 1, nextAttemptAt: 1 });
+pushDeliverySchema.index({ state: 1, leaseUntil: 1 });
 pushDeliverySchema.index({ recipientUserId: 1, state: 1 });
 
 export const UserModel =

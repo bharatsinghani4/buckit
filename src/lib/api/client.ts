@@ -67,6 +67,7 @@ async function sendApi<T>(user: User, path: string, options: ApiOptions): Promis
       );
     }
   }
+  if (response.status === 204) return { data: null as T, meta: {} };
   let result: {
     data?: T;
     meta?: Envelope<T>["meta"];
