@@ -5,6 +5,7 @@ import { JobLeaseModel } from "@/lib/db/models";
 import { processDueReminders } from "@/features/notifications/reminder-worker";
 import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
 import { sendPendingPush } from "@/features/notifications/push-service";
+import { continuePendingImports } from "@/features/csv/import-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,13 +47,22 @@ export async function GET(request: Request) {
     throw error;
   }
   try {
+    const startedAt = Date.now();
     const finance = await processDaily();
     const reminders = await processDueReminders();
     const notifications = await fanoutPendingEvents();
     const push = await sendPendingPush();
-    const processedCounts = { ...finance, reminders, notifications, push };
+    const imports =
+      Date.now() - startedAt < 42_000
+        ? await continuePendingImports(startedAt + 54_000)
+        : { committed: 0, reviewed: 0, failed: 0, hasMore: false };
+    const processedCounts = { ...finance, reminders, notifications, push, imports };
     const hasRemainingWork =
-      finance.hasRemainingWork || reminders.hasMore || notifications.hasMore || push.hasMore;
+      finance.hasRemainingWork ||
+      reminders.hasMore ||
+      notifications.hasMore ||
+      push.hasMore ||
+      imports.hasMore;
     return Response.json(
       { state: hasRemainingWork ? "partial" : "completed", processedCounts, hasRemainingWork },
       { headers: { "Cache-Control": "no-store" } },

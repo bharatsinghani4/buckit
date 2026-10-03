@@ -290,14 +290,21 @@ export async function validateReferences(
   bucketId: string,
   session: ClientSession,
   existing?: Pick<ExpenseRow, "categoryId" | "accountId" | "platformId">,
+  allowFormerPayer = false,
 ) {
   const member = await MembershipModel.exists({
     bucketId,
     userId: input.paidByUserId,
-    state: "active",
+    ...(!allowFormerPayer ? { state: "active" } : {}),
   }).session(session);
   if (!member)
-    throw new ApiError(422, "INVALID_PAYER", "Choose a current bucket member as the payer.");
+    throw new ApiError(
+      422,
+      "INVALID_PAYER",
+      allowFormerPayer
+        ? "Choose a current or former bucket member as the payer."
+        : "Choose a current bucket member as the payer.",
+    );
   const references = await OptionModel.find({
     bucketId,
     $or: [
@@ -1087,6 +1094,7 @@ export async function changeComment(
           entityType: "expense",
           entityId: expense._id,
         });
+      await BucketModel.updateOne({ _id: bucketId }, { $inc: { exportRevision: 1 } }, { session });
       return {
         resourceId: String(comment._id),
         status: action === "create" ? 201 : 200,

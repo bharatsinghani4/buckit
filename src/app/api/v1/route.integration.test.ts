@@ -7,12 +7,13 @@ import {
   ExpenseModel,
   ReminderModel,
   UserModel,
-  phaseFiveModels,
+  phaseSixModels,
 } from "@/lib/db/models";
 import { generateInstallments, processDaily } from "@/features/scheduling/service";
 import { processDueReminders } from "@/features/notifications/reminder-worker";
 import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
 import { localDate } from "@/features/scheduling/dates";
+import { continuePendingImports } from "@/features/csv/import-service";
 import { GET as dailyGET } from "../internal/jobs/daily/route";
 
 vi.mock("server-only", () => ({}));
@@ -37,7 +38,7 @@ beforeAll(async () => {
     autoIndex: false,
     autoCreate: false,
   });
-  for (const model of phaseFiveModels) {
+  for (const model of phaseSixModels) {
     await model.createCollection();
     await model.createIndexes();
   }
@@ -49,6 +50,536 @@ afterAll(async () => {
   await database?.stop();
   delete process.env.API_CURSOR_SECRET;
   delete process.env.PUSH_TOKEN_ENCRYPTION_KEY;
+});
+
+describe("Phase 6 contacts and CSV", () => {
+  it("keeps contacts private, grants only associated users, and revokes access", async () => {
+    const owner = "phase6contactowner";
+    const member = "phase6contactmember";
+    const stranger = "phase6contactstranger";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", member, {});
+    await request("POST", "me/bootstrap", stranger, {});
+    const bucket = await request("POST", "buckets", owner, {
+      name: "Contact Test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const bucketId = bucket.payload.data.id;
+    const invite = await request("POST", `buckets/${bucketId}/invitations`, owner, {});
+    const token = new URL(invite.payload.data.shareUrl).hash.slice(1);
+    const joined = await request("POST", "invitations/join", member, { token });
+    expect(joined.response.status, JSON.stringify(joined.payload)).toBe(201);
+    const created = await request("POST", "contacts", owner, {
+      name: "Asha",
+      serviceType: "Electrician",
+      phone: "+91 9000000000",
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    const contactId = created.payload.data.id;
+    expect((await request("GET", "contacts", member)).payload.data).toHaveLength(0);
+    expect((await request("GET", `contacts/${contactId}`, stranger)).response.status).toBe(404);
+    const ownerId = (await UserModel.findOne({ firebaseUid: owner }))!._id;
+    const memberId = (await UserModel.findOne({ firebaseUid: member }))!._id;
+    const strangerId = (await UserModel.findOne({ firebaseUid: stranger }))!._id;
+    expect(
+      (
+        await request("POST", `contacts/${contactId}/shares`, owner, {
+          recipientUserIds: [String(strangerId)],
+        })
+      ).response.status,
+    ).toBe(422);
+    const candidates = await request("GET", "contacts/share-candidates?q=phase6contact", owner);
+    expect(candidates.payload.data.some((row: { id: string }) => row.id === String(memberId))).toBe(
+      true,
+    );
+    expect(
+      candidates.payload.data.some((row: { id: string }) => row.id === String(strangerId)),
+    ).toBe(false);
+    const grant = await request("POST", `contacts/${contactId}/shares`, owner, {
+      recipientUserIds: [String(memberId)],
+    });
+    expect(grant.response.status, JSON.stringify(grant.payload)).toBe(200);
+    expect((await request("GET", `contacts/${contactId}`, member)).response.status).toBe(200);
+    expect(
+      (
+        await request(
+          "PATCH",
+          `contacts/${contactId}`,
+          member,
+          { name: "Changed" },
+          { "If-Match": created.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(404);
+    const shares = await request("GET", `contacts/${contactId}/shares`, owner);
+    const share = shares.payload.data[0];
+    expect(
+      (
+        await request("DELETE", `contacts/${contactId}/shares/${share.id}`, owner, undefined, {
+          "If-Match": `"r${share.revision}"`,
+        })
+      ).response.status,
+    ).toBe(204);
+    expect((await request("GET", `contacts/${contactId}`, member)).response.status).toBe(404);
+    expect(String(ownerId)).not.toBe(String(memberId));
+  });
+
+  it("stages and commits one CSV row, exports a completed snapshot, and rejects a changed revision", async () => {
+    const actor = "phase6csv";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "CSV Test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const bucketId = bucket.payload.data.id;
+    const root = `buckets/${bucketId}`;
+    const actorId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const categories = await request("GET", `${root}/options/categories`, actor);
+    const account = await request("POST", `${root}/options/accounts`, actor, { name: "Checking" });
+    expect(account.response.status).toBe(201);
+    const headers = [
+      "Date",
+      "Description",
+      "PaidBy",
+      "Category",
+      "Platform",
+      "Payment Mode",
+      "Bank Account",
+      "Amount",
+      "Currency",
+      "Added By",
+      "Notes",
+      "Comments",
+      "Status",
+    ];
+    const created = await request("POST", `${root}/imports`, actor, {
+      fileName: "expenses.csv",
+      fileHash: "a".repeat(64),
+      fileSize: 256,
+      rowCount: 1,
+      headers,
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    const importId = created.payload.data.id;
+    const staged = await request(
+      "PUT",
+      `${root}/imports/${importId}/chunks/0`,
+      actor,
+      {
+        rows: [
+          {
+            rowNumber: 1,
+            cells: [
+              "02/01/2026",
+              "Market",
+              actorId,
+              categories.payload.data[0].id,
+              "",
+              "UPI",
+              account.payload.data.id,
+              "250.00",
+              "",
+              "",
+              "",
+              "",
+              "",
+            ],
+          },
+        ],
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(staged.response.status, JSON.stringify(staged.payload)).toBe(200);
+    const resolved = await request(
+      "PATCH",
+      `${root}/imports/${importId}/resolution`,
+      actor,
+      { rows: [{ rowNumber: 1, corrections: { Date: "02/01/2026" } }] },
+      { "If-Match": staged.response.headers.get("ETag")! },
+    );
+    expect(resolved.response.status, JSON.stringify(resolved.payload)).toBe(200);
+    const validation = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
+    expect(validation.response.status, JSON.stringify(validation.payload)).toBe(200);
+    expect(validation.payload.data.counts.ready).toBe(1);
+    const confirmed = await request(
+      "POST",
+      `${root}/imports/${importId}/confirm`,
+      actor,
+      {
+        previewDigest: validation.payload.data.previewDigest,
+        acknowledgments: ["defaults", "ignored_comments", "duplicates", "conversion"],
+      },
+      { "If-Match": resolved.response.headers.get("ETag")! },
+    );
+    expect(confirmed.response.status, JSON.stringify(confirmed.payload)).toBe(200);
+    const committed = await request("POST", `${root}/imports/${importId}/commit-next`, actor, {});
+    expect(committed.response.status, JSON.stringify(committed.payload)).toBe(200);
+    expect(committed.payload.data.committed).toBe(1);
+    const expense = await ExpenseModel.findOne({ bucketId, originKey: `import:${importId}:1` });
+    expect(expense?.description).toBe("Market");
+    const duplicate = await request("POST", `${root}/imports`, actor, {
+      fileName: "again.csv",
+      fileHash: "c".repeat(64),
+      fileSize: 256,
+      rowCount: 1,
+      headers,
+    });
+    const duplicateId = duplicate.payload.data.id;
+    const duplicateStage = await request(
+      "PUT",
+      `${root}/imports/${duplicateId}/chunks/0`,
+      actor,
+      {
+        rows: [
+          {
+            rowNumber: 1,
+            cells: [
+              "02/01/2026",
+              "Market",
+              actorId,
+              categories.payload.data[0].id,
+              "",
+              "UPI",
+              account.payload.data.id,
+              "250.00",
+              "",
+              "",
+              "",
+              "",
+              "",
+            ],
+          },
+        ],
+      },
+      { "If-Match": duplicate.response.headers.get("ETag")! },
+    );
+    expect(duplicateStage.response.status).toBe(200);
+    const duplicatePreview = await request(
+      "POST",
+      `${root}/imports/${duplicateId}/validate`,
+      actor,
+      {},
+    );
+    expect(duplicatePreview.payload.data.rows[0].duplicateCandidates).toContain(
+      String(expense!._id),
+    );
+    expect(duplicatePreview.payload.data.counts.invalid).toBe(1);
+    const selection = { scope: "all", filters: {}, includeScheduled: false };
+    const started = await request("POST", `${root}/exports/start`, actor, selection);
+    expect(started.response.status, JSON.stringify(started.payload)).toBe(200);
+    const exportToken = started.payload.data.exportToken;
+    const page = await request("POST", `${root}/exports/page`, actor, { exportToken });
+    expect(page.response.status, JSON.stringify(page.payload)).toBe(200);
+    expect(page.payload.data.rows[0].cells[1]).toBe("Market");
+    const complete = await request("POST", `${root}/exports/complete`, actor, {
+      exportToken,
+      completionCursor: page.payload.data.completionCursor,
+    });
+    expect(complete.response.status).toBe(200);
+    await request("POST", `${root}/options/accounts`, actor, { name: "Another" });
+    await request("POST", `${root}/expenses`, actor, {
+      expenseDate: "2026-01-03",
+      description: "Newer",
+      paidByUserId: actorId,
+      categoryId: categories.payload.data[0].id,
+      accountId: account.payload.data.id,
+      paymentMode: "upi",
+      originalAmount: "10.00",
+    });
+    expect(
+      (await request("POST", `${root}/exports/page`, actor, { exportToken })).payload.error.code,
+    ).toBe("EXPORT_CHANGED");
+  });
+
+  it("requires an explicit decision for repeated rows in one CSV", async () => {
+    const actor = "phase6duplicates";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Duplicate CSV",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const actorId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const category = (await request("GET", `${root}/options/categories`, actor)).payload.data[0].id;
+    const account = (await request("POST", `${root}/options/accounts`, actor, { name: "Checking" }))
+      .payload.data.id;
+    const headers = [
+      "Date",
+      "Description",
+      "PaidBy",
+      "Category",
+      "Payment Mode",
+      "Bank Account",
+      "Amount",
+    ];
+    const created = await request("POST", `${root}/imports`, actor, {
+      fileName: "repeat.csv",
+      fileHash: "b".repeat(64),
+      fileSize: 200,
+      rowCount: 2,
+      headers,
+    });
+    const importId = created.payload.data.id;
+    const cells = ["03/01/2026", "Repeated lunch", actorId, category, "UPI", account, "100.00"];
+    const staged = await request(
+      "PUT",
+      `${root}/imports/${importId}/chunks/0`,
+      actor,
+      {
+        rows: [
+          { rowNumber: 1, cells },
+          { rowNumber: 2, cells },
+        ],
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(staged.response.status).toBe(200);
+    const first = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
+    expect(first.payload.data.counts.invalid).toBe(2);
+    expect(first.payload.data.rows[0].duplicateCandidates).toContain("row:2");
+    const resolved = await request(
+      "PATCH",
+      `${root}/imports/${importId}/resolution`,
+      actor,
+      {
+        rows: [
+          { rowNumber: 1, duplicateDecision: "include" },
+          { rowNumber: 2, duplicateDecision: "skip" },
+        ],
+      },
+      { "If-Match": staged.response.headers.get("ETag")! },
+    );
+    expect(resolved.response.status, JSON.stringify(resolved.payload)).toBe(200);
+    const second = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
+    expect(second.payload.data.counts.ready).toBe(1);
+    expect(second.payload.data.counts.excluded).toBe(1);
+    const confirmed = await request(
+      "POST",
+      `${root}/imports/${importId}/confirm`,
+      actor,
+      {
+        previewDigest: second.payload.data.previewDigest,
+        acknowledgments: ["defaults", "ignored_comments", "duplicates", "conversion"],
+      },
+      { "If-Match": resolved.response.headers.get("ETag")! },
+    );
+    expect(confirmed.response.status).toBe(200);
+    const committed = await request("POST", `${root}/imports/${importId}/commit-next`, actor, {});
+    expect(committed.payload.data.committed).toBe(1);
+  });
+
+  it("imports historical expenses paid by a former bucket member without restoring their access", async () => {
+    const owner = "phase6formerowner";
+    const former = "phase6formermember";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", former, {});
+    const bucket = await request("POST", "buckets", owner, {
+      name: "Historical CSV",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const invite = await request("POST", `${root}/invitations`, owner, {});
+    const token = new URL(invite.payload.data.shareUrl).hash.slice(1);
+    expect((await request("POST", "invitations/join", former, { token })).response.status).toBe(
+      201,
+    );
+    const formerId = String((await UserModel.findOne({ firebaseUid: former }))!._id);
+    const membership = (await request("GET", `${root}/members`, owner)).payload.data.find(
+      (person: { id: string }) => person.id === formerId,
+    );
+    expect(
+      (
+        await request("DELETE", `${root}/members/${membership.membershipId}`, owner, undefined, {
+          "If-Match": `"r${membership.revision}"`,
+        })
+      ).response.status,
+    ).toBe(200);
+    const category = (await request("GET", `${root}/options/categories`, owner)).payload.data[0].id;
+    const account = (
+      await request("POST", `${root}/options/accounts`, owner, { name: "Historical account" })
+    ).payload.data.id;
+    const headers = [
+      "Date",
+      "Description",
+      "PaidBy",
+      "Category",
+      "Payment Mode",
+      "Bank Account",
+      "Amount",
+      "Added By",
+    ];
+    const created = await request("POST", `${root}/imports`, owner, {
+      fileName: "history.csv",
+      fileHash: "d".repeat(64),
+      fileSize: 200,
+      rowCount: 1,
+      headers,
+    });
+    const importId = created.payload.data.id;
+    const staged = await request(
+      "PUT",
+      `${root}/imports/${importId}/chunks/0`,
+      owner,
+      {
+        rows: [
+          {
+            rowNumber: 1,
+            cells: [
+              "04/01/2026",
+              "Old bill",
+              formerId,
+              category,
+              "cash",
+              account,
+              "35.00",
+              formerId,
+            ],
+          },
+        ],
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(staged.response.status, JSON.stringify(staged.payload)).toBe(200);
+    const preview = await request("POST", `${root}/imports/${importId}/validate`, owner, {});
+    expect(preview.payload.data.counts.ready, JSON.stringify(preview.payload)).toBe(1);
+    const confirmed = await request(
+      "POST",
+      `${root}/imports/${importId}/confirm`,
+      owner,
+      {
+        previewDigest: preview.payload.data.previewDigest,
+        acknowledgments: ["defaults", "ignored_comments", "duplicates", "conversion"],
+      },
+      { "If-Match": staged.response.headers.get("ETag")! },
+    );
+    expect(confirmed.response.status, JSON.stringify(confirmed.payload)).toBe(200);
+    expect(
+      (await request("POST", `${root}/imports/${importId}/commit-next`, owner, {})).response.status,
+    ).toBe(200);
+    const saved = await ExpenseModel.findOne({ originKey: `import:${importId}:1` });
+    expect(String(saved?.paidByUserId)).toBe(formerId);
+    expect(String(saved?.addedByUserId)).toBe(formerId);
+    expect((await request("GET", `${root}/expenses`, former)).response.status).toBe(404);
+  });
+
+  it("revalidates only remaining rows after a partial import becomes stale", async () => {
+    const actor = "phase6partial";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Partial CSV",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const actorId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const category = (await request("GET", `${root}/options/categories`, actor)).payload.data[0].id;
+    const account = (await request("POST", `${root}/options/accounts`, actor, { name: "Checking" }))
+      .payload.data.id;
+    const created = await request("POST", `${root}/imports`, actor, {
+      fileName: "partial.csv",
+      fileHash: "e".repeat(64),
+      fileSize: 2000,
+      rowCount: 21,
+      headers: [
+        "Date",
+        "Description",
+        "PaidBy",
+        "Category",
+        "Payment Mode",
+        "Bank Account",
+        "Amount",
+      ],
+    });
+    const importId = created.payload.data.id;
+    const staged = await request(
+      "PUT",
+      `${root}/imports/${importId}/chunks/0`,
+      actor,
+      {
+        rows: Array.from({ length: 21 }, (_, index) => ({
+          rowNumber: index + 1,
+          cells: [
+            "05/01/2026",
+            `Purchase ${index + 1}`,
+            actorId,
+            category,
+            "cash",
+            account,
+            "10.00",
+          ],
+        })),
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(staged.response.status, JSON.stringify(staged.payload)).toBe(200);
+    const preview = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
+    expect(preview.payload.data.counts.ready).toBe(21);
+    const confirmed = await request(
+      "POST",
+      `${root}/imports/${importId}/confirm`,
+      actor,
+      {
+        previewDigest: preview.payload.data.previewDigest,
+        acknowledgments: ["defaults", "ignored_comments", "duplicates", "conversion"],
+      },
+      { "If-Match": staged.response.headers.get("ETag")! },
+    );
+    expect(confirmed.response.status).toBe(200);
+    const first = await request("POST", `${root}/imports/${importId}/commit-next`, actor, {});
+    expect(first.payload.data.committed).toBe(20);
+    expect(first.payload.data.pending).toBe(1);
+    expect(
+      (
+        await request("POST", `${root}/expenses`, actor, {
+          expenseDate: "2026-01-06",
+          description: "Outside edit",
+          paidByUserId: actorId,
+          categoryId: category,
+          accountId: account,
+          paymentMode: "cash",
+          originalAmount: "9.00",
+        })
+      ).response.status,
+    ).toBe(201);
+    expect(
+      (await request("POST", `${root}/imports/${importId}/commit-next`, actor, {})).payload.error
+        .code,
+    ).toBe("PREVIEW_STALE");
+    const current = await request("GET", `${root}/imports/${importId}`, actor);
+    const reopened = await request(
+      "POST",
+      `${root}/imports/${importId}/reopen`,
+      actor,
+      {},
+      {
+        "If-Match": current.response.headers.get("ETag")!,
+      },
+    );
+    expect(reopened.response.status, JSON.stringify(reopened.payload)).toBe(200);
+    const reviewed = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
+    expect(reviewed.payload.data.counts.committed).toBe(20);
+    expect(reviewed.payload.data.counts.ready).toBe(1);
+    const reconfirmed = await request(
+      "POST",
+      `${root}/imports/${importId}/confirm`,
+      actor,
+      {
+        previewDigest: reviewed.payload.data.previewDigest,
+        acknowledgments: ["defaults", "ignored_comments", "duplicates", "conversion"],
+      },
+      { "If-Match": reopened.response.headers.get("ETag")! },
+    );
+    expect(reconfirmed.response.status, JSON.stringify(reconfirmed.payload)).toBe(200);
+    const continuation = await continuePendingImports();
+    expect(continuation.committed).toBe(1);
+    expect((await request("GET", `${root}/imports/${importId}`, actor)).payload.data.state).toBe(
+      "completed",
+    );
+  });
 });
 
 describe("Phase 5 notification preferences", () => {
@@ -742,7 +1273,7 @@ describe("Phase 1 HTTP API flows", () => {
     ).toBe("light");
     expect((await request("GET", `buckets/${id}`)).payload.data.name).toBe("Shared Living");
     expect((await request("GET", "buckets")).payload.data).toHaveLength(1);
-    expect((await request("GET", "capabilities")).payload.data.phase).toBe(5);
+    expect((await request("GET", "capabilities")).payload.data.phase).toBe(6);
     const invite = await request("POST", `buckets/${id}/invitations`, "owner", {});
     expect(invite.response.status).toBe(201);
     const token = new URL(invite.payload.data.shareUrl).hash.slice(1);

@@ -439,6 +439,7 @@ Template headers, in order:
 | `GET /buckets/{b}/imports/{sessionId}`                      | Importer                           | State/progress/counts and preview revision                                                                      |
 | `GET /buckets/{b}/imports/{sessionId}/rows`                 | Importer                           | Filtered paginated row outcomes/errors/defaults                                                                 |
 | `POST /buckets/{b}/imports/{sessionId}/confirm`             | Importer                           | Freeze explicit valid rows/exclusions, duplicate choices, defaults acknowledgment, expected preview digest; 200 |
+| `POST /buckets/{b}/imports/{sessionId}/reopen`              | Importer                           | Return remaining rows to preview after a partial/stale commit; preserve committed rows; session revision        |
 | `POST /buckets/{b}/imports/{sessionId}/commit-next`         | Importer                           | Commit next bounded confirmed batch; return progress and continuation flag                                      |
 | `POST /buckets/{b}/imports/{sessionId}/cancel`              | Importer                           | Stop uncommitted work; committed expenses remain                                                                |
 

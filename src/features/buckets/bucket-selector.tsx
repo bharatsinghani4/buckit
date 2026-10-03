@@ -57,7 +57,7 @@ export function BucketSelector({
       <Select.Portal>
         <Select.Content position="popper" sideOffset={6} className={controls.dropdownContent}>
           <Select.ScrollUpButton className={controls.dropdownScroll}>▲</Select.ScrollUpButton>
-          <Select.Viewport className={controls.dropdownViewport}>
+          <Select.Viewport className={`${controls.dropdownViewport} space-y-1`}>
             {buckets.map((bucket) => (
               <Select.Item
                 key={bucket.id}
