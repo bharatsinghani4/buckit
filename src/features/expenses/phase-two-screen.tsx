@@ -772,8 +772,23 @@ export function PhaseTwoScreen({
                     <button
                       type="button"
                       className={action}
-                      disabled
-                      title="CSV export arrives in a later phase"
+                      onClick={() => {
+                        const current = new URLSearchParams(appliedFilters);
+                        if (month && !current.has("from") && !current.has("toExclusive")) {
+                          current.set("from", `${month}-01`);
+                          const [year, number] = month.split("-").map(Number);
+                          current.set(
+                            "toExclusive",
+                            new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10),
+                          );
+                        }
+                        const target = new URLSearchParams({
+                          bucket: bucket.id,
+                          view: "csv-export",
+                        });
+                        for (const [key, value] of current) target.set(key, value);
+                        navigatePath(`/workspace?${target}`);
+                      }}
                     >
                       <Download size={16} /> Export
                     </button>

@@ -6,6 +6,8 @@ import { z } from "zod";
 import { ApiError } from "@/lib/api/errors";
 import { requireConfig } from "@/lib/config/required";
 import {
+  ContactModel,
+  ContactShareModel,
   DomainEventModel,
   MembershipModel,
   NotificationModel,
@@ -55,12 +57,32 @@ function parseCursor(raw: string | null, owner: string, unreadOnly: boolean) {
 
 async function visibleFilter(userId: mongoose.Types.ObjectId) {
   const memberships = await MembershipModel.find({ userId, state: "active" }).select("bucketId");
+  const [owned, shared] = await Promise.all([
+    ContactModel.find({ ownerUserId: userId }).select("_id"),
+    ContactShareModel.find({ recipientUserId: userId, state: "active", hiddenAt: null }).select(
+      "contactId",
+    ),
+  ]);
+  const contactIds = [
+    ...owned.map((row) => String(row._id)),
+    ...shared.map((row) => String(row.contactId)),
+  ];
   return {
     recipientUserId: userId,
-    $or: [
-      { bucketId: { $exists: false } },
-      { bucketId: null },
-      { bucketId: { $in: memberships.map((member) => member.bucketId) } },
+    $and: [
+      {
+        $or: [
+          { bucketId: { $exists: false } },
+          { bucketId: null },
+          { bucketId: { $in: memberships.map((member) => member.bucketId) } },
+        ],
+      },
+      {
+        $or: [
+          { triggerType: { $nin: ["contact.shared", "contact.updated"] } },
+          { "target.id": { $in: contactIds } },
+        ],
+      },
     ],
   };
 }
@@ -177,14 +199,25 @@ export async function fanoutPendingEvents(limit = 30) {
         const recipientIds: mongoose.Types.ObjectId[] = [];
         if (current.context?.recipientUserId) {
           const recipientId = new mongoose.Types.ObjectId(current.context.recipientUserId);
+          const contactEntitled =
+            !["contact.shared", "contact.updated"].includes(trigger) ||
+            Boolean(
+              await ContactShareModel.exists({
+                contactId: current.entityId,
+                recipientUserId: recipientId,
+                state: "active",
+                hiddenAt: null,
+              }).session(session),
+            );
           const entitled =
-            !current.bucketId ||
-            (await MembershipModel.exists({
-              bucketId: current.bucketId,
-              userId: recipientId,
-              state: "active",
-              joinedAt: { $lte: current.occurredAt },
-            }).session(session));
+            contactEntitled &&
+            (!current.bucketId ||
+              (await MembershipModel.exists({
+                bucketId: current.bucketId,
+                userId: recipientId,
+                state: "active",
+                joinedAt: { $lte: current.occurredAt },
+              }).session(session)));
           if (entitled) recipientIds.push(recipientId);
         } else if (current.bucketId) {
           const memberships = await MembershipModel.find({
@@ -215,13 +248,16 @@ export async function fanoutPendingEvents(limit = 30) {
           );
           if (!user) continue;
           const channel = channelFor(user, trigger);
-          const target = current.bucketId
-            ? {
-                kind: current.entityType,
-                id: String(current.entityId),
-                bucketId: String(current.bucketId),
-              }
-            : { kind: current.entityType, id: String(current.entityId) };
+          const target =
+            trigger === "contact.share_revoked"
+              ? null
+              : current.bucketId
+                ? {
+                    kind: current.entityType,
+                    id: String(current.entityId),
+                    bucketId: String(current.bucketId),
+                  }
+                : { kind: current.entityType, id: String(current.entityId) };
           if (channel.inApp && channel.inAppEnabledSince <= current.occurredAt)
             await NotificationModel.updateOne(
               { eventId: current._id, recipientUserId: recipientId },

@@ -28,6 +28,9 @@ import {
   CalendarClock,
   CreditCard,
   Bell,
+  ContactRound,
+  FileDown,
+  FileUp,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Brand } from "@/components/brand";
@@ -48,6 +51,8 @@ import { PhaseTwoScreen } from "@/features/expenses/phase-two-screen";
 import { PhaseThreeScreen } from "@/features/insights/phase-three-screen";
 import { PhaseFourScreen } from "@/features/scheduling/phase-four-screen";
 import { PhaseFiveScreen } from "@/features/notifications/phase-five-screen";
+import { PhaseSixContacts } from "@/features/contacts/phase-six-contacts";
+import { PhaseSixCsv } from "@/features/csv/phase-six-csv";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
 import { BucketSelector } from "./bucket-selector";
@@ -509,6 +514,27 @@ function Workspace() {
           >
             <CalendarClock size={18} /> Reminders & cadence
           </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=contacts` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`${navItem} ${phaseView === "contacts" ? "active" : ""}`}
+          >
+            <ContactRound size={18} /> Contacts
+          </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=csv-import` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`${navItem} ${phaseView === "csv-import" ? "active" : ""}`}
+          >
+            <FileUp size={18} /> Import CSV
+          </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=csv-export` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`${navItem} ${phaseView === "csv-export" ? "active" : ""}`}
+          >
+            <FileDown size={18} /> Export CSV
+          </Link>
         </nav>
         <div className="sidebar-bottom mt-auto flex flex-col gap-1 pt-10 max-[767px]:!flex max-[767px]:!flex-col max-[767px]:!gap-1 max-[767px]:!p-0">
           <button
@@ -564,7 +590,13 @@ function Workspace() {
                                 ? "Notifications & channels"
                                 : phaseView === "reminders"
                                   ? "Reminders & cadence"
-                                  : "Expenses"}
+                                  : phaseView === "contacts"
+                                    ? "Contacts & directory"
+                                    : phaseView === "csv-import"
+                                      ? "Import CSV"
+                                      : phaseView === "csv-export"
+                                        ? "Export CSV"
+                                        : "Expenses"}
                 </span>
               </>
             )}
@@ -657,6 +689,16 @@ function Workspace() {
               buckets={buckets}
               profile={profile}
               view={phaseView as "notifications" | "reminders"}
+            />
+          ) : selected && phaseView === "contacts" ? (
+            <PhaseSixContacts contactId={params.get("contact")} />
+          ) : selected && ["csv-import", "csv-export"].includes(phaseView ?? "") ? (
+            <PhaseSixCsv
+              key={`${selected.id}:${phaseView}:${phaseView === "csv-export" ? params.toString() : (params.get("import") ?? "")}`}
+              bucket={selected}
+              view={phaseView as "csv-import" | "csv-export"}
+              importId={params.get("import")}
+              exportFilters={params.toString()}
             />
           ) : selected &&
             (!phaseView || ["reports", "budgets", "budget", "budget-form"].includes(phaseView)) ? (

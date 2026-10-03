@@ -5,6 +5,7 @@ import { z } from "zod";
 import { ApiError, assertRevision } from "@/lib/api/errors";
 import { requireConfig } from "@/lib/config/required";
 import {
+  ContactShareModel,
   DomainEventModel,
   MembershipModel,
   PushDeliveryModel,
@@ -237,11 +238,21 @@ export async function sendPendingPush(limit = 20) {
             joinedAt: { $lte: event.occurredAt },
           })
         : true;
+    const contactAccess =
+      event && ["contact.shared", "contact.updated"].includes(event.type)
+        ? await ContactShareModel.exists({
+            contactId: event.entityId,
+            recipientUserId: claimed.recipientUserId,
+            state: "active",
+            hiddenAt: null,
+          })
+        : true;
     if (
       !user ||
       !installation ||
       !event ||
       !membership ||
+      !contactAccess ||
       !channel?.push ||
       !channel.pushEnabledSince ||
       channel.pushEnabledSince > event.occurredAt ||

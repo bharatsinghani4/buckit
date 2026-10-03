@@ -454,6 +454,103 @@ pushDeliverySchema.index({ state: 1, nextAttemptAt: 1 });
 pushDeliverySchema.index({ state: 1, leaseUntil: 1 });
 pushDeliverySchema.index({ recipientUserId: 1, state: 1 });
 
+const contactSchema = new Schema(
+  {
+    ownerUserId: ref,
+    name: { type: String, required: true },
+    serviceType: { type: String, required: true },
+    phone: { type: String, required: true },
+    email: String,
+    address: String,
+    notes: String,
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+contactSchema.index({ ownerUserId: 1, name: 1, _id: 1 });
+
+const contactShareSchema = new Schema(
+  {
+    contactId: ref,
+    ownerUserId: ref,
+    recipientUserId: ref,
+    state: { type: String, enum: ["active", "revoked"], default: "active" },
+    grantedAt: { type: Date, default: Date.now },
+    revokedAt: Date,
+    hiddenAt: Date,
+    grantVersion: { type: Number, default: 1 },
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+contactShareSchema.index({ contactId: 1, recipientUserId: 1 }, { unique: true });
+contactShareSchema.index({ recipientUserId: 1, state: 1, hiddenAt: 1 });
+contactShareSchema.index({ ownerUserId: 1, state: 1 });
+
+const importSessionSchema = new Schema(
+  {
+    bucketId: ref,
+    importerUserId: ref,
+    creatorMembershipId: ref,
+    state: {
+      type: String,
+      enum: ["preview", "ready", "committing", "completed", "partial", "canceled", "expired"],
+      default: "preview",
+    },
+    fileName: String,
+    fileHash: { type: String, required: true },
+    fileSize: { type: Number, required: true },
+    rowCount: { type: Number, required: true },
+    headers: { type: [String], required: true },
+    mapping: { type: Map, of: Number, default: {} },
+    proposedOptions: {
+      type: [new Schema({ kind: String, name: String }, { _id: false })],
+      default: [],
+    },
+    acknowledgments: { type: [String], default: [] },
+    previewDigest: String,
+    validatedExportRevision: Number,
+    confirmedRevision: Number,
+    revision: { type: Number, default: 1 },
+    expiresAt: Date,
+  },
+  common,
+);
+importSessionSchema.index({ importerUserId: 1, createdAt: -1 });
+importSessionSchema.index({ bucketId: 1, state: 1 });
+
+const importRowSchema = new Schema(
+  {
+    sessionId: ref,
+    bucketId: ref,
+    rowNumber: { type: Number, required: true },
+    chunkNumber: { type: Number, required: true },
+    cells: { type: [String], required: true },
+    corrections: { type: Map, of: String, default: {} },
+    excluded: { type: Boolean, default: false },
+    duplicateDecision: {
+      type: String,
+      enum: ["include", "skip", "undecided"],
+      default: "undecided",
+    },
+    duplicateCandidates: { type: [String], default: [] },
+    fingerprint: String,
+    state: {
+      type: String,
+      enum: ["invalid", "ready", "excluded", "committed", "failed"],
+      default: "invalid",
+    },
+    expenseId: Schema.Types.ObjectId,
+    committedAt: Date,
+    outcome: String,
+  },
+  common,
+);
+importRowSchema.index({ sessionId: 1, rowNumber: 1 }, { unique: true });
+importRowSchema.index({ sessionId: 1, state: 1, rowNumber: 1 });
+importRowSchema.index({ sessionId: 1, fingerprint: 1 });
+importRowSchema.index({ bucketId: 1 });
+
 export const UserModel =
   mongoose.models.BuckitUser || mongoose.model("BuckitUser", userSchema, "users");
 export const BucketModel =
@@ -503,6 +600,17 @@ export const PushInstallationModel =
 export const PushDeliveryModel =
   mongoose.models.BuckitPushDelivery ||
   mongoose.model("BuckitPushDelivery", pushDeliverySchema, "push_deliveries");
+export const ContactModel =
+  mongoose.models.BuckitContact || mongoose.model("BuckitContact", contactSchema, "contacts");
+export const ContactShareModel =
+  mongoose.models.BuckitContactShare ||
+  mongoose.model("BuckitContactShare", contactShareSchema, "contact_shares");
+export const ImportSessionModel =
+  mongoose.models.BuckitImportSession ||
+  mongoose.model("BuckitImportSession", importSessionSchema, "import_sessions");
+export const ImportRowModel =
+  mongoose.models.BuckitImportRow ||
+  mongoose.model("BuckitImportRow", importRowSchema, "import_rows");
 export const phaseOneModels = [
   UserModel,
   BucketModel,
@@ -528,4 +636,11 @@ export const phaseFiveModels = [
   NotificationModel,
   PushInstallationModel,
   PushDeliveryModel,
+];
+export const phaseSixModels = [
+  ...phaseFiveModels,
+  ContactModel,
+  ContactShareModel,
+  ImportSessionModel,
+  ImportRowModel,
 ];

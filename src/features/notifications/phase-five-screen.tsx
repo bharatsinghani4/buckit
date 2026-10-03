@@ -117,6 +117,7 @@ function heading(eyebrow: string, title: string, description: string) {
 function targetHref(item: NotificationItem) {
   const target = item.target;
   if (!target) return null;
+  if (target.kind === "contact") return `/workspace?view=contacts&contact=${target.id}`;
   if (target.kind === "reminder") return "/workspace?view=reminders";
   if (target.kind === "expense" && target.bucketId)
     return `/workspace?bucket=${target.bucketId}&view=expense&expense=${target.id}`;

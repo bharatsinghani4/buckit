@@ -76,6 +76,37 @@ import {
   registerPushInstallation,
   revokePushInstallation,
 } from "@/features/notifications/push-service";
+import {
+  changeContact,
+  createContact,
+  getContact,
+  grantShares,
+  hideContact,
+  listContacts,
+  listShares,
+  revokeShare,
+  shareCandidates,
+} from "@/features/contacts/service";
+import {
+  completeExport,
+  exportPage,
+  exportPreview,
+  startExport,
+} from "@/features/csv/export-service";
+import {
+  cancelImport,
+  commitNext,
+  confirmImport,
+  createImport,
+  getImport,
+  importGuidance,
+  importTemplate,
+  listImportRows,
+  reopenImport,
+  resolveImport,
+  stageChunk,
+  validateImport,
+} from "@/features/csv/import-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,11 +137,182 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       path.includes("invitations") ? "invitations" : "api",
       path.includes("invitations") ? 20 : 120,
     );
+    if (path === "contacts/share-candidates") await limit(identity, "contact-candidates", 30);
+    if (path.includes("/imports/")) await limit(identity, "imports", 60);
     if (path !== "me/bootstrap") await activeUser(identity);
     let data: unknown;
     let status = 200;
     let meta: Record<string, unknown> = { requestId };
-    if (method === "GET" && path === "me")
+    if (method === "GET" && /^buckets\/[a-f\d]{24}\/imports\/(template|guidance)$/i.test(path)) {
+      data = path.endsWith("/template")
+        ? await importTemplate(identity, path.split("/")[1])
+        : await importGuidance(identity, path.split("/")[1]);
+    } else if (method === "POST" && /^buckets\/[a-f\d]{24}\/imports$/i.test(path)) {
+      const result = await createImport(
+        identity,
+        path.split("/")[1],
+        await readJson(request),
+        requireIdempotencyKey(request),
+      );
+      data = result.data;
+      status = result.status;
+      if ("location" in result && typeof result.location === "string")
+        headers.set("Location", result.location);
+    } else if (/^buckets\/[a-f\d]{24}\/imports\/[a-f\d]{24}$/i.test(path) && method === "GET")
+      data = await getImport(identity, path.split("/")[1], path.split("/")[3]);
+    else if (/^buckets\/[a-f\d]{24}\/imports\/[a-f\d]{24}\/rows$/i.test(path) && method === "GET") {
+      const result = await listImportRows(
+        identity,
+        path.split("/")[1],
+        path.split("/")[3],
+        url.searchParams,
+      );
+      data = result.data;
+      meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
+    } else if (
+      /^buckets\/[a-f\d]{24}\/imports\/[a-f\d]{24}\/chunks\/\d+$/i.test(path) &&
+      method === "PUT"
+    ) {
+      const result = await stageChunk(
+        identity,
+        path.split("/")[1],
+        path.split("/")[3],
+        Number(path.split("/")[5]),
+        await readJson(request, 512 * 1024),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (
+      /^buckets\/[a-f\d]{24}\/imports\/[a-f\d]{24}\/resolution$/i.test(path) &&
+      method === "PATCH"
+    ) {
+      const result = await resolveImport(
+        identity,
+        path.split("/")[1],
+        path.split("/")[3],
+        await readJson(request),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (
+      /^buckets\/[a-f\d]{24}\/imports\/[a-f\d]{24}\/validate$/i.test(path) &&
+      method === "POST"
+    )
+      data = await validateImport(identity, path.split("/")[1], path.split("/")[3]);
+    else if (
+      /^buckets\/[a-f\d]{24}\/imports\/[a-f\d]{24}\/(confirm|commit-next|reopen|cancel)$/i.test(
+        path,
+      ) &&
+      method === "POST"
+    ) {
+      const parts = path.split("/");
+      const result =
+        parts[4] === "confirm"
+          ? await confirmImport(
+              identity,
+              parts[1],
+              parts[3],
+              await readJson(request),
+              requireIdempotencyKey(request),
+              request.headers.get("if-match"),
+            )
+          : parts[4] === "commit-next"
+            ? await commitNext(identity, parts[1], parts[3], requireIdempotencyKey(request))
+            : parts[4] === "reopen"
+              ? await reopenImport(
+                  identity,
+                  parts[1],
+                  parts[3],
+                  requireIdempotencyKey(request),
+                  request.headers.get("if-match"),
+                )
+              : await cancelImport(identity, parts[1], parts[3], requireIdempotencyKey(request));
+      data = result.data;
+      status = result.status;
+    } else if (
+      method === "POST" &&
+      /^buckets\/[a-f\d]{24}\/exports\/(preview|start|page|complete)$/i.test(path)
+    ) {
+      const bucketId = path.split("/")[1];
+      const operation = path.split("/")[3];
+      const body = await readJson(request);
+      data =
+        operation === "preview"
+          ? await exportPreview(identity, bucketId, body)
+          : operation === "start"
+            ? await startExport(identity, bucketId, body)
+            : operation === "page"
+              ? await exportPage(identity, bucketId, body)
+              : await completeExport(identity, bucketId, body);
+    } else if (method === "GET" && path === "contacts") {
+      const result = await listContacts(identity, url.searchParams);
+      data = result.data;
+      meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
+    } else if (method === "GET" && path === "contacts/share-candidates") {
+      const result = await shareCandidates(identity, url.searchParams);
+      data = result.data;
+      meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
+    } else if (method === "GET" && /^contacts\/[a-f\d]{24}$/i.test(path))
+      data = await getContact(identity, path.split("/")[1]);
+    else if (method === "GET" && /^contacts\/[a-f\d]{24}\/shares$/i.test(path))
+      data = await listShares(identity, path.split("/")[1]);
+    else if (method === "POST" && path === "contacts") {
+      const result = await createContact(
+        identity,
+        await readJson(request),
+        requireIdempotencyKey(request),
+      );
+      data = result.data;
+      status = result.status;
+      if ("location" in result && typeof result.location === "string")
+        headers.set("Location", result.location);
+    } else if (
+      (method === "PATCH" || method === "DELETE") &&
+      /^contacts\/[a-f\d]{24}$/i.test(path)
+    ) {
+      const result = await changeContact(
+        identity,
+        path.split("/")[1],
+        method === "DELETE" ? "delete" : "edit",
+        method === "DELETE" ? {} : await readJson(request),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "POST" && /^contacts\/[a-f\d]{24}\/shares$/i.test(path)) {
+      const result = await grantShares(
+        identity,
+        path.split("/")[1],
+        await readJson(request),
+        requireIdempotencyKey(request),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "DELETE" && /^contacts\/[a-f\d]{24}\/shares\/[a-f\d]{24}$/i.test(path)) {
+      const result = await revokeShare(
+        identity,
+        path.split("/")[1],
+        path.split("/")[3],
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "POST" && /^contacts\/[a-f\d]{24}\/hide$/i.test(path)) {
+      const result = await hideContact(
+        identity,
+        path.split("/")[1],
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (method === "GET" && path === "me")
       data = await profileDto(await activeUser(identity), identity);
     else if (method === "GET" && path === "me/notification-preferences")
       data = await getNotificationPreferences(identity);
@@ -196,7 +398,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     else if (method === "GET" && path === "capabilities")
       data = {
         currencies: currencies.map((c) => ({ ...c, precision: c.code === "JPY" ? 0 : 2 })),
-        phase: 5,
+        phase: 6,
       };
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/dashboard$/i.test(path))
       data = await dashboard(identity, path.split("/")[1], url.searchParams);
@@ -484,7 +686,12 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       headers.set("ETag", `"r${data.revision}"`);
     if (
       method !== "GET" &&
-      ((path.startsWith("buckets/") && !path.endsWith("/preview")) || path === "invitations/join")
+      ((path.startsWith("buckets/") &&
+        !path.endsWith("/preview") &&
+        !path.includes("/imports") &&
+        !path.includes("/exports")) ||
+        path.startsWith("contacts") ||
+        path === "invitations/join")
     )
       await fanoutPendingEvents(5).catch(() => {
         // The event is durable; the daily worker retries delivery independently.

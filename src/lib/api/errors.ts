@@ -25,7 +25,7 @@ export function requireIdempotencyKey(request: Request) {
   return key;
 }
 
-export async function readJson(request: Request): Promise<unknown> {
+export async function readJson(request: Request, maxBytes = 256 * 1024): Promise<unknown> {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))
     throw new ApiError(400, "MALFORMED_REQUEST", "Send a JSON request.");
   const reader = request.body?.getReader();
@@ -36,7 +36,7 @@ export async function readJson(request: Request): Promise<unknown> {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > 256 * 1024) {
+    if (size > maxBytes) {
       await reader.cancel();
       throw new ApiError(413, "PAYLOAD_TOO_LARGE", "The request is too large.");
     }

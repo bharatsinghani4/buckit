@@ -315,6 +315,16 @@ export async function updateProfile(
       );
       if (!updated)
         throw new ApiError(412, "REVISION_MISMATCH", "Refresh your profile and try again.");
+      if (input.displayName && input.displayName !== user.displayName) {
+        const memberships = await MembershipModel.find({ userId: user._id })
+          .select("bucketId")
+          .session(session);
+        await BucketModel.updateMany(
+          { _id: { $in: memberships.map((item) => item.bucketId) } },
+          { $inc: { exportRevision: 1 } },
+          { session },
+        );
+      }
       return {
         resourceId: String(user._id),
         status: 200,
