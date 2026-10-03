@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/models";
 import { ApiError, assertRevision } from "@/lib/api/errors";
 import { requireConfig } from "@/lib/config/required";
+import { recordDomainEvent } from "@/features/notifications/event-service";
 import {
   bootstrapSchema,
   bucketSchema,
@@ -522,7 +523,18 @@ export async function joinInvitation(identity: DecodedIdToken, raw: unknown, key
         state: "active",
       }).session(session);
       if (!existing) {
-        await MembershipModel.create([{ bucketId: bucket._id, userId: user._id }], { session });
+        const [membership] = await MembershipModel.create(
+          [{ bucketId: bucket._id, userId: user._id }],
+          { session },
+        );
+        await recordDomainEvent(session, {
+          eventKey: `membership:${membership._id}:joined`,
+          type: "membership.joined",
+          actorUserId: user._id,
+          bucketId: bucket._id,
+          entityType: "membership",
+          entityId: membership._id,
+        });
         await AuditModel.create(
           [
             {

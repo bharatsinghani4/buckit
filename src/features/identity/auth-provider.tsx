@@ -14,6 +14,7 @@ import { getFirebaseClientAuth, isFirebaseConfigured } from "@/lib/firebase/clie
 import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { api, friendlyError, ClientError } from "@/lib/api/client";
 import type { Profile } from "./contracts";
+import { revokePushBeforeLogout } from "@/features/notifications/push-client";
 
 type Theme = "light" | "dark" | "system";
 type AuthContextValue = {
@@ -126,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const logout = useCallback(async () => {
     generation.current++;
+    await revokePushBeforeLogout();
     await signOut(getFirebaseClientAuth());
     setProfile(null);
     setUser(null);

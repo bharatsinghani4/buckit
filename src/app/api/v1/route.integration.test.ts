@@ -2,8 +2,17 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
-import { AuditModel, ExpenseModel, phaseFourModels } from "@/lib/db/models";
+import {
+  AuditModel,
+  ExpenseModel,
+  ReminderModel,
+  UserModel,
+  phaseFiveModels,
+} from "@/lib/db/models";
 import { generateInstallments, processDaily } from "@/features/scheduling/service";
+import { processDueReminders } from "@/features/notifications/reminder-worker";
+import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
+import { localDate } from "@/features/scheduling/dates";
 import { GET as dailyGET } from "../internal/jobs/daily/route";
 
 vi.mock("server-only", () => ({}));
@@ -28,16 +37,210 @@ beforeAll(async () => {
     autoIndex: false,
     autoCreate: false,
   });
-  for (const model of phaseFourModels) {
+  for (const model of phaseFiveModels) {
     await model.createCollection();
     await model.createIndexes();
   }
   process.env.API_CURSOR_SECRET = "route-tests-only-secret-not-for-production";
+  process.env.PUSH_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 }, 180_000);
 afterAll(async () => {
   await mongoose.disconnect();
   await database?.stop();
   delete process.env.API_CURSOR_SECRET;
+  delete process.env.PUSH_TOKEN_ENCRYPTION_KEY;
+});
+
+describe("Phase 5 notification preferences", () => {
+  it("defaults to inbox-only, updates selected triggers, and rejects stale revisions", async () => {
+    const actor = "phase5prefs";
+    await request("POST", "me/bootstrap", actor, {});
+    const user = await UserModel.findOne({ firebaseUid: actor });
+    await UserModel.collection.updateOne(
+      { _id: user._id },
+      { $unset: { notificationPreferenceRevision: "" } },
+    );
+    const initial = await request("GET", "me/notification-preferences", actor);
+    expect(initial.response.status).toBe(200);
+    expect(initial.payload.data.triggers["expense.added"]).toEqual({ inApp: true, push: false });
+    const key = randomUUID();
+    const changed = await request(
+      "PATCH",
+      "me/notification-preferences",
+      actor,
+      { "expense.added": { inApp: false, push: true } },
+      { "If-Match": initial.response.headers.get("ETag")!, "Idempotency-Key": key },
+    );
+    expect(changed.response.status, JSON.stringify(changed.payload)).toBe(200);
+    expect(changed.payload.data.triggers["expense.added"]).toEqual({ inApp: false, push: true });
+    expect(changed.payload.data.triggers["expense.edited"]).toEqual({ inApp: true, push: false });
+    const replay = await request(
+      "PATCH",
+      "me/notification-preferences",
+      actor,
+      { "expense.added": { inApp: false, push: true } },
+      { "If-Match": initial.response.headers.get("ETag")!, "Idempotency-Key": key },
+    );
+    expect(replay.response.status).toBe(200);
+    expect(
+      (
+        await request(
+          "PATCH",
+          "me/notification-preferences",
+          actor,
+          { "expense.added": { inApp: true, push: true } },
+          { "If-Match": initial.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(412);
+  });
+
+  it("creates, edits, and removes a personal fixed-schedule reminder", async () => {
+    const actor = "phase5reminder";
+    await request("POST", "me/bootstrap", actor, { timezone: "Asia/Kolkata" });
+    const created = await request("POST", "me/reminders", actor, {
+      frequency: "weekly",
+      weekdays: [1],
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    expect(created.payload.data.frequency).toBe("weekly");
+    expect(created.payload.data.timezone).toBe("Asia/Kolkata");
+    const id = created.payload.data.id;
+    const listed = await request("GET", "me/reminders", actor);
+    expect(listed.payload.data.map((item: { id: string }) => item.id)).toContain(id);
+    const edited = await request(
+      "PATCH",
+      `me/reminders/${id}`,
+      actor,
+      { frequency: "monthly", dayOfMonth: 31 },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(edited.response.status, JSON.stringify(edited.payload)).toBe(200);
+    expect(edited.payload.data.frequency).toBe("monthly");
+    expect(
+      (
+        await request(
+          "PATCH",
+          `me/reminders/${id}`,
+          actor,
+          { enabled: false },
+          { "If-Match": created.response.headers.get("ETag")! },
+        )
+      ).response.status,
+    ).toBe(412);
+    const removed = await request("DELETE", `me/reminders/${id}`, actor, undefined, {
+      "If-Match": edited.response.headers.get("ETag")!,
+    });
+    expect(removed.response.status).toBe(204);
+    expect((await request("GET", "me/reminders", actor)).payload.data).toHaveLength(0);
+  });
+
+  it("delivers one due reminder to the inbox and marks it read", async () => {
+    const actor = "phase5inbox";
+    await request("POST", "me/bootstrap", actor, { timezone: "UTC" });
+    const created = await request("POST", "me/reminders", actor, { frequency: "daily" });
+    await ReminderModel.updateOne(
+      { _id: created.payload.data.id },
+      {
+        $set: {
+          nextLocalDate: localDate(new Date(), "UTC"),
+          nextDueAt: new Date(Date.now() - 1000),
+        },
+      },
+    );
+    expect((await processDueReminders()).emitted).toBe(1);
+    expect((await processDueReminders()).emitted).toBe(0);
+    expect((await fanoutPendingEvents()).completed).toBeGreaterThanOrEqual(1);
+    const inbox = await request("GET", "notifications?filter=unread", actor);
+    expect(inbox.payload.data).toHaveLength(1);
+    expect(inbox.payload.data[0].trigger).toBe("reminder.due");
+    expect((await request("GET", "notifications/unread-count", actor)).payload.data.count).toBe(1);
+    const read = await request("POST", "notifications/read", actor, {
+      notificationIds: [inbox.payload.data[0].id],
+    });
+    expect(read.response.status).toBe(200);
+    expect((await request("GET", "notifications/unread-count", actor)).payload.data.count).toBe(0);
+  });
+
+  it("binds and revokes a device without exposing its FCM token", async () => {
+    const actor = "phase5push";
+    await request("POST", "me/bootstrap", actor, {});
+    const id = randomUUID();
+    const token = "test-only-fcm-token-that-must-not-be-returned";
+    const registered = await request("PUT", `me/push-installations/${id}`, actor, {
+      token,
+      permission: "granted",
+    });
+    expect(registered.response.status, JSON.stringify(registered.payload)).toBe(201);
+    expect(JSON.stringify(registered.payload)).not.toContain(token);
+    const listed = await request("GET", "me/push-installations", actor);
+    expect(listed.payload.data).toHaveLength(1);
+    expect(JSON.stringify(listed.payload)).not.toContain(token);
+    const revoked = await request("DELETE", `me/push-installations/${id}`, actor, undefined, {
+      "If-Match": registered.response.headers.get("ETag")!,
+    });
+    expect(revoked.response.status).toBe(204);
+    const revokedList = await request("GET", "me/push-installations", actor);
+    expect(revokedList.payload.data).toMatchObject([{ installationId: id, state: "revoked" }]);
+    const reenabled = await request(
+      "PUT",
+      `me/push-installations/${id}`,
+      actor,
+      { token, permission: "granted" },
+      { "If-Match": `"r${revokedList.payload.data[0].revision}"` },
+    );
+    expect(reenabled.response.status, JSON.stringify(reenabled.payload)).toBe(200);
+    expect(reenabled.payload.data.state).toBe("active");
+    expect(JSON.stringify(reenabled.payload)).not.toContain(token);
+    const nextActor = "phase5pushother";
+    await request("POST", "me/bootstrap", nextActor, {});
+    const rebound = await request("PUT", `me/push-installations/${id}`, nextActor, {
+      token,
+      permission: "granted",
+    });
+    expect(rebound.response.status, JSON.stringify(rebound.payload)).toBe(201);
+    expect((await request("GET", "me/push-installations", actor)).payload.data[0].state).toBe(
+      "revoked",
+    );
+  });
+
+  it("notifies current members when someone joins or is removed", async () => {
+    const owner = "phase5memberowner";
+    const guest = "phase5memberguest";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", guest, {});
+    const bucket = await request("POST", "buckets", owner, {
+      name: "Notification membership test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const invite = await request("POST", `${root}/invitations`, owner, {});
+    const token = new URL(invite.payload.data.shareUrl).hash.slice(1);
+    expect((await request("POST", "invitations/join", guest, { token })).response.status).toBe(201);
+    const joined = await request("GET", "notifications", owner);
+    expect(joined.payload.data.map((item: { trigger: string }) => item.trigger)).toContain(
+      "membership.joined",
+    );
+    const members = await request("GET", `${root}/members`, owner);
+    const guestMembership = members.payload.data.find(
+      (member: { displayName: string }) => member.displayName === guest,
+    );
+    expect(guestMembership).toBeDefined();
+    const removed = await request(
+      "DELETE",
+      `${root}/members/${guestMembership.membershipId}`,
+      owner,
+      undefined,
+      { "If-Match": `"r${guestMembership.revision}"` },
+    );
+    expect(removed.response.status, JSON.stringify(removed.payload)).toBe(200);
+    const inbox = await request("GET", "notifications", owner);
+    expect(inbox.payload.data.map((item: { trigger: string }) => item.trigger)).toContain(
+      "membership.removed",
+    );
+    expect((await request("GET", "notifications", guest)).payload.data).toHaveLength(0);
+  });
 });
 
 describe("Phase 4 scheduled spending and EMI flows", () => {
@@ -484,7 +687,7 @@ async function request(
   const response = await { GET, POST, PATCH, PUT, DELETE }[method](input, {
     params: Promise.resolve({ path: path.split("?")[0].split("/") }),
   });
-  return { response, payload: await response.json() };
+  return { response, payload: response.status === 204 ? null : await response.json() };
 }
 
 describe("Phase 1 HTTP API flows", () => {
@@ -539,7 +742,7 @@ describe("Phase 1 HTTP API flows", () => {
     ).toBe("light");
     expect((await request("GET", `buckets/${id}`)).payload.data.name).toBe("Shared Living");
     expect((await request("GET", "buckets")).payload.data).toHaveLength(1);
-    expect((await request("GET", "capabilities")).payload.data.phase).toBe(4);
+    expect((await request("GET", "capabilities")).payload.data.phase).toBe(5);
     const invite = await request("POST", `buckets/${id}/invitations`, "owner", {});
     expect(invite.response.status).toBe(201);
     const token = new URL(invite.payload.data.shareUrl).hash.slice(1);

@@ -17,6 +17,7 @@ import { fromMinor, minorUnits } from "@/features/expenses/money";
 import { objectId } from "@/features/expenses/contracts";
 import { budgetEditInput, budgetInput } from "./contracts";
 import { nextMonth, todayInZone, units, usageMath } from "./calculations";
+import { recordDomainEvent } from "@/features/notifications/event-service";
 
 const missing = () => new ApiError(404, "RESOURCE_NOT_FOUND", "This budget is not available.");
 const decimal = (amount: string) => mongoose.Types.Decimal128.fromString(amount);
@@ -477,6 +478,15 @@ export async function reconcileBudgetThresholds(
           ],
           { session },
         );
+        if (reason !== "import_suppressed")
+          await recordDomainEvent(session, {
+            eventKey: `budget.threshold:${budget._id}:${key}:${crossed.at(-1)}`,
+            type: "budget.threshold_reached",
+            bucketId,
+            entityType: "budget",
+            entityId: budget._id,
+            ...(budget.scope === "member" ? { recipientUserId: budget.createdByUserId } : {}),
+          });
       }
       period.usedAmount = decimal(fromMinor(after, bucket.primaryCurrency));
       period.computedFinancialRevision = bucket.financialRevision;

@@ -2,6 +2,9 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { connectDatabase } from "@/lib/db/mongoose";
 import { processDaily } from "@/features/scheduling/service";
 import { JobLeaseModel } from "@/lib/db/models";
+import { processDueReminders } from "@/features/notifications/reminder-worker";
+import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
+import { sendPendingPush } from "@/features/notifications/push-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,9 +46,15 @@ export async function GET(request: Request) {
     throw error;
   }
   try {
-    const processedCounts = await processDaily();
+    const finance = await processDaily();
+    const reminders = await processDueReminders();
+    const notifications = await fanoutPendingEvents();
+    const push = await sendPendingPush();
+    const processedCounts = { ...finance, reminders, notifications, push };
+    const hasRemainingWork =
+      finance.hasRemainingWork || reminders.hasMore || notifications.hasMore || push.hasMore;
     return Response.json(
-      { state: processedCounts.hasRemainingWork ? "partial" : "completed", processedCounts },
+      { state: hasRemainingWork ? "partial" : "completed", processedCounts, hasRemainingWork },
       { headers: { "Cache-Control": "no-store" } },
     );
   } finally {

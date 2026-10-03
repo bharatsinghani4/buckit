@@ -13,6 +13,7 @@ import {
   UserModel,
 } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
+import { recordDomainEvent } from "@/features/notifications/event-service";
 import { objectId } from "./contracts";
 
 export async function listMembers(identity: DecodedIdToken, bucketId: string) {
@@ -63,6 +64,14 @@ export async function removeMember(
       member.state = "removed";
       member.revision += 1;
       await member.save({ session });
+      await recordDomainEvent(session, {
+        eventKey: `membership:${member._id}:removed`,
+        type: "membership.removed",
+        actorUserId: user._id,
+        bucketId: bucket._id,
+        entityType: "membership",
+        entityId: member._id,
+      });
       await BudgetModel.updateMany(
         { bucketId, creatorMembershipId: member._id, scope: "member", state: "active" },
         { $set: { state: "historical" }, $inc: { revision: 1 } },

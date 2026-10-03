@@ -27,6 +27,7 @@ import {
   BarChart3,
   CalendarClock,
   CreditCard,
+  Bell,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Brand } from "@/components/brand";
@@ -46,6 +47,7 @@ import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { PhaseTwoScreen } from "@/features/expenses/phase-two-screen";
 import { PhaseThreeScreen } from "@/features/insights/phase-three-screen";
 import { PhaseFourScreen } from "@/features/scheduling/phase-four-screen";
+import { PhaseFiveScreen } from "@/features/notifications/phase-five-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
 import { BucketSelector } from "./bucket-selector";
@@ -493,6 +495,20 @@ function Workspace() {
           >
             <CalendarClock size={18} /> Scheduled
           </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=notifications` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`${navItem} ${phaseView === "notifications" ? "active" : ""}`}
+          >
+            <Bell size={18} /> Notifications
+          </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=reminders` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`${navItem} ${phaseView === "reminders" ? "active" : ""}`}
+          >
+            <CalendarClock size={18} /> Reminders & cadence
+          </Link>
         </nav>
         <div className="sidebar-bottom mt-auto flex flex-col gap-1 pt-10 max-[767px]:!flex max-[767px]:!flex-col max-[767px]:!gap-1 max-[767px]:!p-0">
           <button
@@ -544,7 +560,11 @@ function Workspace() {
                             ? "EMIs"
                             : phaseView === "scheduled"
                               ? "Scheduled expenses"
-                              : "Expenses"}
+                              : phaseView === "notifications"
+                                ? "Notifications & channels"
+                                : phaseView === "reminders"
+                                  ? "Reminders & cadence"
+                                  : "Expenses"}
                 </span>
               </>
             )}
@@ -629,6 +649,14 @@ function Workspace() {
               bucket={selected}
               view={phaseView as "emis" | "emi-plan" | "scheduled"}
               planId={params.get("plan")}
+            />
+          ) : selected && ["notifications", "reminders"].includes(phaseView ?? "") ? (
+            <PhaseFiveScreen
+              key={selected.id}
+              bucket={selected}
+              buckets={buckets}
+              profile={profile}
+              view={phaseView as "notifications" | "reminders"}
             />
           ) : selected &&
             (!phaseView || ["reports", "budgets", "budget", "budget-form"].includes(phaseView)) ? (

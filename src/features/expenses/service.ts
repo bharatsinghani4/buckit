@@ -26,6 +26,7 @@ import { convertAmount, minorUnits, precision } from "./money";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { z } from "zod";
 import { dueInstant } from "@/features/scheduling/dates";
+import { recordDomainEvent } from "@/features/notifications/event-service";
 
 const missing = () => new ApiError(404, "RESOURCE_NOT_FOUND", "This expense is not available.");
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
@@ -645,6 +646,14 @@ export async function createExpense(
         ],
         { session },
       );
+      await recordDomainEvent(session, {
+        eventKey: `expense.added:${key}`,
+        type: "expense.added",
+        actorUserId: actor._id,
+        bucketId,
+        entityType: "expense",
+        entityId: expense._id,
+      });
       return {
         resourceId: String(expense._id),
         status: 201,
@@ -839,6 +848,14 @@ export async function changeExpense(
         ],
         { session },
       );
+      await recordDomainEvent(session, {
+        eventKey: `expense.${action}:${key}`,
+        type: action === "delete" ? "expense.deleted" : "expense.edited",
+        actorUserId: actor._id,
+        bucketId,
+        entityType: "expense",
+        entityId: expense._id,
+      });
       return {
         resourceId: expenseId,
         status: 200,
@@ -1061,6 +1078,15 @@ export async function changeComment(
         ],
         { session },
       );
+      if (action === "create")
+        await recordDomainEvent(session, {
+          eventKey: `comment.added:${key}`,
+          type: "comment.added",
+          actorUserId: user._id,
+          bucketId,
+          entityType: "expense",
+          entityId: expense._id,
+        });
       return {
         resourceId: String(comment._id),
         status: action === "create" ? 201 : 200,
