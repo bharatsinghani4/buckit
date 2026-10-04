@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { controls } from "@/components/control-styles";
 
@@ -31,6 +31,7 @@ export function LedgerMonthPicker({
   );
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +67,7 @@ export function LedgerMonthPicker({
         aria-label={`Ledger month: ${monthLabel(value, "long")}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-controls="ledger-month-menu"
+        aria-controls={menuId}
         onClick={() => {
           setVisibleYear(Number(value.slice(0, 4)) || new Date().getFullYear());
           setOpen((current) => !current);
@@ -89,7 +90,7 @@ export function LedgerMonthPicker({
       </button>
       {open && (
         <div
-          id="ledger-month-menu"
+          id={menuId}
           role="dialog"
           aria-label="Choose ledger month"
           className={controls.pickerContent}

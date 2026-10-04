@@ -42,16 +42,21 @@ export function BucketSelector({
     >
       <Select.Trigger
         id="bucket-picker"
-        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)] max-[767px]:!h-11 max-[767px]:!w-full`}
+        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)] max-[767px]:!w-full max-[767px]:!px-2 max-[767px]:gap-1`}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <span
-            className={`size-2 shrink-0 rounded-full ${selected?.status === "archived" ? "bg-[var(--muted)]" : "bg-[var(--mint)]"}`}
-            aria-hidden="true"
-          />
-          <span className="min-w-0 truncate text-xs font-semibold text-[var(--ink)]">
+        <span className="flex min-w-0 flex-col leading-none">
+          <span className="truncate text-xs font-semibold text-[var(--ink)] max-[767px]:text-[11px]">
             <Select.Value placeholder="Choose bucket" />
           </span>
+          {selected && (
+            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-[var(--muted)] max-[767px]:text-[9px]">
+              <span
+                className={`size-1.5 shrink-0 rounded-full ${selected.status === "archived" ? "bg-[var(--muted)]" : "bg-[var(--mint)]"}`}
+                aria-hidden="true"
+              />
+              <span className="truncate">{bucketCaption(selected)}</span>
+            </span>
+          )}
         </span>
         <Select.Icon className="shrink-0 text-[var(--muted)]">
           <ChevronDown size={16} aria-hidden="true" />

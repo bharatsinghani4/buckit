@@ -92,7 +92,7 @@ export function JoinScreen() {
         <Brand />
         <ThemeToggle />
       </div>
-      <section className="join-card w-full [max-width:480px] [padding:40px] [border-radius:12px] bg-[var(--surface)] [border:1px_solid_var(--line)] flex flex-col [gap:20px] text-center [box-shadow:var(--shadow)] [&_label]:text-left [&_h1]:[font-size:27px] [&_h1]:[overflow-wrap:anywhere] [&_>_.eyebrow]:justify-center [&_>_p]:text-xs [&_>_.large-icon]:[align-self:center] max-[767px]:[padding:30px_24px]">
+      <section className="join-card w-full [max-width:480px] [padding:40px] [border-radius:12px] bg-[var(--surface)] [border:1px_solid_var(--line)] flex flex-col [gap:20px] text-center [box-shadow:var(--shadow)] [&_label]:text-left [&_h1]:[font-size:27px] [&_h1]:[overflow-wrap:anywhere] [&_>_.eyebrow]:justify-center [&_>_p]:text-xs [&_>_.large-icon]:[align-self:center] max-[767px]:[padding:30px_24px] max-[767px]:[&_h1]:text-2xl">
         <span className="large-icon [width:66px] [height:66px] inline-flex items-center justify-center bg-[var(--sage)] [border-radius:16px] text-[var(--green)]">
           <Users size={30} />
         </span>
@@ -147,7 +147,9 @@ export function JoinScreen() {
             </Link>
           </>
         )}
-        {token && auth.user && auth.loading && <Pending label="Checking your invitation…" />}
+        {token && auth.user && auth.loading && (
+          <Pending label="Checking your invitation…" layout="inline" />
+        )}
         {auth.error && (
           <>
             <Notice>{auth.error}</Notice>

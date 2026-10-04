@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock3,
+  ChevronDown,
   Copy,
   Download,
   History,
@@ -28,6 +29,7 @@ import type { Bucket, Invitation, Profile } from "@/features/identity/contracts"
 import { currencies } from "@/features/identity/contracts";
 import { api, friendlyError } from "@/lib/api/client";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
+import { LedgerMonthPicker } from "@/features/buckets/ledger-month-picker";
 import type { Comment, Expense, Member, Option, OptionKind } from "./contracts";
 import { ReferenceGlyph } from "./reference-icon";
 
@@ -62,6 +64,87 @@ const referencePrimaryAction = controls.primary;
 const referenceRowAction = controls.action;
 const referenceMutedAction = controls.quietAction;
 const referenceDeleteAction = controls.dangerAction;
+
+function ExpenseCreateMenu({ onAdd, onRefund }: { onAdd: () => void; onRefund: () => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const refundRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative inline-flex shrink-0 transition-[translate] duration-200 min-[768px]:hover:-translate-y-0.5 motion-reduce:!translate-y-0 motion-reduce:transition-none"
+    >
+      <div className="inline-flex h-9 overflow-hidden rounded-lg bg-[var(--button-primary)] text-[var(--button-primary-text)]">
+        <button
+          type="button"
+          className="inline-flex h-9 items-center gap-2 px-3 text-xs font-semibold hover:bg-[var(--ink)] focus-visible:z-10 max-[767px]:px-2"
+          onClick={onAdd}
+        >
+          <Plus size={17} /> Add expense
+        </button>
+        <button
+          ref={triggerRef}
+          type="button"
+          className="grid h-9 w-9 place-items-center border-l border-[#ffffff44] hover:bg-[var(--ink)] focus-visible:z-10 dark:border-[#17251e44] max-[767px]:w-8 !rounded-none"
+          aria-label="More expense actions"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls="expense-create-menu"
+          onClick={() => setOpen((current) => !current)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setOpen(true);
+              requestAnimationFrame(() => refundRef.current?.focus());
+            }
+          }}
+        >
+          <ChevronDown size={16} />
+        </button>
+      </div>
+      {open && (
+        <div
+          id="expense-create-menu"
+          role="menu"
+          className="absolute top-full right-0 z-50 mt-2 min-w-52 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 shadow-xl"
+        >
+          <button
+            ref={refundRef}
+            type="button"
+            role="menuitem"
+            className={`${controls.action} w-full justify-start border-0`}
+            onClick={() => {
+              setOpen(false);
+              onRefund();
+            }}
+          >
+            <History size={16} /> Record refund / credit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function applyOptionResult(
   current: Record<OptionKind, Option[]>,
@@ -130,6 +213,7 @@ export function PhaseTwoScreen({
   expenseId,
   refundOf,
   month,
+  onMonthChange,
   onClearMonth,
   resolveRequested = false,
   refundMode = false,
@@ -140,6 +224,7 @@ export function PhaseTwoScreen({
   expenseId: string | null;
   refundOf: string | null;
   month: string;
+  onMonthChange: (month: string) => void;
   onClearMonth: () => void;
   resolveRequested?: boolean;
   refundMode?: boolean;
@@ -633,54 +718,36 @@ export function PhaseTwoScreen({
     >
       {error && <Notice>{error}</Notice>}
       {loading ? (
-        <Pending />
+        <Pending layout="workspace" />
       ) : (
         <>
           {(view === "expenses" || view === "deleted") && (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h1>{view === "deleted" ? "Deleted expenses" : "Expenses"}</h1>
-                    {view === "expenses" && (
-                      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs text-[var(--muted)]">
-                        <span className="status-dot [display:inline-block] [height:6px] [width:6px] [background:var(--green)] rounded-full" />{" "}
-                        {bucket.name} · {bucket.primaryCurrency}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-[var(--muted)]">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h1>{view === "deleted" ? "Deleted expenses" : "Expenses"}</h1>
+                  <p className="text-sm text-[var(--muted)] max-[767px]:text-xs">
                     {view === "deleted"
                       ? `Expenses you deleted from ${bucket.name} remain recoverable for 30 days.`
-                      : `Track and review collective spending in ${bucket.name}.`}
+                      : "Track shared spending."}
                   </p>
                 </div>
                 {bucket.status === "active" && view === "expenses" && (
-                  <div className="flex flex-wrap items-center gap-4">
-                    <button
-                      className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px]"
-                      onClick={() => navigatePath(`${path(bucket.id, "add-expense")}&mode=refund`)}
-                    >
-                      <History size={17} /> Record refund / credit
-                    </button>
-                    <button
-                      className={`${controls.primary} button`}
-                      onClick={() => navigate("add-expense")}
-                    >
-                      <Plus size={17} /> Add expense
-                    </button>
-                  </div>
+                  <ExpenseCreateMenu
+                    onAdd={() => navigate("add-expense")}
+                    onRefund={() => navigatePath(`${path(bucket.id, "add-expense")}&mode=refund`)}
+                  />
                 )}
               </div>
               <div className="flex gap-6 border-b border-[var(--line)] text-sm max-[767px]:gap-1">
                 <button
-                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "expenses" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
+                  className={`flex h-9 items-center gap-2 border-b-2 px-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "expenses" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
                   onClick={() => navigate("expenses")}
                 >
                   <Wallet size={16} /> Active expenses
                 </button>
                 <button
-                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "deleted" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
+                  className={`flex h-9 items-center gap-2 border-b-2 px-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "deleted" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
                   onClick={() => navigate("deleted")}
                 >
                   <Trash2 size={16} /> Deleted expenses
@@ -806,6 +873,9 @@ export function PhaseTwoScreen({
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
+                    <div className="min-[768px]:hidden">
+                      <LedgerMonthPicker value={month} onChange={onMonthChange} />
+                    </div>
                     <button
                       ref={filterButtonRef}
                       type="button"
@@ -1000,7 +1070,7 @@ export function PhaseTwoScreen({
                   )}
                   {(appliedFilters || month) && (
                     <button
-                      className="ml-1 hover:text-[var(--ink)]"
+                      className="ml-1 inline-flex h-9 items-center hover:text-[var(--ink)]"
                       onClick={() => {
                         setAppliedFilters("");
                         setQuery("");
@@ -1326,7 +1396,7 @@ export function PhaseTwoScreen({
           {view === "add-expense" && (
             <>
               <button
-                className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] self-start"
+                className="text-link [background:none] border-0 [padding:0] inline-flex h-9 items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] self-start"
                 onClick={() => navigate("expenses")}
               >
                 <ArrowLeft size={15} /> Back to expenses
@@ -1343,13 +1413,13 @@ export function PhaseTwoScreen({
                 {!refundSource && (
                   <div className="flex rounded-lg border border-[var(--line)] bg-[var(--soft)] p-1 text-xs">
                     <button
-                      className={`rounded-md px-3 py-2 ${entryMode === "expense" ? "bg-[var(--surface)] font-semibold shadow-sm" : "text-[var(--muted)]"}`}
+                      className={`h-9 rounded-md px-3 ${entryMode === "expense" ? "bg-[var(--surface)] font-semibold shadow-sm" : "text-[var(--muted)]"}`}
                       onClick={() => setEntryMode("expense")}
                     >
                       Expense
                     </button>
                     <button
-                      className={`rounded-md px-3 py-2 ${entryMode === "refund" ? "bg-[var(--surface)] font-semibold shadow-sm" : "text-[var(--muted)]"}`}
+                      className={`h-9 rounded-md px-3 ${entryMode === "refund" ? "bg-[var(--surface)] font-semibold shadow-sm" : "text-[var(--muted)]"}`}
                       onClick={() => setEntryMode("refund")}
                     >
                       Refund / credit
@@ -1777,7 +1847,7 @@ export function PhaseTwoScreen({
                       <span className="rounded-md bg-[var(--sage)] px-2 py-1 text-[11px] font-semibold capitalize">
                         {expense.displayStatus.replaceAll("_", " ")}
                       </span>
-                      <h2 className="mt-4 text-2xl">{expense.description}</h2>
+                      <h2 className="mt-4 text-2xl max-[767px]:text-xl">{expense.description}</h2>
                       <p className="mt-2 text-xs">Created by {expense.addedByName}</p>
                     </div>
                     <div className="text-right">
@@ -2045,8 +2115,7 @@ export function PhaseTwoScreen({
                   </span>
                   <h1 className="mt-2">Reference settings</h1>
                   <p className="!mt-1 max-w-2xl text-sm">
-                    Manage shared accounts, expense categories, and merchant platforms for{" "}
-                    {bucket.name}. Active references can be used across all expenses.
+                    Manage your bucket’s payment accounts, categories, and merchants.
                   </p>
                 </div>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--soft)] px-3 py-2 text-xs font-semibold">
@@ -2334,8 +2403,7 @@ export function PhaseTwoScreen({
                   </span>
                   <h1 className="mt-2">Members & invitations</h1>
                   <p className="!mt-1 max-w-2xl text-sm">
-                    Manage collaborators and shared access to {bucket.name}. Anyone with an active
-                    7-day link can join after signing in.
+                    Manage this bucket’s members and invitation links.
                   </p>
                 </div>
                 <span className="rounded-full border border-[var(--line)] bg-[var(--soft)] px-4 py-2 text-xs font-semibold">

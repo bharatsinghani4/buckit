@@ -455,7 +455,7 @@ export function PhaseFourScreen({
           <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--muted)]">
             {view === "scheduled"
               ? "Future commitments stay separate from spending until the daily run records them."
-              : "Track installment schedules, upcoming commitments, and unpaid obligations without counting them as spending early."}
+              : "Track installments and unpaid commitments before they become spending."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -474,7 +474,7 @@ export function PhaseFourScreen({
       </div>
       {error && <Notice>{error}</Notice>}
       {loading ? (
-        <Pending label="Loading scheduled spending…" />
+        <Pending label="Loading scheduled spending…" layout="workspace" />
       ) : view === "scheduled" ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -615,7 +615,7 @@ export function PhaseFourScreen({
                         {plan.state}
                       </span>
                     </div>
-                    <h3 className="mt-3 text-base font-bold">{plan.title}</h3>
+                    <h3 className="mt-3 text-base font-bold max-[767px]:text-sm">{plan.title}</h3>
                     <p className="mt-1 text-xs text-[var(--muted)]">
                       {plan.categoryName} · {plan.accountName} · {plan.creatorName}
                     </p>

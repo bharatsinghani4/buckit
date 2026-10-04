@@ -18,6 +18,7 @@ import {
 import { ArrowLeft, ArrowRight, LockKeyhole, Mail, ShieldCheck, Wallet } from "lucide-react";
 import { Brand, Wordmark } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { GoogleMark } from "@/components/google-mark";
 import { Notice, PasswordField, Pending } from "@/components/ui";
 import { getFirebaseClientAuth } from "@/lib/firebase/client";
 import { friendlyError } from "@/lib/api/client";
@@ -222,7 +223,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
       id="main"
       className="auth-page [min-height:100svh] flex items-center justify-center flex-col [padding:20px_24px] max-[767px]:[padding:24px_16px] max-[767px]:[padding:10px]"
     >
-      <div className="auth-card w-full [max-width:1024px] bg-[var(--surface)] [border-radius:12px] grid [grid-template-columns:7fr_5fr] overflow-hidden [box-shadow:var(--shadow)] [border:1px_solid_#172f2805] max-[767px]:[display:block] max-[767px]:[max-width:500px] [max-height:calc(100svh_-_48px)] max-[767px]:[max-height:calc(100svh_-_36px)] max-[767px]:overflow-y-auto">
+      <div className="auth-card w-full [max-width:1024px] bg-[var(--surface)] [border-radius:12px] grid [grid-template-columns:7fr_5fr] overflow-hidden [box-shadow:var(--shadow)] [border:1px_solid_#172f2805] max-[767px]:[display:block] max-[767px]:[max-width:500px] [max-height:calc(100svh_-_96px)] max-[767px]:[max-height:calc(100svh_-_64px)] max-[767px]:overflow-y-auto">
         <section className="auth-form-panel [padding:34px] overflow-y-auto [&_>_.brand]:[margin-bottom:22px] [&_input]:bg-[var(--surface)] [&_input]:[border-color:var(--line)] max-[1000px]:[padding:32px] max-[767px]:[padding:30px_24px] max-[767px]:[&_>_.brand]:[margin-bottom:30px] max-[767px]:[padding:14px_20px] max-[767px]:[&_.auth-top]:[margin-bottom:12px] max-[767px]:[&_.form-stack]:[gap:12px] max-[767px]:[&_.divider]:[margin:8px_0] max-[767px]:[&_.form-switch]:[margin-top:10px] max-[767px]:[&_.form-heading]:[margin-bottom:18px] max-[767px]:[&_.trust-note]:[margin-top:20px]">
           <div className="auth-top flex items-center justify-between [gap:14px] [margin-bottom:16px] [&_.brand]:[margin-bottom:0]">
             <Brand />
@@ -233,7 +234,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
               <Mail size={16} /> Sign in to continue to your invitation.
             </Notice>
           )}
-          <div className="form-heading [margin-bottom:20px] [&_h1]:[font-size:26px] [&_h1]:[font-weight:650] [&_h1]:[letter-spacing:-.035em] [&_.wordmark]:[font-size:28px] [&_p]:text-xs [&_p]:[margin-top:8px]">
+          <div className="form-heading [margin-bottom:20px] [&_h1]:[font-size:26px] [&_h1]:[font-weight:650] [&_h1]:[letter-spacing:-.035em] [&_.wordmark]:[font-size:28px] [&_p]:text-xs [&_p]:[margin-top:8px] max-[767px]:[&_h1]:text-2xl">
             <h1>{title}</h1>
             <p>{subtitle}</p>
           </div>
@@ -338,9 +339,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
                 disabled={busy || !auth.configured}
                 className={`${controls.secondary} button w-full`}
               >
-                <span className="google-mark [font-family:Arial,_sans-serif] [color:#4285f4] [font-size:19px] font-bold">
-                  G
-                </span>{" "}
+                <GoogleMark />
                 Continue with Google
               </button>
               <p className="form-switch [margin-top:14px] text-center text-xs [&_a]:text-[var(--green)] [&_a]:[font-weight:650] [&_a]:[margin-left:4px]">
@@ -395,7 +394,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
               <ArrowLeft size={16} /> Back to sign in
             </Link>
           )}
-          <p className="trust-note flex items-center justify-center [gap:6px] text-xs [margin-top:16px] max-[767px]:[margin-top:34px]">
+          <p className="trust-note flex items-center justify-center [gap:6px] text-xs [margin-top:16px] max-[767px]:[margin-top:16px]">
             <LockKeyhole size={13} /> Your sign-in is secured by Firebase.
           </p>
         </section>
@@ -453,14 +452,12 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
           </div>
         </aside>
       </div>
-      {!authPage && (
-        <Link
-          href="/"
-          className="auth-home flex items-center [gap:7px] text-[var(--muted)] text-xs [margin-top:26px]"
-        >
-          <ArrowLeft size={14} /> Back to home
-        </Link>
-      )}
+      <Link
+        href="/"
+        className="auth-home mt-4 flex items-center gap-[7px] text-xs font-medium text-[var(--muted)] hover:text-[var(--green)]"
+      >
+        <ArrowLeft size={14} /> Back to home
+      </Link>
     </main>
   );
 }

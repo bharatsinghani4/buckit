@@ -244,7 +244,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--green)]">
             Your directory
           </p>
-          <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)]">
+          <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
             Contacts & Directory
           </h1>
           <p className="mt-1 text-xs text-[var(--muted)]">
@@ -303,7 +303,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
           </div>
           {loading ? (
             <div className="p-6">
-              <Pending />
+              <Pending layout="inline" />
             </div>
           ) : contacts.length === 0 ? (
             <div className="p-8 text-center text-xs text-[var(--muted)]">
@@ -453,7 +453,9 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
                     <ContactRound size={23} />
                   </span>
                   <div>
-                    <h2 className="text-xl font-bold text-[var(--ink)]">{selected.name}</h2>
+                    <h2 className="text-xl font-bold text-[var(--ink)] max-[767px]:text-lg">
+                      {selected.name}
+                    </h2>
                     <p className="text-xs text-[var(--muted)]">
                       {selected.serviceType} ·{" "}
                       {selected.isOwner
@@ -506,7 +508,9 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
                 <div className="pt-5">
                   <div className="mb-4 flex items-center gap-2">
                     <Share2 size={17} className="text-[var(--green)]" />
-                    <h3 className="text-base font-bold text-[var(--ink)]">Share this contact</h3>
+                    <h3 className="text-base font-bold text-[var(--ink)] max-[767px]:text-sm">
+                      Share this contact
+                    </h3>
                   </div>
                   <p className="mb-4 text-xs text-[var(--muted)]">
                     Only people who currently share a bucket with you can receive a new grant.

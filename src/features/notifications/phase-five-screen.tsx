@@ -108,7 +108,9 @@ function heading(eyebrow: string, title: string, description: string) {
       <p className="mb-2 text-[10px] font-bold tracking-[.16em] text-[var(--green)] uppercase">
         {eyebrow}
       </p>
-      <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)]">{title}</h1>
+      <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
+        {title}
+      </h1>
       <p className={`${small} mt-1 max-w-2xl`}>{description}</p>
     </div>
   );
@@ -386,7 +388,7 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
               </div>
             </div>
             {loading ? (
-              <Pending label="Loading your preferences…" />
+              <Pending label="Loading your preferences…" layout="inline" />
             ) : (
               notificationGroups.map((group) => (
                 <div key={group.title} className="border-b border-[var(--line)] py-3 last:border-0">
@@ -677,7 +679,7 @@ function ReminderSettings({
       {heading(
         "Communication · Calendar logic",
         "Reminders & Processing Schedule",
-        "Configure personal expense-entry nudges and inspect automated ledger processing cycles.",
+        "Manage personal reminders and Buckit’s daily processing.",
       )}
       {error && <Notice>{error}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
@@ -862,7 +864,7 @@ function ReminderSettings({
         </div>
       </section>
       {loading ? (
-        <Pending label="Loading reminders…" />
+        <Pending label="Loading reminders…" layout="workspace" />
       ) : (
         reminders.length > 0 && (
           <section className={`${card} mb-6 p-5`}>

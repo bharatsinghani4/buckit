@@ -8,22 +8,24 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export default function HomePage() {
   return (
     <GuestHome>
-      <header className="site-header flex justify-between items-center [max-width:1280px] [padding:26px_48px] m-auto [gap:24px] [&_nav]:flex [&_nav]:[gap:32px] [&_nav]:text-[var(--muted)] [&_nav]:text-xs max-[767px]:[padding:20px] max-[767px]:[gap:8px] max-[767px]:flex-wrap max-[767px]:[&_nav]:hidden sticky top-0 z-20 bg-[var(--canvas)]">
+      <header className="site-header flex justify-between items-center [max-width:1280px] [padding:26px_48px] m-auto [gap:24px] [&_nav]:flex [&_nav]:[gap:32px] [&_nav]:text-[var(--muted)] [&_nav]:text-xs max-[767px]:[padding:16px] max-[767px]:[gap:8px] max-[767px]:[&_nav]:hidden sticky top-0 z-20 bg-[var(--canvas)]">
         <Brand />
         <nav aria-label="Main navigation">
           <a href="#philosophy">Philosophy</a>
           <a href="#how-it-works">How it works</a>
         </nav>
-        <div className="header-actions flex [gap:25px] items-center text-xs font-semibold max-[767px]:[gap:8px] max-[767px]:ml-auto max-[767px]:[flex-shrink:0] max-[767px]:[&_a]:whitespace-nowrap max-[767px]:[&_.button]:[padding:7px_8px] max-[420px]:[&_.small_svg]:hidden">
+        <div className="header-actions flex [gap:25px] items-center text-xs font-semibold max-[767px]:[gap:8px] max-[767px]:ml-auto max-[767px]:[flex-shrink:0] max-[767px]:[&_a]:whitespace-nowrap max-[767px]:[&_.button]:px-3">
           <ThemeToggle />
-          <Link href="/sign-in">Sign in</Link>
-          <Link href="/sign-up" className={`${controls.primary} button`}>
-            Get started <ArrowRight size={15} />
+          <Link href="/sign-in" className="max-[767px]:hidden">
+            Sign in
+          </Link>
+          <Link href="/sign-up" className={`${controls.primary} button !h-9 !min-h-9`}>
+            Get started <ArrowRight size={15} className="max-[767px]:hidden" />
           </Link>
         </div>
       </header>
       <main id="main">
-        <section className="hero text-center [padding:72px_24px_76px] [max-width:1220px] m-auto [&_>_.eyebrow]:[padding:6px_12px] [&_>_.eyebrow]:[border-radius:20px] [&_>_.eyebrow]:bg-[var(--sage)] [&_>_.eyebrow]:text-xs [&_h1]:[font-size:clamp(38px,_4.8vw,_64px)] [&_h1]:[font-weight:650] [&_h1]:[line-height:1.13] [&_h1]:[letter-spacing:-.055em] [&_h1]:[margin:24px_0_20px] [&_>_p]:[font-size:15px] [&_>_p]:[line-height:1.8] [&_>_.example-caption]:text-xs [&_>_.example-caption]:text-[var(--muted)] [&_>_.example-caption]:[margin-top:18px] max-[767px]:[padding:48px_20px] max-[767px]:[&_h1]:[font-size:clamp(36px,_7vw,_52px)] max-[767px]:[&_>_p]:text-xs">
+        <section className="hero text-center [padding:72px_24px_76px] [max-width:1220px] m-auto [&_>_.eyebrow]:[padding:6px_12px] [&_>_.eyebrow]:[border-radius:20px] [&_>_.eyebrow]:bg-[var(--sage)] [&_>_.eyebrow]:text-xs [&_h1]:[font-size:clamp(38px,_4.8vw,_64px)] [&_h1]:[font-weight:650] [&_h1]:[line-height:1.13] [&_h1]:[letter-spacing:-.055em] [&_h1]:[margin:24px_0_20px] [&_>_p]:[font-size:15px] [&_>_p]:[line-height:1.8] [&_>_.example-caption]:text-xs [&_>_.example-caption]:text-[var(--muted)] [&_>_.example-caption]:[margin-top:18px] max-[767px]:[padding:48px_20px] max-[767px]:[&_h1]:[font-size:32px] max-[767px]:[&_>_p]:text-xs">
           <div className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
             <span className="status-dot [display:inline-block] [height:6px] [width:6px] [background:var(--green)] rounded-full" />{" "}
             PRIVATE SPACES. SHARED CLARITY.
@@ -38,16 +40,25 @@ export default function HomePage() {
             <br className="desktop-break max-[767px]:hidden" /> one bucket at a time.
           </p>
           <div className="hero-actions flex justify-center items-center [gap:28px] [margin-top:30px] max-[767px]:[gap:20px] max-[767px]:[&_>_.text-link]:text-xs max-[420px]:flex-col max-[420px]:[gap:18px]">
-            <Link className={`${controls.primary} button`} href="/sign-up">
+            <Link className={`${controls.primary} button !h-9 !min-h-9`} href="/sign-up">
               Get started <ArrowRight size={17} />
             </Link>
             <a
-              className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px]"
+              className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] max-[767px]:hidden"
               href="#how-it-works"
             >
               Learn how it works <ArrowRight size={16} />
             </a>
           </div>
+          <p className="mt-4 text-xs text-[var(--muted)] min-[768px]:hidden">
+            Already have an account?{" "}
+            <Link
+              href="/sign-in"
+              className="font-semibold text-[var(--green)] underline-offset-4 hover:underline"
+            >
+              Sign in
+            </Link>
+          </p>
           <div
             className="bucket-showcase grid [grid-template-columns:repeat(3,_1fr)] [gap:22px] text-left [margin:70px_auto_14px] [max-width:980px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[margin-top:45px] max-[767px]:[max-width:380px] max-[767px]:[gap:14px]"
             aria-label="Illustrative bucket examples"
@@ -120,7 +131,7 @@ export default function HomePage() {
         </section>
         <section
           id="philosophy"
-          className="principles [border-top:1px_solid_var(--line)] text-center section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] max-[767px]:[padding:48px_24px]"
+          className="principles [border-top:1px_solid_var(--line)] text-center section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] max-[767px]:[padding:48px_24px] max-[767px]:[&_h2]:[font-size:22px]"
         >
           <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
             FOUNDATIONAL PRINCIPLES
@@ -156,7 +167,7 @@ export default function HomePage() {
         </section>
         <section
           id="how-it-works"
-          className="how-section grid [grid-template-columns:1.1fr_1fr] [gap:85px] items-center [padding-top:48px] [padding-bottom:85px] [&_p]:text-xs [&_p]:[line-height:1.9] [&_p]:[margin-top:20px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[gap:32px] section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] max-[767px]:[padding:48px_24px]"
+          className="how-section grid [grid-template-columns:1.1fr_1fr] [gap:85px] items-center [padding-top:48px] [padding-bottom:85px] [&_p]:text-xs [&_p]:[line-height:1.9] [&_p]:[margin-top:20px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[gap:32px] section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] max-[767px]:[padding:48px_24px] max-[767px]:[&_h2]:[font-size:22px]"
         >
           <div>
             <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
@@ -211,7 +222,7 @@ export default function HomePage() {
             ))}
           </div>
         </section>
-        <section className="cta-section [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] text-center [padding:70px_24px_78px] bg-[var(--sage)] [&_p]:[margin:18px_0_26px] [&_p]:text-xs">
+        <section className="cta-section [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] text-center [padding:70px_24px_78px] bg-[var(--sage)] [&_p]:[margin:18px_0_26px] [&_p]:text-xs max-[767px]:[&_h2]:[font-size:22px]">
           <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
             A FRESH START
           </span>
@@ -220,7 +231,7 @@ export default function HomePage() {
             Start small with a single bucket. Share it if you choose,
             <br className="desktop-break max-[767px]:hidden" /> or keep it quiet for yourself.
           </p>
-          <Link className={`${controls.primary} button`} href="/sign-up">
+          <Link className={`${controls.primary} button !h-9 !min-h-9`} href="/sign-up">
             Create your first bucket <ArrowRight size={16} />
           </Link>
         </section>

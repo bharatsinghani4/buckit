@@ -12,6 +12,7 @@ import { Archive, ArrowRightLeft, RotateCcw, ShieldAlert, Trash2, Users } from "
 import { Dialog, Notice, Pending } from "@/components/ui";
 import { Dropdown } from "@/components/dropdown";
 import { controls } from "@/components/control-styles";
+import { GoogleMark } from "@/components/google-mark";
 import { useAuth } from "@/features/identity/auth-provider";
 import { currencies, type Bucket } from "@/features/identity/contracts";
 import { api, ClientError, friendlyError } from "@/lib/api/client";
@@ -277,7 +278,7 @@ export function PhaseSevenScreen({
     "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm max-sm:p-4";
   const label = "mb-1.5 block text-xs font-semibold text-[var(--ink)]";
   const muted = "text-xs leading-5 text-[var(--muted)]";
-  if (loading) return <Pending />;
+  if (loading) return <Pending layout="workspace" />;
 
   return (
     <div className="space-y-6 pb-12">
@@ -285,7 +286,7 @@ export function PhaseSevenScreen({
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[.14em] text-[var(--green)]">
           Workspace governance
         </p>
-        <h1 className="text-[29px] font-semibold tracking-tight text-[var(--ink)]">
+        <h1 className="text-[29px] font-semibold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
           {view === "bucket-settings" ? "Bucket Settings" : "Account Settings"}
         </h1>
         <p className={`mt-1 ${muted}`}>
@@ -641,6 +642,7 @@ export function PhaseSevenScreen({
                 disabled={busy}
                 onClick={() => void reauthenticate()}
               >
+                <GoogleMark />
                 Continue with Google
               </button>
             ) : (

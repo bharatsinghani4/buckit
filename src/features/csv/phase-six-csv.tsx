@@ -101,7 +101,9 @@ function heading(eyebrow: string, title: string, description: string) {
       <p className="mb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--green)]">
         {eyebrow}
       </p>
-      <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)]">{title}</h1>
+      <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
+        {title}
+      </h1>
       <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--muted)]">{description}</p>
     </div>
   );
