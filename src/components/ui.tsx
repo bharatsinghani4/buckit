@@ -78,8 +78,13 @@ export function Dialog({
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     dialog?.showModal();
-    return () => dialog?.close();
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+    };
   }, []);
   return (
     <dialog
@@ -89,7 +94,7 @@ export function Dialog({
         onClose();
       }}
       aria-labelledby="dialog-title"
-      className="dialog fixed inset-0 m-auto h-fit overflow-y-auto text-[var(--ink)] bg-[var(--surface)] [border:1px_solid_var(--line)] [border-radius:14px] [padding:30px] [width:min(600px,_calc(100%_-_32px))] [max-height:calc(100svh_-_48px)] [box-shadow:0_20px_48px_#172f2825] [&::backdrop]:[background:#172f2860] [&::backdrop]:[backdrop-filter:blur(4px)] [&_>_header]:flex [&_>_header]:[align-items:start] [&_>_header]:justify-between [&_>_header]:[gap:14px] [&_>_header]:[margin-bottom:22px] [&_>_header_h2]:[font-size:21px] [&_p]:text-xs max-[767px]:[padding:24px]"
+      className="dialog fixed inset-0 m-auto h-fit overflow-y-auto text-[var(--ink)] bg-[var(--surface)] [border:1px_solid_var(--line)] [border-radius:14px] [padding:30px] [width:min(600px,_calc(100%_-_32px))] [max-height:calc(100svh_-_48px)] [box-shadow:0_20px_48px_#172f2825] [&::backdrop]:[background:#172f2860] [&::backdrop]:[backdrop-filter:blur(4px)] [&_>_header]:flex [&_>_header]:[align-items:start] [&_>_header]:justify-between [&_>_header]:[gap:14px] [&_>_header]:[margin-bottom:22px] [&_>_header_h2]:[font-size:21px] [&_p]:text-xs max-[767px]:!m-0 max-[767px]:!h-[100dvh] max-[767px]:!max-h-[100dvh] max-[767px]:!w-full max-[767px]:!max-w-none max-[767px]:!rounded-none max-[767px]:!border-0 max-[767px]:!p-4 max-[767px]:[&_>_header]:sticky max-[767px]:[&_>_header]:top-0 max-[767px]:[&_>_header]:z-10 max-[767px]:[&_>_header]:bg-[var(--surface)]"
     >
       <header>
         <div>

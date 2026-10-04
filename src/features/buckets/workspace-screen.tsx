@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   Mail,
+  MoreHorizontal,
   Pin,
   PinOff,
   Plus,
@@ -65,66 +66,66 @@ const sidebarGroups: {
   icon: LucideIcon;
   items: SidebarLink[];
 }[] = [
-    {
-      id: "spending",
-      label: "Spending",
-      icon: Wallet,
-      items: [
-        {
-          label: "Expenses",
-          view: "expenses",
-          activeViews: ["expenses", "deleted", "add-expense", "expense"],
-          icon: Wallet,
-        },
-        { label: "EMIs", view: "emis", activeViews: ["emis", "emi-plan"], icon: CreditCard },
-        { label: "Scheduled", view: "scheduled", activeViews: ["scheduled"], icon: CalendarClock },
-      ],
-    },
-    {
-      id: "insights",
-      label: "Insights",
-      icon: BarChart3,
-      items: [
-        { label: "Reports", view: "reports", activeViews: ["reports"], icon: BarChart3 },
-        {
-          label: "Budgets",
-          view: "budgets",
-          activeViews: ["budgets", "budget", "budget-form"],
-          icon: BookOpen,
-        },
-      ],
-    },
-    {
-      id: "manage",
-      label: "Manage",
-      icon: SlidersHorizontal,
-      items: [
-        {
-          label: "Reference settings",
-          view: "references",
-          activeViews: ["references"],
-          icon: SlidersHorizontal,
-        },
-        { label: "Members", view: "members", activeViews: ["members"], icon: Users },
-        { label: "Notifications", view: "notifications", activeViews: ["notifications"], icon: Bell },
-        {
-          label: "Reminders & cadence",
-          view: "reminders",
-          activeViews: ["reminders"],
-          icon: CalendarClock,
-        },
-        { label: "Contacts", view: "contacts", activeViews: ["contacts"], icon: ContactRound },
-        { label: "Import CSV", view: "csv-import", activeViews: ["csv-import"], icon: FileUp },
-        { label: "Export CSV", view: "csv-export", activeViews: ["csv-export"], icon: FileDown },
-        {
-          label: "Bucket settings",
-          view: "bucket-settings",
-          activeViews: ["bucket-settings"],
-          icon: Settings2,
-        },
-      ],
-    },
-  ];
+  {
+    id: "spending",
+    label: "Spending",
+    icon: Wallet,
+    items: [
+      {
+        label: "Expenses",
+        view: "expenses",
+        activeViews: ["expenses", "deleted", "add-expense", "expense"],
+        icon: Wallet,
+      },
+      { label: "EMIs", view: "emis", activeViews: ["emis", "emi-plan"], icon: CreditCard },
+      { label: "Scheduled", view: "scheduled", activeViews: ["scheduled"], icon: CalendarClock },
+    ],
+  },
+  {
+    id: "insights",
+    label: "Insights",
+    icon: BarChart3,
+    items: [
+      { label: "Reports", view: "reports", activeViews: ["reports"], icon: BarChart3 },
+      {
+        label: "Budgets",
+        view: "budgets",
+        activeViews: ["budgets", "budget", "budget-form"],
+        icon: BookOpen,
+      },
+    ],
+  },
+  {
+    id: "manage",
+    label: "Manage",
+    icon: SlidersHorizontal,
+    items: [
+      {
+        label: "Reference settings",
+        view: "references",
+        activeViews: ["references"],
+        icon: SlidersHorizontal,
+      },
+      { label: "Members", view: "members", activeViews: ["members"], icon: Users },
+      { label: "Notifications", view: "notifications", activeViews: ["notifications"], icon: Bell },
+      {
+        label: "Reminders & cadence",
+        view: "reminders",
+        activeViews: ["reminders"],
+        icon: CalendarClock,
+      },
+      { label: "Contacts", view: "contacts", activeViews: ["contacts"], icon: ContactRound },
+      { label: "Import CSV", view: "csv-import", activeViews: ["csv-import"], icon: FileUp },
+      { label: "Export CSV", view: "csv-export", activeViews: ["csv-export"], icon: FileDown },
+      {
+        label: "Bucket settings",
+        view: "bucket-settings",
+        activeViews: ["bucket-settings"],
+        icon: Settings2,
+      },
+    ],
+  },
+];
 
 function ProfileAvatar({ profile, size = 34 }: { profile: Profile; size?: 34 | 38 | 56 }) {
   const dimensions = size === 56 ? "size-14" : size === 38 ? "size-[38px]" : "size-[34px]";
@@ -224,6 +225,8 @@ function Workspace() {
     };
   });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const mobileMoreDialogRef = useRef<HTMLDialogElement>(null);
   const [avatarDraft, setAvatarDraft] = useState<string | null>(profile.avatarDataUrl);
   const [avatarProcessing, setAvatarProcessing] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -259,6 +262,17 @@ function Workspace() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [profileMenuOpen]);
+  useEffect(() => {
+    if (!mobileMoreOpen) return;
+    const dialog = mobileMoreDialogRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileMoreOpen]);
   function openProfile() {
     setAvatarDraft(profile.avatarDataUrl);
     setProfileMenuOpen(false);
@@ -460,12 +474,12 @@ function Workspace() {
     },
     ...(selected?.isOwner
       ? [
-        {
-          title: "Bring your people",
-          text: "Open Members to create and manage invitation links. People join only after signing in and confirming.",
-          icon: Users,
-        },
-      ]
+          {
+            title: "Bring your people",
+            text: "Open Members to create and manage invitation links. People join only after signing in and confirming.",
+            icon: Users,
+          },
+        ]
       : []),
     {
       title: "Make yourself at home",
@@ -474,6 +488,23 @@ function Workspace() {
     },
   ];
   const currentStep = Math.min(step, steps.length - 1);
+  const mobileForm = ["add-expense", "budget-form"].includes(phaseView ?? "");
+  const mobileNavItems = [
+    { label: "Overview", view: "", icon: LayoutDashboard, active: !phaseView },
+    {
+      label: "Expenses",
+      view: "expenses",
+      icon: Wallet,
+      active: ["expenses", "deleted", "expense"].includes(phaseView ?? ""),
+    },
+    { label: "Add", view: "add-expense", icon: Plus, active: phaseView === "add-expense" },
+    {
+      label: "Budgets",
+      view: "budgets",
+      icon: BookOpen,
+      active: ["budgets", "budget", "budget-form"].includes(phaseView ?? ""),
+    },
+  ];
   function tour(nextStep: number, state: Tour["state"] = "in_progress") {
     setStep(nextStep);
     if (state === "completed" || state === "skipped") {
@@ -492,7 +523,7 @@ function Workspace() {
   return (
     <div className="workspace-layout min-h-svh">
       <aside
-        className={`sidebar fixed inset-y-0 left-0 z-30 flex flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--line)] bg-[var(--surface)] py-5 transition-[width,padding] duration-200 ${sidebarExpanded ? "w-[248px] px-4 max-[767px]:w-[min(248px,85vw)]" : "w-[68px] px-[9px] [&_.nav-item]:justify-center [&_.nav-item]:gap-0 [&_.nav-item]:px-0 [&_.nav-item]:text-[0px] [&_.nav-item_svg]:size-5"}`}
+        className={`sidebar fixed inset-y-0 left-0 z-30 hidden flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--line)] bg-[var(--surface)] py-5 transition-[width,padding] duration-200 min-[768px]:flex ${sidebarExpanded ? "w-[248px] px-4" : "w-[68px] px-[9px] [&_.nav-item]:justify-center [&_.nav-item]:gap-0 [&_.nav-item]:px-0 [&_.nav-item]:text-[0px] [&_.nav-item_svg]:size-5"}`}
         onMouseEnter={() => {
           if (!sidebarPinned) {
             sidebarHoverTimer.current = setTimeout(() => setSidebarExpanded(true), 250);
@@ -596,12 +627,12 @@ function Workspace() {
         </nav>
       </aside>
       <div
-        className={`workspace-main min-w-0 transition-[margin-left] duration-200 ${sidebarExpanded ? "ml-[248px] max-[767px]:ml-[68px]" : "ml-[68px]"}`}
+        className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px]" : "ml-[68px]"}`}
       >
         <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-8 text-xs max-[767px]:gap-2 max-[767px]:px-4 sticky top-0 z-20">
           <nav
             aria-label="Breadcrumb"
-            className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium"
+            className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium max-[767px]:flex-1"
           >
             <label className="sr-only" htmlFor="bucket-picker">
               Current bucket
@@ -667,7 +698,7 @@ function Workspace() {
               <button
                 ref={profileButtonRef}
                 type="button"
-                className="profile-chip flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)]"
+                className="profile-chip flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)] max-[767px]:min-h-11"
                 aria-label={`Account menu for ${profile.displayName}`}
                 aria-haspopup="menu"
                 aria-expanded={profileMenuOpen}
@@ -693,7 +724,7 @@ function Workspace() {
                     event.preventDefault();
                     const items = Array.from(
                       profileMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ??
-                      [],
+                        [],
                     );
                     const index = items.indexOf(document.activeElement as HTMLElement);
                     focusMenuItem(index + (event.key === "ArrowDown" ? 1 : -1));
@@ -768,7 +799,7 @@ function Workspace() {
         </header>
         <main
           id="main"
-          className="workspace-content [max-width:1160px] m-auto [padding:24px] max-[1000px]:[padding:24px] max-[767px]:[padding:20px] max-[767px]:[padding:16px]"
+          className="workspace-content [max-width:1160px] m-auto [padding:24px] max-[1000px]:[padding:24px] max-[767px]:[padding:16px_16px_calc(94px+env(safe-area-inset-bottom))]"
         >
           {!profile.emailVerified && (
             <Notice kind="info">
@@ -822,7 +853,7 @@ function Workspace() {
               profile={profile}
               view={
                 phaseView as
-                "expenses" | "deleted" | "add-expense" | "expense" | "references" | "members"
+                  "expenses" | "deleted" | "add-expense" | "expense" | "references" | "members"
               }
               expenseId={params.get("expense")}
               refundOf={params.get("refundOf")}
@@ -863,7 +894,7 @@ function Workspace() {
               bucket={selected}
               view={
                 (phaseView || "dashboard") as
-                "dashboard" | "reports" | "budgets" | "budget" | "budget-form"
+                  "dashboard" | "reports" | "budgets" | "budget" | "budget-form"
               }
               budgetId={params.get("budget")}
             />
@@ -970,6 +1001,111 @@ function Workspace() {
           )}
         </main>
       </div>
+      {!mobileForm && (
+        <nav
+          aria-label="Mobile workspace navigation"
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--line)] bg-[var(--surface)] px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_28px_rgba(0,0,0,.08)] min-[768px]:hidden"
+        >
+          {mobileNavItems.map(({ label, view, icon: Icon, active }) => (
+            <Link
+              key={label}
+              href={
+                selected
+                  ? `/workspace?bucket=${selected.id}${view ? `&view=${view}` : ""}`
+                  : "/buckets/new"
+              }
+              onClick={navigateWithinWorkspace}
+              aria-current={active ? "page" : undefined}
+              className={`flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-xs font-medium ${active ? "text-[var(--green)]" : "text-[var(--muted)]"} ${label === "Add" ? "font-semibold" : ""}`}
+            >
+              <span
+                className={`grid size-9 place-items-center rounded-xl ${label === "Add" ? "bg-[var(--button-primary)] text-[var(--button-primary-text)]" : active ? "bg-[var(--sage)]" : ""}`}
+              >
+                <Icon size={19} aria-hidden="true" />
+              </span>
+              <span>{label}</span>
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMobileMoreOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={mobileMoreOpen}
+            className={`flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-xs font-medium ${sidebarGroups.some((group) => group.items.some((item) => item.activeViews.includes(phaseView ?? ""))) && !mobileNavItems.some((item) => item.active) ? "text-[var(--green)]" : "text-[var(--muted)]"}`}
+          >
+            <span className="grid size-9 place-items-center rounded-xl">
+              <MoreHorizontal size={21} aria-hidden="true" />
+            </span>
+            More
+          </button>
+        </nav>
+      )}
+      {mobileMoreOpen && (
+        <dialog
+          ref={mobileMoreDialogRef}
+          aria-label="More workspace sections"
+          onCancel={() => setMobileMoreOpen(false)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setMobileMoreOpen(false);
+          }}
+          className="fixed inset-0 z-50 m-0 ml-auto h-full max-h-full w-full max-w-[420px] overflow-y-auto border-0 bg-[var(--surface)] px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[calc(20px+env(safe-area-inset-top))] text-[var(--ink)] shadow-2xl backdrop:bg-[#172f2870] min-[768px]:hidden"
+        >
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl">Your workspace</h2>
+            <button
+              type="button"
+              className="grid size-11 place-items-center rounded-xl bg-[var(--soft)]"
+              onClick={() => setMobileMoreOpen(false)}
+              aria-label="Close navigation"
+            >
+              <ChevronDown size={20} aria-hidden="true" />
+            </button>
+          </div>
+          {sidebarGroups.map((group) => (
+            <section key={group.id} className="mb-6">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-[var(--muted)]">
+                {group.label}
+              </h3>
+              <div className="grid gap-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.activeViews.includes(phaseView ?? "");
+                  return (
+                    <Link
+                      key={item.view}
+                      href={
+                        selected
+                          ? `/workspace?bucket=${selected.id}&view=${item.view}`
+                          : "/workspace"
+                      }
+                      onClick={(event) => {
+                        navigateWithinWorkspace(event);
+                        setMobileMoreOpen(false);
+                      }}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm ${active ? "bg-[var(--sage)] font-semibold text-[var(--green)]" : "text-[var(--ink)]"}`}
+                    >
+                      <Icon size={19} aria-hidden="true" />
+                      {item.label}
+                      <ArrowRight
+                        size={16}
+                        className="ml-auto text-[var(--muted)]"
+                        aria-hidden="true"
+                      />
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+          <Link
+            href="/buckets/new"
+            className="flex min-h-12 items-center gap-3 rounded-xl border border-[var(--line)] px-3 text-sm font-semibold text-[var(--green)]"
+          >
+            <Plus size={19} aria-hidden="true" /> Create a bucket
+          </Link>
+        </dialog>
+      )}
       {modal && (
         <Dialog
           title={modal === "profile" ? "Make yourself at home" : steps[currentStep].title}

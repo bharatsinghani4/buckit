@@ -477,7 +477,7 @@ export function PhaseFourScreen({
         <Pending label="Loading scheduled spending…" />
       ) : view === "scheduled" ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Summary
               icon={<CalendarDays size={18} />}
               label="Upcoming entries"
@@ -558,7 +558,7 @@ export function PhaseFourScreen({
         </>
       ) : view === "emis" ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Summary
               icon={<Layers3 size={18} />}
               label="Active EMI plans"
@@ -1131,13 +1131,15 @@ function Summary({
   detail: string;
 }) {
   return (
-    <div className={card}>
+    <div className={`${card} min-w-0 max-[767px]:p-3`}>
       <div className="mb-3 flex items-center justify-between text-[var(--green)]">
         {icon}
         <ArrowRight size={13} className="text-[var(--muted)]" />
       </div>
       <p className="text-[11px] font-medium text-[var(--muted)]">{label}</p>
-      <strong className="mt-1 block text-xl text-[var(--ink)]">{value}</strong>
+      <strong className="mt-1 block break-words text-xl text-[var(--ink)] max-[767px]:text-lg">
+        {value}
+      </strong>
       <p className="mt-1 text-[11px] text-[var(--muted)]">{detail}</p>
     </div>
   );
