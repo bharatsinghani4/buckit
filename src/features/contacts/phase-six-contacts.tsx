@@ -271,7 +271,9 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
       {error && <Notice kind="error">{error}</Notice>}
       {notice && <Notice kind="success">{notice}</Notice>}
       <div className="grid gap-5 lg:grid-cols-[minmax(300px,410px)_minmax(0,1fr)]">
-        <section className={`${card} min-w-0 overflow-hidden`}>
+        <section
+          className={`${card} min-w-0 overflow-hidden ${mode !== "read" || selectedId ? "max-[767px]:hidden" : ""}`}
+        >
           <div className="border-b border-[var(--line)] p-4">
             <label className="relative block">
               <Search size={16} className="absolute left-3 top-2.5 text-[var(--muted)]" />
@@ -344,7 +346,21 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
             </button>
           )}
         </section>
-        <section className={`${card} min-w-0 p-5 sm:p-6`}>
+        <section
+          className={`${card} min-w-0 p-5 sm:p-6 ${mode === "read" && !selectedId ? "max-[767px]:hidden" : ""}`}
+        >
+          {(mode !== "read" || selectedId) && (
+            <button
+              type="button"
+              className="mb-4 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+              onClick={() => {
+                setMode("read");
+                setSelectedId(null);
+              }}
+            >
+              ← All contacts
+            </button>
+          )}
           {mode === "new" || (mode === "edit" && selected) ? (
             <form onSubmit={(event) => void submit(event)} className="space-y-4">
               <div className="mb-5 flex items-center justify-between">

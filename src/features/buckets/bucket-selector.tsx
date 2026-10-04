@@ -42,7 +42,7 @@ export function BucketSelector({
     >
       <Select.Trigger
         id="bucket-picker"
-        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)]`}
+        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)] max-[767px]:!h-11 max-[767px]:!w-full`}
       >
         <span className="flex min-w-0 items-center gap-2">
           <span

@@ -213,6 +213,7 @@ export function PhaseTwoScreen({
   const [status, setStatus] = useState("all");
   const [appliedFilters, setAppliedFilters] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [editing, setEditing] = useState(resolveRequested);
   const [entryMode, setEntryMode] = useState<"expense" | "refund">(
@@ -388,6 +389,22 @@ export function PhaseTwoScreen({
       },
     );
   }, [bucket.id, filtersOpen, read, view]);
+  useEffect(() => {
+    if (!filtersOpen || !window.matchMedia("(max-width: 767px)").matches) return;
+    const previousOverflow = document.body.style.overflow;
+    const filterButton = filterButtonRef.current;
+    document.body.style.overflow = "hidden";
+    document.getElementById("mobile-filter-close")?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+      filterButton?.focus();
+    };
+  }, [filtersOpen]);
 
   const navigatePath = (url: string) => window.history.pushState(null, "", url);
   const navigate = (next: View, id?: string) => navigatePath(path(bucket.id, next, id));
@@ -569,6 +586,7 @@ export function PhaseTwoScreen({
     }
     if (status !== "all") params.set("status", status);
     setAppliedFilters(params.toString());
+    setFiltersOpen(false);
   }
 
   async function expenseAction(item: Expense, act: "delete" | "restore") {
@@ -654,15 +672,15 @@ export function PhaseTwoScreen({
                   </div>
                 )}
               </div>
-              <div className="flex gap-6 border-b border-[var(--line)] text-sm">
+              <div className="flex gap-6 border-b border-[var(--line)] text-sm max-[767px]:gap-1">
                 <button
-                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none ${view === "expenses" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
+                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "expenses" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
                   onClick={() => navigate("expenses")}
                 >
                   <Wallet size={16} /> Active expenses
                 </button>
                 <button
-                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none ${view === "deleted" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
+                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "deleted" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
                   onClick={() => navigate("deleted")}
                 >
                   <Trash2 size={16} /> Deleted expenses
@@ -670,7 +688,9 @@ export function PhaseTwoScreen({
               </div>
               {view === "expenses" && summary && (
                 <div className="grid gap-3 lg:grid-cols-3">
-                  <section className={`${card} flex min-h-36 flex-col justify-between`}>
+                  <section
+                    className={`${card} flex min-h-36 flex-col justify-between max-[767px]:min-h-0`}
+                  >
                     <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                       Actual spending{" "}
                       <span className="rounded-md bg-[var(--sage)] px-2 py-1 normal-case tracking-normal text-[var(--ink)]">
@@ -692,12 +712,12 @@ export function PhaseTwoScreen({
                     </div>
                   </section>
                   <section
-                    className={`${card} flex min-h-36 flex-col justify-between border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20`}
+                    className={`${card} flex min-h-36 flex-col justify-between border-amber-300 bg-amber-50/60 max-[767px]:hidden dark:border-amber-800 dark:bg-amber-950/20`}
                   >
                     <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                       Needs conversion <span className="size-2 rounded-full bg-amber-500" />
                     </div>
-                    <div className="mt-3 text-3xl font-bold tabular-nums text-amber-900 dark:text-amber-200">
+                    <div className="mt-3 break-words text-3xl font-bold tabular-nums text-amber-900 max-[767px]:text-xl dark:text-amber-200">
                       {expenses.find((item) => item.displayStatus === "conversion_needed")
                         ? money(
                             expenses.find((item) => item.displayStatus === "conversion_needed")!
@@ -730,19 +750,49 @@ export function PhaseTwoScreen({
                       )}
                     </div>
                   </section>
-                  <section className={`${card} flex min-h-36 flex-col justify-between`}>
+                  <section
+                    className={`${card} flex min-h-36 flex-col justify-between max-[767px]:hidden`}
+                  >
                     <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                       Scheduled commitments{" "}
                       <span className="rounded-md bg-[var(--sage)] px-2 py-1 normal-case tracking-normal text-[var(--ink)]">
                         Upcoming
                       </span>
                     </div>
-                    <div className="mt-3 text-3xl font-bold tabular-nums">
+                    <div className="mt-3 break-words text-3xl font-bold tabular-nums max-[767px]:text-xl">
                       {money(summary.scheduledTotal, summary.currency)}
                     </div>
                     <div className="mt-3 flex justify-between gap-2 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
                       <span>{summary.scheduledCount} scheduled</span>
                       <span>{bucket.timezone}</span>
+                    </div>
+                  </section>
+                  <section
+                    className={`${card} divide-y divide-[var(--line)] !p-0 min-[768px]:hidden`}
+                  >
+                    <div className="flex items-center justify-between gap-3 p-4">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                          Needs conversion
+                        </div>
+                        <div className="mt-1 text-[11px] text-[var(--muted)]">
+                          {summary.conversionNeededCount} pending
+                        </div>
+                      </div>
+                      <strong className="text-base tabular-nums">
+                        {summary.conversionNeededCount}
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 p-4">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold">Scheduled commitments</div>
+                        <div className="mt-1 text-[11px] text-[var(--muted)]">
+                          {summary.scheduledCount} upcoming
+                        </div>
+                      </div>
+                      <strong className="text-base tabular-nums">
+                        {money(summary.scheduledTotal, summary.currency)}
+                      </strong>
                     </div>
                   </section>
                 </div>
@@ -757,6 +807,7 @@ export function PhaseTwoScreen({
                       onChange={(e) => setQuery(e.target.value)}
                     />
                     <button
+                      ref={filterButtonRef}
                       type="button"
                       className={action}
                       onClick={() => setFiltersOpen((open) => !open)}
@@ -794,10 +845,13 @@ export function PhaseTwoScreen({
                     </button>
                   </div>
                   {filtersOpen && (
-                    <div className={`${card} grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
+                    <div
+                      className={`${card} grid gap-3 sm:grid-cols-2 lg:grid-cols-4 max-[767px]:fixed max-[767px]:inset-0 max-[767px]:z-40 max-[767px]:max-h-[100dvh] max-[767px]:content-start max-[767px]:overflow-y-auto max-[767px]:rounded-none max-[767px]:border-0 max-[767px]:p-4 max-[767px]:pb-[calc(24px+env(safe-area-inset-bottom))]`}
+                    >
                       <div className="flex items-center justify-between sm:col-span-2 lg:col-span-4">
                         <h2 className="text-base">Filter ledger items</h2>
                         <button
+                          id="mobile-filter-close"
                           type="button"
                           className={action}
                           onClick={() => setFiltersOpen(false)}
@@ -996,156 +1050,244 @@ export function PhaseTwoScreen({
               )}
               <div className={`${card} overflow-hidden p-0`}>
                 {filtered.length ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[850px] text-left text-sm">
-                      <thead className="border-b border-[var(--line)] bg-[var(--canvas)] text-xs uppercase tracking-wide text-[var(--muted)]">
-                        <tr>
-                          <th className="px-4 py-3">Date</th>
-                          <th className="py-3">Description & platform</th>
-                          <th className="py-3">Category</th>
-                          <th className="py-3">Paid by</th>
-                          <th className="py-3">
-                            {view === "deleted" ? "Recovery deadline" : "Account & mode"}
-                          </th>
-                          <th className="py-3 pr-4 text-right">Amount & actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtered.map((item) => (
-                          <tr
-                            key={item.id}
-                            className={`border-b border-[var(--line)] last:border-0 ${item.displayStatus === "conversion_needed" ? "bg-amber-50/60 dark:bg-amber-950/20" : item.displayStatus === "scheduled" ? "bg-[var(--soft)]/40" : "hover:bg-[var(--canvas)]"}`}
+                  <div>
+                    <div className="divide-y divide-[var(--line)] min-[768px]:hidden">
+                      {filtered.map((item) => (
+                        <article key={item.id} className="p-4">
+                          <button
+                            type="button"
+                            onClick={() => navigate("expense", item.id)}
+                            className="flex w-full min-w-0 items-start gap-3 text-left"
                           >
-                            <td className="whitespace-nowrap px-4 py-4 text-xs text-[var(--muted)]">
+                            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sage)] text-[var(--green)]">
+                              <ReferenceGlyph
+                                kind="categories"
+                                name={item.categoryName}
+                                size={19}
+                              />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-[var(--ink)]">
+                                {item.description}
+                              </span>
+                              <span className="mt-1 block truncate text-xs text-[var(--muted)]">
+                                {item.categoryName} · {item.paidByName}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+                              {money(item.originalAmount, item.originalCurrency)}
+                              {item.originalCurrency !== item.bucketCurrency &&
+                                item.displayStatus !== "conversion_needed" && (
+                                  <span className="block text-[11px] font-normal text-[var(--muted)]">
+                                    {money(item.convertedAmount, item.bucketCurrency)}
+                                  </span>
+                                )}
+                            </span>
+                          </button>
+                          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[52px] text-[11px] text-[var(--muted)]">
+                            <span>
                               {new Date(`${item.expenseDate}T12:00:00`).toLocaleDateString(
                                 undefined,
                                 { day: "2-digit", month: "short", year: "numeric" },
                               )}
-                            </td>
-                            <td className="max-w-72 py-4 pr-3">
-                              <div className="flex items-start gap-3">
-                                <span
-                                  className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.displayStatus === "conversion_needed" ? "bg-amber-100 text-amber-800 dark:bg-amber-900" : item.refundOfExpenseId ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900" : "bg-[var(--sage)] text-[var(--green)]"}`}
-                                >
-                                  {item.displayStatus === "conversion_needed" ? (
-                                    <RotateCcw size={17} />
-                                  ) : item.refundOfExpenseId ? (
-                                    <History size={17} />
-                                  ) : item.displayStatus === "scheduled" ? (
-                                    <Clock3 size={17} />
-                                  ) : (
-                                    <ReferenceGlyph
-                                      kind="categories"
-                                      name={item.categoryName}
-                                      size={17}
-                                    />
-                                  )}
-                                </span>
-                                <div className="min-w-0">
-                                  <button
-                                    className="max-w-full truncate text-left font-semibold hover:text-[var(--green)]"
-                                    onClick={() => navigate("expense", item.id)}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>{item.platformName || item.accountName}</span>
+                            {item.displayStatus !== "actual" && (
+                              <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
+                                {item.displayStatus === "conversion_needed"
+                                  ? "Conversion needed"
+                                  : item.displayStatus === "scheduled"
+                                    ? "Scheduled"
+                                    : item.displayStatus.replaceAll("_", " ")}
+                              </span>
+                            )}
+                            {item.refundOfExpenseId && (
+                              <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
+                                Refund
+                              </span>
+                            )}
+                          </div>
+                          {view === "deleted" && item.permissions.canRestore && (
+                            <button
+                              type="button"
+                              className="mt-3 ml-[52px] inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--green)] px-3 text-xs font-semibold text-[var(--surface)]"
+                              onClick={() => expenseAction(item, "restore")}
+                              disabled={busy}
+                            >
+                              <RotateCcw size={14} /> Restore to ledger
+                            </button>
+                          )}
+                          {item.displayStatus === "conversion_needed" &&
+                            item.permissions.canEdit && (
+                              <button
+                                type="button"
+                                className="mt-3 ml-[52px] inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--ink)] px-3 text-xs font-semibold text-[var(--surface)]"
+                                onClick={() =>
+                                  navigatePath(`${path(bucket.id, "expense", item.id)}&resolve=1`)
+                                }
+                              >
+                                <RotateCcw size={14} /> Resolve conversion
+                              </button>
+                            )}
+                        </article>
+                      ))}
+                    </div>
+                    <div className="overflow-x-auto max-[767px]:hidden">
+                      <table className="w-full min-w-[850px] text-left text-sm">
+                        <thead className="border-b border-[var(--line)] bg-[var(--canvas)] text-xs uppercase tracking-wide text-[var(--muted)]">
+                          <tr>
+                            <th className="px-4 py-3">Date</th>
+                            <th className="py-3">Description & platform</th>
+                            <th className="py-3">Category</th>
+                            <th className="py-3">Paid by</th>
+                            <th className="py-3">
+                              {view === "deleted" ? "Recovery deadline" : "Account & mode"}
+                            </th>
+                            <th className="py-3 pr-4 text-right">Amount & actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((item) => (
+                            <tr
+                              key={item.id}
+                              className={`border-b border-[var(--line)] last:border-0 ${item.displayStatus === "conversion_needed" ? "bg-amber-50/60 dark:bg-amber-950/20" : item.displayStatus === "scheduled" ? "bg-[var(--soft)]/40" : "hover:bg-[var(--canvas)]"}`}
+                            >
+                              <td className="whitespace-nowrap px-4 py-4 text-xs text-[var(--muted)]">
+                                {new Date(`${item.expenseDate}T12:00:00`).toLocaleDateString(
+                                  undefined,
+                                  { day: "2-digit", month: "short", year: "numeric" },
+                                )}
+                              </td>
+                              <td className="max-w-72 py-4 pr-3">
+                                <div className="flex items-start gap-3">
+                                  <span
+                                    className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.displayStatus === "conversion_needed" ? "bg-amber-100 text-amber-800 dark:bg-amber-900" : item.refundOfExpenseId ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900" : "bg-[var(--sage)] text-[var(--green)]"}`}
                                   >
-                                    {item.description}
-                                  </button>
-                                  {item.refundOfExpenseId && (
-                                    <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                                      Refund
-                                    </span>
-                                  )}
-                                  {item.displayStatus === "conversion_needed" && (
-                                    <span className="mt-1 block w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
-                                      Conversion needed
-                                    </span>
-                                  )}
-                                  {item.displayStatus === "scheduled" && (
-                                    <span className="mt-1 block w-fit rounded bg-[var(--sage)] px-1.5 py-0.5 text-[10px] font-semibold">
-                                      Scheduled
-                                    </span>
-                                  )}
-                                  <div className={muted}>
-                                    {view === "deleted" && item.deletedAt
-                                      ? `Deleted ${new Date(item.deletedAt).toLocaleDateString()} · `
-                                      : ""}
-                                    {item.platformName}
+                                    {item.displayStatus === "conversion_needed" ? (
+                                      <RotateCcw size={17} />
+                                    ) : item.refundOfExpenseId ? (
+                                      <History size={17} />
+                                    ) : item.displayStatus === "scheduled" ? (
+                                      <Clock3 size={17} />
+                                    ) : (
+                                      <ReferenceGlyph
+                                        kind="categories"
+                                        name={item.categoryName}
+                                        size={17}
+                                      />
+                                    )}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <button
+                                      className="max-w-full truncate text-left font-semibold hover:text-[var(--green)]"
+                                      onClick={() => navigate("expense", item.id)}
+                                    >
+                                      {item.description}
+                                    </button>
+                                    {item.refundOfExpenseId && (
+                                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                                        Refund
+                                      </span>
+                                    )}
+                                    {item.displayStatus === "conversion_needed" && (
+                                      <span className="mt-1 block w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
+                                        Conversion needed
+                                      </span>
+                                    )}
+                                    {item.displayStatus === "scheduled" && (
+                                      <span className="mt-1 block w-fit rounded bg-[var(--sage)] px-1.5 py-0.5 text-[10px] font-semibold">
+                                        Scheduled
+                                      </span>
+                                    )}
+                                    <div className={muted}>
+                                      {view === "deleted" && item.deletedAt
+                                        ? `Deleted ${new Date(item.deletedAt).toLocaleDateString()} · `
+                                        : ""}
+                                      {item.platformName}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="py-4">
-                              <span className="rounded-md border border-[var(--line)] bg-[var(--sage)] px-2 py-1 text-xs">
-                                {item.categoryName}
-                              </span>
-                            </td>
-                            <td className="py-4">
-                              <span className="inline-flex items-center gap-2">
-                                <span className="grid size-7 place-items-center rounded-full bg-[var(--sage)] text-xs font-bold">
-                                  {item.paidByName.charAt(0)}
+                              </td>
+                              <td className="py-4">
+                                <span className="rounded-md border border-[var(--line)] bg-[var(--sage)] px-2 py-1 text-xs">
+                                  {item.categoryName}
                                 </span>
-                                <span className="max-w-28 truncate text-xs">{item.paidByName}</span>
-                              </span>
-                            </td>
-                            <td className="py-4 text-xs">
-                              <span className="block font-medium">
-                                {view === "deleted"
-                                  ? item.restoreUntil
-                                    ? new Date(item.restoreUntil).toLocaleDateString()
-                                    : "Expired"
-                                  : item.accountName}
-                              </span>
-                              <span className="text-[var(--muted)]">
-                                {view === "deleted"
-                                  ? item.restoreUntil
-                                    ? `${Math.max(0, Math.ceil((new Date(item.restoreUntil).getTime() - renderTime) / 86_400_000))} days remaining`
-                                    : "Recovery unavailable"
-                                  : (paymentModes.find((mode) => mode.value === item.paymentMode)
-                                      ?.label ?? item.paymentMode)}
-                              </span>
-                            </td>
-                            <td className="py-4 pr-4 text-right font-semibold tabular-nums">
-                              <span className={item.refundOfExpenseId ? "text-[var(--green)]" : ""}>
-                                {money(item.originalAmount, item.originalCurrency)}
-                              </span>
-                              {item.displayStatus === "conversion_needed" ? (
-                                <span className="block text-xs font-normal italic text-amber-800 dark:text-amber-300">
-                                  Excluded from actual spending total
+                              </td>
+                              <td className="py-4">
+                                <span className="inline-flex items-center gap-2">
+                                  <span className="grid size-7 place-items-center rounded-full bg-[var(--sage)] text-xs font-bold">
+                                    {item.paidByName.charAt(0)}
+                                  </span>
+                                  <span className="max-w-28 truncate text-xs">
+                                    {item.paidByName}
+                                  </span>
                                 </span>
-                              ) : item.displayStatus === "scheduled" ? (
-                                <span className="block text-xs font-normal text-[var(--muted)]">
-                                  Scheduled commitment
+                              </td>
+                              <td className="py-4 text-xs">
+                                <span className="block font-medium">
+                                  {view === "deleted"
+                                    ? item.restoreUntil
+                                      ? new Date(item.restoreUntil).toLocaleDateString()
+                                      : "Expired"
+                                    : item.accountName}
                                 </span>
-                              ) : item.originalCurrency !== item.bucketCurrency ? (
-                                <span className={muted}>
-                                  {money(item.convertedAmount, item.bucketCurrency)}
+                                <span className="text-[var(--muted)]">
+                                  {view === "deleted"
+                                    ? item.restoreUntil
+                                      ? `${Math.max(0, Math.ceil((new Date(item.restoreUntil).getTime() - renderTime) / 86_400_000))} days remaining`
+                                      : "Recovery unavailable"
+                                    : (paymentModes.find((mode) => mode.value === item.paymentMode)
+                                        ?.label ?? item.paymentMode)}
                                 </span>
-                              ) : null}
-                              {item.displayStatus === "conversion_needed" &&
-                                item.permissions.canEdit && (
+                              </td>
+                              <td className="py-4 pr-4 text-right font-semibold tabular-nums">
+                                <span
+                                  className={item.refundOfExpenseId ? "text-[var(--green)]" : ""}
+                                >
+                                  {money(item.originalAmount, item.originalCurrency)}
+                                </span>
+                                {item.displayStatus === "conversion_needed" ? (
+                                  <span className="block text-xs font-normal italic text-amber-800 dark:text-amber-300">
+                                    Excluded from actual spending total
+                                  </span>
+                                ) : item.displayStatus === "scheduled" ? (
+                                  <span className="block text-xs font-normal text-[var(--muted)]">
+                                    Scheduled commitment
+                                  </span>
+                                ) : item.originalCurrency !== item.bucketCurrency ? (
+                                  <span className={muted}>
+                                    {money(item.convertedAmount, item.bucketCurrency)}
+                                  </span>
+                                ) : null}
+                                {item.displayStatus === "conversion_needed" &&
+                                  item.permissions.canEdit && (
+                                    <button
+                                      className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--ink)] px-2 py-1 text-[11px] text-[var(--surface)]"
+                                      onClick={() =>
+                                        navigatePath(
+                                          `${path(bucket.id, "expense", item.id)}&resolve=1`,
+                                        )
+                                      }
+                                    >
+                                      <RotateCcw size={12} /> Resolve conversion
+                                    </button>
+                                  )}
+                                {view === "deleted" && item.permissions.canRestore && (
                                   <button
-                                    className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--ink)] px-2 py-1 text-[11px] text-[var(--surface)]"
-                                    onClick={() =>
-                                      navigatePath(
-                                        `${path(bucket.id, "expense", item.id)}&resolve=1`,
-                                      )
-                                    }
+                                    className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--green)] px-2 py-1 text-[11px] text-[var(--surface)]"
+                                    onClick={() => expenseAction(item, "restore")}
+                                    disabled={busy}
                                   >
-                                    <RotateCcw size={12} /> Resolve conversion
+                                    <RotateCcw size={12} /> Restore to ledger
                                   </button>
                                 )}
-                              {view === "deleted" && item.permissions.canRestore && (
-                                <button
-                                  className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--green)] px-2 py-1 text-[11px] text-[var(--surface)]"
-                                  onClick={() => expenseAction(item, "restore")}
-                                  disabled={busy}
-                                >
-                                  <RotateCcw size={12} /> Restore to ledger
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                     <div className="border-t border-[var(--line)] bg-[var(--canvas)] px-4 py-3 text-xs text-[var(--muted)]">
                       Showing {filtered.length} entries
                       {month && view === "expenses"
@@ -1223,6 +1365,7 @@ export function PhaseTwoScreen({
                 </Notice>
               )}
               <form
+                id="expense-entry-form"
                 key={formVersion}
                 ref={expenseFormRef}
                 className={`${card} flex flex-col gap-0 overflow-hidden p-0`}
@@ -1232,8 +1375,8 @@ export function PhaseTwoScreen({
                 {refundSource && (
                   <input type="hidden" name="refundOfExpenseId" value={refundSource.id} />
                 )}
-                <section className="border-b border-[var(--line)] p-5 sm:p-6">
-                  <div className="mb-5 flex items-center justify-between">
+                <section className="border-b border-[var(--line)] p-4 sm:p-6">
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-lg">1. Amount</h2>
                     <span className="inline-flex items-center gap-1 text-xs text-[var(--green)]">
                       <CheckCircle2 size={15} /> Non-zero entry required
@@ -1358,7 +1501,7 @@ export function PhaseTwoScreen({
                     </details>
                   )}
                 </section>
-                <section className="border-b border-[var(--line)] p-5 sm:p-6">
+                <section className="border-b border-[var(--line)] p-4 sm:p-6">
                   <h2 className="!mb-5 text-lg">2. Date and details</h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="flex flex-col gap-1 text-xs font-semibold">
@@ -1404,7 +1547,7 @@ export function PhaseTwoScreen({
                     </label>
                   </div>
                 </section>
-                <section className="border-b border-[var(--line)] p-5 sm:p-6">
+                <section className="border-b border-[var(--line)] p-4 sm:p-6">
                   <h2 className="!mb-5 text-lg">3. Payment</h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="flex flex-col gap-1 text-xs font-semibold">
@@ -1447,7 +1590,7 @@ export function PhaseTwoScreen({
                     </label>
                   </div>
                 </section>
-                <section className="p-5 sm:p-6">
+                <section className="p-4 sm:p-6">
                   <h2 className="!mb-5 text-lg">4. Payer and notes</h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="flex flex-col gap-1 text-xs font-semibold">
@@ -1485,8 +1628,12 @@ export function PhaseTwoScreen({
                     </label>
                   </div>
                 </section>
-                <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--line)] bg-[var(--canvas)] p-4 sm:px-6">
-                  <button type="button" className={action} onClick={() => navigate("expenses")}>
+                <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--line)] bg-[var(--canvas)] p-4 max-[767px]:hidden sm:px-6">
+                  <button
+                    type="button"
+                    className={`${action} max-[767px]:hidden`}
+                    onClick={() => navigate("expenses")}
+                  >
                     Cancel
                   </button>
                   <button
@@ -1517,6 +1664,38 @@ export function PhaseTwoScreen({
                   </button>
                 </footer>
               </form>
+              <div className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-2 gap-2 border-t border-[var(--line)] bg-[var(--surface)] px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_28px_rgba(0,0,0,.08)] min-[768px]:hidden">
+                <button
+                  type="submit"
+                  form="expense-entry-form"
+                  className={controls.secondary}
+                  disabled={
+                    busy ||
+                    bucket.status !== "active" ||
+                    !options.accounts.some((item) => item.state === "active")
+                  }
+                  onClick={() => {
+                    saveAnother.current = true;
+                  }}
+                >
+                  Save & add another
+                </button>
+                <button
+                  type="submit"
+                  form="expense-entry-form"
+                  className={controls.primary}
+                  disabled={
+                    busy ||
+                    bucket.status !== "active" ||
+                    !options.accounts.some((item) => item.state === "active")
+                  }
+                  onClick={() => {
+                    saveAnother.current = false;
+                  }}
+                >
+                  <CheckCircle2 size={16} /> {busy ? "Saving…" : "Save expense"}
+                </button>
+              </div>
               {!options.accounts.some((item) => item.state === "active") && (
                 <Notice kind="info">
                   {bucket.isOwner ? (

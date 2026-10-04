@@ -895,10 +895,12 @@ export function PhaseThreeScreen({
               report.groups.map((group) => (
                 <div
                   key={group.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-t border-[var(--line)] py-3 text-xs"
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-t border-[var(--line)] py-3 text-xs max-[767px]:grid-cols-[minmax(0,1fr)_auto] max-[767px]:gap-x-2 max-[767px]:gap-y-0.5"
                 >
                   <span className="truncate font-semibold">{group.name}</span>
-                  <span className="text-[var(--muted)]">{group.count} entries</span>
+                  <span className="text-[var(--muted)] max-[767px]:col-start-1 max-[767px]:row-start-2">
+                    {group.count} entries
+                  </span>
                   <strong>{money(group.amount, currency)}</strong>
                 </div>
               ))
@@ -930,7 +932,7 @@ export function PhaseThreeScreen({
             )}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <div className="flex gap-2 border-b border-[var(--line)]">
+            <div className="flex gap-2 border-b border-[var(--line)] max-[767px]:grid max-[767px]:w-full max-[767px]:grid-cols-3 max-[767px]:gap-0">
               {[
                 ["all", "All budgets"],
                 ["shared", "Shared budgets"],
@@ -939,10 +941,15 @@ export function PhaseThreeScreen({
                 <button
                   key={value}
                   type="button"
-                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none !font-semibold ${budgetTab === value ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent !text-[var(--muted)]"}`}
+                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none !font-semibold max-[767px]:justify-center max-[767px]:px-1 max-[767px]:text-xs ${budgetTab === value ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent !text-[var(--muted)]"}`}
+                  aria-label={label}
                   onClick={() => setBudgetTab(value)}
                 >
-                  <BookOpen size={16} /> {label}
+                  <BookOpen size={16} className="max-[767px]:hidden" />
+                  <span className="max-[767px]:hidden">{label}</span>
+                  <span className="min-[768px]:hidden">
+                    {value === "all" ? "All" : value === "shared" ? "Shared" : "Member"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -1126,6 +1133,7 @@ export function PhaseThreeScreen({
             </p>
           </div>
           <form
+            id="budget-entry-form"
             className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]"
             onSubmit={saveBudget}
           >
@@ -1324,7 +1332,7 @@ export function PhaseThreeScreen({
               ) : (
                 <p className="text-[11px] text-[var(--muted)]">No alerts selected.</p>
               )}
-              <div className="flex flex-wrap gap-2 border-t border-[var(--line)] pt-4">
+              <div className="flex flex-wrap gap-2 border-t border-[var(--line)] pt-4 max-[767px]:hidden">
                 <button
                   type="submit"
                   className={primary}
@@ -1339,6 +1347,17 @@ export function PhaseThreeScreen({
               </div>
             </section>
           </form>
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--surface)] px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_28px_rgba(0,0,0,.08)] min-[768px]:hidden">
+            <button
+              type="submit"
+              form="budget-entry-form"
+              className={`${primary} w-full`}
+              disabled={busy || !selectedCategories.length}
+            >
+              {busy ? "Saving…" : editing ? "Save changes" : "Create budget"}
+              <ArrowRight size={14} />
+            </button>
+          </div>
         </>
       )}
       {(view === "budget" || view === "budget-form") && budgetId && !selected && !loading && (

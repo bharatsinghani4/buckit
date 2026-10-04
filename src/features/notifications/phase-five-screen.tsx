@@ -380,7 +380,7 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
                   Choose in-app and push independently for each update.
                 </p>
               </div>
-              <div className="flex shrink-0 gap-4 text-[10px] font-bold tracking-wide text-[var(--muted)] uppercase">
+              <div className="flex shrink-0 gap-4 text-[10px] font-bold tracking-wide text-[var(--muted)] uppercase max-[767px]:hidden">
                 <span>In-app</span>
                 <span>Push</span>
               </div>
@@ -397,25 +397,31 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
                   {group.triggers.map((trigger) => (
                     <div
                       key={trigger}
-                      className="grid grid-cols-[minmax(0,1fr)_36px_36px] items-center gap-x-4 gap-y-1 py-2.5"
+                      className="grid grid-cols-[minmax(0,1fr)_36px_36px] items-center gap-x-4 gap-y-1 py-2.5 max-[767px]:grid-cols-2 max-[767px]:gap-3"
                     >
-                      <div className="min-w-0">
+                      <div className="min-w-0 max-[767px]:col-span-2">
                         <p className="text-xs font-semibold text-[var(--ink)]">
                           {triggerLabels[trigger]}
                         </p>
                       </div>
-                      <Switch
-                        checked={preferences?.triggers[trigger]?.inApp ?? true}
-                        disabled={!preferences || !!busy}
-                        onChange={() => void toggle(trigger, "inApp")}
-                        label={`${triggerLabels[trigger]} in-app`}
-                      />
-                      <Switch
-                        checked={preferences?.triggers[trigger]?.push ?? false}
-                        disabled={!preferences || !!busy || pushStatus !== "enabled"}
-                        onChange={() => void toggle(trigger, "push")}
-                        label={`${triggerLabels[trigger]} push`}
-                      />
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
+                        <span className="min-[768px]:sr-only">In-app</span>
+                        <Switch
+                          checked={preferences?.triggers[trigger]?.inApp ?? true}
+                          disabled={!preferences || !!busy}
+                          onChange={() => void toggle(trigger, "inApp")}
+                          label={`${triggerLabels[trigger]} in-app`}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
+                        <span className="min-[768px]:sr-only">Push</span>
+                        <Switch
+                          checked={preferences?.triggers[trigger]?.push ?? false}
+                          disabled={!preferences || !!busy || pushStatus !== "enabled"}
+                          onChange={() => void toggle(trigger, "push")}
+                          label={`${triggerLabels[trigger]} push`}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
