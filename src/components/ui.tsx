@@ -1,6 +1,7 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
-import { Eye, EyeOff, LoaderCircle, Search, X } from "lucide-react";
+import { Eye, EyeOff, Search, X } from "lucide-react";
 import { controls } from "./control-styles";
 export function Notice({
   children,
@@ -18,14 +19,40 @@ export function Notice({
     </div>
   );
 }
-export function Pending({ label = "Loading your workspace…" }: { label?: string }) {
+export function Pending({
+  label = "Loading your workspace…",
+  layout = "page",
+}: {
+  label?: string;
+  layout?: "page" | "workspace" | "inline";
+}) {
+  const height =
+    layout === "page"
+      ? "min-h-[100dvh]"
+      : layout === "workspace"
+        ? "min-h-[calc(100dvh-64px)] max-[767px]:min-h-[calc(100dvh-130px)]"
+        : "min-h-48";
   return (
     <div
-      className="pending px-6 py-[70px] flex items-center justify-center gap-3 text-[var(--muted)] text-xs"
+      className={`pending grid w-full place-items-center px-6 py-8 text-center ${height}`}
       role="status"
+      aria-live="polite"
     >
-      <LoaderCircle className="animate-spin" size={22} />
-      <span>{label}</span>
+      <div className="flex flex-col items-center gap-3 sm:gap-4 lg:gap-5">
+        <div className="grid size-16 place-items-center rounded-2xl shadow-[var(--shadow)] sm:size-20 lg:size-24">
+          <Image
+            src="/buckit-mark.svg"
+            width={80}
+            height={80}
+            alt=""
+            aria-hidden="true"
+            className="size-12 motion-safe:animate-[buckit-float_1.8s_ease-in-out_infinite] sm:size-16 lg:size-20"
+          />
+        </div>
+        <span className="text-xs font-medium text-[var(--muted)] sm:text-sm lg:text-base">
+          {label}
+        </span>
+      </div>
     </div>
   );
 }

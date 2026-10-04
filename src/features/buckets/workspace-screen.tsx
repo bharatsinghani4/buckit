@@ -226,7 +226,9 @@ function Workspace() {
   });
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [mobileMoreVisible, setMobileMoreVisible] = useState(false);
   const mobileMoreDialogRef = useRef<HTMLDialogElement>(null);
+  const mobileMoreCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [avatarDraft, setAvatarDraft] = useState<string | null>(profile.avatarDataUrl);
   const [avatarProcessing, setAvatarProcessing] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -267,12 +269,34 @@ function Workspace() {
     const dialog = mobileMoreDialogRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const mobileWidth = window.matchMedia("(max-width: 767px)");
+    const closeAtDesktopWidth = () => {
+      if (!mobileWidth.matches) setMobileMoreOpen(false);
+    };
+    mobileWidth.addEventListener("change", closeAtDesktopWidth);
     dialog?.showModal();
+    const enterFrame = requestAnimationFrame(() => setMobileMoreVisible(true));
     return () => {
+      cancelAnimationFrame(enterFrame);
       dialog?.close();
       document.body.style.overflow = previousOverflow;
+      mobileWidth.removeEventListener("change", closeAtDesktopWidth);
     };
   }, [mobileMoreOpen]);
+  useEffect(
+    () => () => {
+      if (mobileMoreCloseTimer.current) clearTimeout(mobileMoreCloseTimer.current);
+    },
+    [],
+  );
+  function closeMobileMore() {
+    if (mobileMoreCloseTimer.current) clearTimeout(mobileMoreCloseTimer.current);
+    setMobileMoreVisible(false);
+    mobileMoreCloseTimer.current = setTimeout(
+      () => setMobileMoreOpen(false),
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 210,
+    );
+  }
   function openProfile() {
     setAvatarDraft(profile.avatarDataUrl);
     setProfileMenuOpen(false);
@@ -691,7 +715,9 @@ function Workspace() {
           </nav>
           <div className="workspace-header-actions flex shrink-0 items-center justify-between gap-3 max-sm:!gap-1">
             {phaseView === "expenses" && (
-              <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
+              <div className="max-[767px]:hidden">
+                <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
+              </div>
             )}
             <ThemeToggle />
             <div ref={profileMenuRef} className="relative shrink-0">
@@ -823,7 +849,7 @@ function Workspace() {
             </>
           )}
           {loading ? (
-            <Pending />
+            <Pending layout="workspace" />
           ) : phaseView === "account-settings" || (phaseView === "bucket-settings" && selected) ? (
             <PhaseSevenScreen
               bucket={selected}
@@ -858,6 +884,7 @@ function Workspace() {
               expenseId={params.get("expense")}
               refundOf={params.get("refundOf")}
               month={ledgerMonth}
+              onMonthChange={setLedgerMonth}
               onClearMonth={() => setLedgerMonth("")}
               resolveRequested={params.get("resolve") === "1"}
               refundMode={params.get("mode") === "refund"}
@@ -1044,18 +1071,21 @@ function Workspace() {
         <dialog
           ref={mobileMoreDialogRef}
           aria-label="More workspace sections"
-          onCancel={() => setMobileMoreOpen(false)}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setMobileMoreOpen(false);
+          onCancel={(event) => {
+            event.preventDefault();
+            closeMobileMore();
           }}
-          className="fixed inset-0 z-50 m-0 ml-auto h-full max-h-full w-full max-w-[420px] overflow-y-auto border-0 bg-[var(--surface)] px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[calc(20px+env(safe-area-inset-top))] text-[var(--ink)] shadow-2xl backdrop:bg-[#172f2870] min-[768px]:hidden"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeMobileMore();
+          }}
+          className={`fixed inset-x-0 bottom-0 z-50 m-0 mt-auto h-[min(94dvh,800px)] max-h-[100dvh] w-full max-w-none overflow-y-auto rounded-t-2xl border-0 bg-[var(--surface)] px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[calc(20px+env(safe-area-inset-top))] text-[var(--ink)] shadow-2xl backdrop:bg-[#172f2870] transition-transform duration-200 motion-reduce:transition-none min-[768px]:hidden ${mobileMoreVisible ? "translate-y-0 ease-out" : "translate-y-full ease-in"}`}
         >
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-xl">Your workspace</h2>
+            <h2 className="text-xl max-[767px]:text-lg">Your workspace</h2>
             <button
               type="button"
               className="grid size-11 place-items-center rounded-xl bg-[var(--soft)]"
-              onClick={() => setMobileMoreOpen(false)}
+              onClick={closeMobileMore}
               aria-label="Close navigation"
             >
               <ChevronDown size={20} aria-hidden="true" />
@@ -1080,7 +1110,7 @@ function Workspace() {
                       }
                       onClick={(event) => {
                         navigateWithinWorkspace(event);
-                        setMobileMoreOpen(false);
+                        closeMobileMore();
                       }}
                       aria-current={active ? "page" : undefined}
                       className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm ${active ? "bg-[var(--sage)] font-semibold text-[var(--green)]" : "text-[var(--ink)]"}`}

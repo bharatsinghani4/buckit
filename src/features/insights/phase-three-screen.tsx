@@ -123,7 +123,9 @@ function BudgetCard({
                 ? "Shared pool"
                 : "Member budget"}
           </span>
-          <h3 className="text-base font-bold text-[var(--ink)]">{budget.name}</h3>
+          <h3 className="text-base font-bold text-[var(--ink)] max-[767px]:text-sm">
+            {budget.name}
+          </h3>
           <p className="mt-1 text-xs text-[var(--muted)]">
             {budget.scope === "shared" ? "Owner managed" : `Created by ${budget.ownerName}`}
           </p>
@@ -394,14 +396,14 @@ export function PhaseThreeScreen({
   const change = previous ? ((actual - previous) / Math.abs(previous)) * 100 : null;
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-5 pb-10">
+    <div className="mx-auto max-w-[1440px] space-y-5">
       {error && <Notice>{error}</Notice>}
       {!error &&
       ((view === "dashboard" && !dashboard) ||
         (view === "reports" && !report) ||
         (["budgets", "budget"].includes(view) && !budgetLoaded) ||
         (view === "budget-form" && Boolean(budgetId) && !budgetLoaded)) ? (
-        <Pending />
+        <Pending layout="workspace" />
       ) : null}
       {loading &&
         ((view === "dashboard" && dashboard) ||
@@ -482,7 +484,7 @@ export function PhaseThreeScreen({
                 {dashboard.actualCount} posted entries
               </p>
             </div>
-            <div className={card}>
+            <div className={`${card} max-[767px]:hidden`}>
               <p className="text-xs text-[var(--muted)]">Previous equivalent period</p>
               <p className="mt-2 text-2xl font-bold text-[var(--ink)]">
                 {money(dashboard.comparable.totalAmount, currency)}
@@ -498,7 +500,7 @@ export function PhaseThreeScreen({
                 )}
               </p>
             </div>
-            <div className={card}>
+            <div className={`${card} max-[767px]:hidden`}>
               <p className="text-xs text-[var(--muted)]">Scheduled separately</p>
               <p className="mt-2 text-2xl font-bold text-[var(--ink)]">
                 {money(dashboard.scheduledAmount, currency)}
@@ -507,7 +509,7 @@ export function PhaseThreeScreen({
                 {dashboard.scheduledCount} future entries · estimate
               </p>
             </div>
-            <div className={card}>
+            <div className={`${card} max-[767px]:hidden`}>
               <p className="text-xs text-[var(--muted)]">Active budgets</p>
               <p className="mt-2 text-2xl font-bold text-[var(--ink)]">{dashboard.budgetCount}</p>
               <Link
@@ -515,6 +517,38 @@ export function PhaseThreeScreen({
                 className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--green)]"
               >
                 Manage budgets <ArrowRight size={12} />
+              </Link>
+            </div>
+            <div className={`${card} divide-y divide-[var(--line)] !p-0 min-[768px]:hidden`}>
+              <div className="flex items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="text-xs font-semibold text-[var(--ink)]">Previous period</p>
+                  <p className="mt-1 text-[11px] text-[var(--muted)]">
+                    {change === null
+                      ? "No comparison yet"
+                      : `${percent(Math.abs(change))} ${change >= 0 ? "higher" : "lower"}`}
+                  </p>
+                </div>
+                <strong className="text-sm tabular-nums">
+                  {money(dashboard.comparable.totalAmount, currency)}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="text-xs font-semibold text-[var(--ink)]">Scheduled separately</p>
+                  <p className="mt-1 text-[11px] text-[var(--muted)]">
+                    {dashboard.scheduledCount} future entries
+                  </p>
+                </div>
+                <strong className="text-sm tabular-nums">
+                  {money(dashboard.scheduledAmount, currency)}
+                </strong>
+              </div>
+              <Link
+                href={url(bucket.id, "budgets")}
+                className="flex min-h-14 items-center justify-between gap-3 p-4 text-xs font-semibold text-[var(--green)]"
+              >
+                Active budgets <strong className="text-sm">{dashboard.budgetCount}</strong>
               </Link>
             </div>
           </div>
@@ -921,8 +955,7 @@ export function PhaseThreeScreen({
               </span>
               <h1 className="mt-1 text-2xl font-bold">Budgets</h1>
               <p className="mt-1 max-w-2xl text-xs text-[var(--muted)]">
-                Budgets are visible to all bucket members. Track shared thresholds or individual
-                payer limits across categories with zero rollover.
+                Track shared or personal spending limits across categories.
               </p>
             </div>
             {bucket.status === "active" && (

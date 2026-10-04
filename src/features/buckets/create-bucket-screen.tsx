@@ -104,7 +104,7 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
         </div>
       </div>
       <div className="onboarding-content [max-width:600px] [margin:36px_auto_0] max-[767px]:[margin-top:30px]">
-        <header className="onboarding-heading text-left [margin:0_0_28px] [&_h1]:[margin:13px_0_10px] [&_h1]:[font-size:30px] [&_.wordmark]:[font-size:33px] [&_p]:text-xs max-[767px]:[&_h1]:[font-size:27px] max-[420px]:[&_.wordmark]:[font-size:29px]">
+        <header className="onboarding-heading text-left [margin:0_0_28px] [&_h1]:[margin:13px_0_10px] [&_h1]:[font-size:30px] [&_.wordmark]:[font-size:33px] [&_p]:text-xs max-[767px]:[&_h1]:[font-size:24px] max-[420px]:[&_.wordmark]:[font-size:29px]">
           <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
             {additional ? "A NEW SPACE" : "INITIAL SETUP · STEP 1 OF 1"}
           </span>
@@ -117,7 +117,7 @@ function CreateBucketForm({ additional }: { additional: boolean }) {
               </>
             )}
           </h1>
-          <p>Let’s set up your profile and create a space for the spending that matters to you.</p>
+          <p>Create a space for the spending you want to track.</p>
         </header>
         <form
           className="onboarding-card [padding:36px] [border-radius:11px] bg-[var(--surface)] [box-shadow:var(--shadow)] [gap:26px] max-[767px]:[padding:24px_20px] form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]"
