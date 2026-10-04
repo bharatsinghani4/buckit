@@ -107,6 +107,19 @@ import {
   stageChunk,
   validateImport,
 } from "@/features/csv/import-service";
+import {
+  accountDeletionPreview,
+  bucketDeletionPreview,
+  changeArchive,
+  deleteAccount,
+  deleteBucket,
+  getBucketSettings,
+  getOperation,
+  leaveBucket,
+  listBucketActivity,
+  transferOwnership,
+  updateBucketSettings,
+} from "@/features/lifecycle/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -139,11 +152,83 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     );
     if (path === "contacts/share-candidates") await limit(identity, "contact-candidates", 30);
     if (path.includes("/imports/")) await limit(identity, "imports", 60);
-    if (path !== "me/bootstrap") await activeUser(identity);
+    if (path !== "me/bootstrap" && path !== "me/deletion") await activeUser(identity);
     let data: unknown;
     let status = 200;
     let meta: Record<string, unknown> = { requestId };
-    if (method === "GET" && /^buckets\/[a-f\d]{24}\/imports\/(template|guidance)$/i.test(path)) {
+    if (method === "GET" && path === "me/deletion-preview")
+      data = await accountDeletionPreview(identity);
+    else if (method === "GET" && /^operations\/[a-f\d]{24}$/i.test(path))
+      data = await getOperation(identity, path.split("/")[1]);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/settings$/i.test(path))
+      data = await getBucketSettings(identity, path.split("/")[1]);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/activity$/i.test(path)) {
+      const result = await listBucketActivity(identity, path.split("/")[1], url.searchParams);
+      data = result.data;
+      meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
+    } else if (method === "GET" && /^buckets\/[a-f\d]{24}\/deletion-preview$/i.test(path))
+      data = await bucketDeletionPreview(identity, path.split("/")[1]);
+    else if (method === "POST" && path === "me/deletion") {
+      const result = await deleteAccount(
+        identity,
+        await readJson(request),
+        requireIdempotencyKey(request),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (/^buckets\/[a-f\d]{24}\/deletion$/i.test(path) && method === "POST") {
+      const result = await deleteBucket(
+        identity,
+        path.split("/")[1],
+        await readJson(request),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (/^buckets\/[a-f\d]{24}\/ownership-transfer$/i.test(path) && method === "POST") {
+      const result = await transferOwnership(
+        identity,
+        path.split("/")[1],
+        await readJson(request),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (/^buckets\/[a-f\d]{24}\/leave$/i.test(path) && method === "POST") {
+      const result = await leaveBucket(
+        identity,
+        path.split("/")[1],
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (/^buckets\/[a-f\d]{24}\/(archive|restore)$/i.test(path) && method === "POST") {
+      const result = await changeArchive(
+        identity,
+        path.split("/")[1],
+        path.split("/")[2] as "archive" | "restore",
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (/^buckets\/[a-f\d]{24}$/i.test(path) && method === "PATCH") {
+      const result = await updateBucketSettings(
+        identity,
+        path.split("/")[1],
+        await readJson(request),
+        requireIdempotencyKey(request),
+        request.headers.get("if-match"),
+      );
+      data = result.data;
+      status = result.status;
+    } else if (
+      method === "GET" &&
+      /^buckets\/[a-f\d]{24}\/imports\/(template|guidance)$/i.test(path)
+    ) {
       data = path.endsWith("/template")
         ? await importTemplate(identity, path.split("/")[1])
         : await importGuidance(identity, path.split("/")[1]);
@@ -398,7 +483,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     else if (method === "GET" && path === "capabilities")
       data = {
         currencies: currencies.map((c) => ({ ...c, precision: c.code === "JPY" ? 0 : 2 })),
-        phase: 6,
+        phase: 7,
       };
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/dashboard$/i.test(path))
       data = await dashboard(identity, path.split("/")[1], url.searchParams);
@@ -475,7 +560,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     )
       data = await listComments(identity, path.split("/")[1], path.split("/")[3]);
     else if (/^buckets\/[a-f\d]{24}\/members$/i.test(path) && method === "GET")
-      data = await listMembers(identity, path.split("/")[1]);
+      data = await listMembers(identity, path.split("/")[1], url.searchParams.get("state"));
     else if (/^buckets\/[a-f\d]{24}\/invitations$/i.test(path) && method === "GET")
       data = await listInvitations(identity, path.split("/")[1]);
     else if (method === "POST" && path === "invitations/preview")

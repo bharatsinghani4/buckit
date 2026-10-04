@@ -27,7 +27,7 @@ type AuthContextValue = {
   setTheme: (theme: Theme) => void;
   syncProfile: (profile: Profile) => void;
   refresh: () => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (options?: { skipPushRevoke?: boolean }) => Promise<void>;
 };
 const Context = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -125,14 +125,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       current?.id === updated.id && updated.revision >= current.revision ? updated : current,
     );
   }, []);
-  const logout = useCallback(async () => {
-    generation.current++;
-    await revokePushBeforeLogout();
-    await signOut(getFirebaseClientAuth());
-    setProfile(null);
-    setUser(null);
-    router.push("/sign-in");
-  }, [router]);
+  const logout = useCallback(
+    async (options?: { skipPushRevoke?: boolean }) => {
+      generation.current++;
+      if (!options?.skipPushRevoke) await revokePushBeforeLogout();
+      await signOut(getFirebaseClientAuth());
+      setProfile(null);
+      setUser(null);
+      router.push("/sign-in");
+    },
+    [router],
+  );
   return (
     <Context
       value={{

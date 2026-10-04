@@ -159,6 +159,7 @@ Account deletion requires all ownership prerequisites to be resolved first. Retu
 | `GET /buckets`                               | User                | Current accessible memberships, name/currency/timezone/state, owner status; paginated                               |
 | `POST /buckets`                              | User                | `{name, primaryCurrency, timezone}`; create owner membership, default categories and Other platform atomically; 201 |
 | `GET /buckets/{b}`                           | Member              | Bucket DTO, revision, effective permissions, currency-lock state                                                    |
+| `GET /buckets/{b}/settings`                  | Member              | Bucket DTO with currency-lock and leave eligibility for the lifecycle screen                                        |
 | `PATCH /buckets/{b}`                         | Owner               | Name/timezone, or primaryCurrency only before first expense                                                         |
 | `POST /buckets/{b}/archive`                  | Owner               | Archive with expected bucket revision; read-only effect immediate                                                   |
 | `POST /buckets/{b}/restore`                  | Owner               | Restore; return pending creator-review count and daily-processing status                                            |

@@ -53,6 +53,7 @@ import { PhaseFourScreen } from "@/features/scheduling/phase-four-screen";
 import { PhaseFiveScreen } from "@/features/notifications/phase-five-screen";
 import { PhaseSixContacts } from "@/features/contacts/phase-six-contacts";
 import { PhaseSixCsv } from "@/features/csv/phase-six-csv";
+import { PhaseSevenScreen } from "@/features/lifecycle/phase-seven-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
 import { BucketSelector } from "./bucket-selector";
@@ -535,6 +536,13 @@ function Workspace() {
           >
             <FileDown size={18} /> Export CSV
           </Link>
+          <Link
+            href={selected ? `/workspace?bucket=${selected.id}&view=bucket-settings` : "/workspace"}
+            onClick={navigateWithinWorkspace}
+            className={`${navItem} ${phaseView === "bucket-settings" ? "active" : ""}`}
+          >
+            <Settings2 size={18} /> Bucket settings
+          </Link>
         </nav>
         <div className="sidebar-bottom mt-auto flex flex-col gap-1 pt-10 max-[767px]:!flex max-[767px]:!flex-col max-[767px]:!gap-1 max-[767px]:!p-0">
           <button
@@ -550,6 +558,17 @@ function Workspace() {
           <button className={navItem} onClick={() => setModal("profile")}>
             <Settings2 size={18} /> Profile & appearance
           </button>
+          <Link
+            href={
+              selected
+                ? `/workspace?bucket=${selected.id}&view=account-settings`
+                : "/workspace?view=account-settings"
+            }
+            onClick={navigateWithinWorkspace}
+            className={`${navItem} ${phaseView === "account-settings" ? "active" : ""}`}
+          >
+            <ShieldCheck size={18} /> Account settings
+          </Link>
           <button className={navItem} onClick={() => auth.logout()}>
             <LogOut size={18} /> Sign out
           </button>
@@ -596,7 +615,11 @@ function Workspace() {
                                       ? "Import CSV"
                                       : phaseView === "csv-export"
                                         ? "Export CSV"
-                                        : "Expenses"}
+                                        : phaseView === "bucket-settings"
+                                          ? "Bucket settings"
+                                          : phaseView === "account-settings"
+                                            ? "Account settings"
+                                            : "Expenses"}
                 </span>
               </>
             )}
@@ -656,6 +679,25 @@ function Workspace() {
           )}
           {loading ? (
             <Pending />
+          ) : phaseView === "account-settings" || (phaseView === "bucket-settings" && selected) ? (
+            <PhaseSevenScreen
+              bucket={selected}
+              view={phaseView as "bucket-settings" | "account-settings"}
+              onBucketUpdated={(next) => {
+                loadedBuckets.current = loadedBuckets.current.map((item) =>
+                  item.id === next.id ? next : item,
+                );
+                setBuckets(loadedBuckets.current);
+                setSelected(next);
+              }}
+              onBucketGone={(id) => {
+                loadedBuckets.current = loadedBuckets.current.filter((item) => item.id !== id);
+                setBuckets(loadedBuckets.current);
+                setSelected(loadedBuckets.current[0] ?? null);
+                requestedBucketTarget.current = loadedBuckets.current[0]?.id ?? "";
+                void auth.refresh();
+              }}
+            />
           ) : selected &&
             ["expenses", "deleted", "add-expense", "expense", "references", "members"].includes(
               phaseView ?? "",
