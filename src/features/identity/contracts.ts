@@ -24,6 +24,13 @@ export const timezoneSchema = z
     }
   }, "Choose a valid timezone.");
 export const displayNameSchema = z.string().trim().min(1, "Enter your name.").max(80);
+export const avatarDataUrlSchema = z
+  .string()
+  .max(120_000, "Choose a smaller image.")
+  .regex(
+    /^data:image\/(?:png|jpeg|webp);base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/,
+    "Choose a PNG, JPEG, or WebP image.",
+  );
 export const bootstrapSchema = z
   .object({ displayName: displayNameSchema.optional(), timezone: timezoneSchema.optional() })
   .strict();
@@ -37,6 +44,7 @@ export const tourSchema = z
 export const profileSchema = z
   .object({
     displayName: displayNameSchema.optional(),
+    avatarDataUrl: avatarDataUrlSchema.nullable().optional(),
     timezone: timezoneSchema.optional(),
     theme: z.enum(["light", "dark", "system"]).optional(),
     lastBucketId: z
@@ -64,6 +72,7 @@ export type Tour = z.infer<typeof tourSchema>;
 export type Profile = {
   id: string;
   displayName: string;
+  avatarDataUrl: string | null;
   email: string;
   emailVerified: boolean;
   timezone: string;

@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { controls } from "@/components/control-styles";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -6,16 +7,12 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEve
 import {
   ArrowRight,
   BookOpen,
-  Check,
-  Copy,
   FolderOpen,
   Home,
   HelpCircle,
   LayoutDashboard,
-  Link2,
   LogOut,
   Mail,
-  PanelLeftClose,
   Pin,
   PinOff,
   Plus,
@@ -31,20 +28,17 @@ import {
   ContactRound,
   FileDown,
   FileUp,
+  Camera,
+  ChevronDown,
+  type LucideIcon,
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Dropdown } from "@/components/dropdown";
 import { Dialog, Notice, Pending } from "@/components/ui";
 import { AccessGate } from "@/features/identity/access-gate";
 import { useAuth } from "@/features/identity/auth-provider";
-import {
-  type Bucket,
-  type Invitation,
-  type Profile,
-  type Tour,
-} from "@/features/identity/contracts";
+import { type Bucket, type Profile, type Tour } from "@/features/identity/contracts";
 import { api, ClientError, friendlyError, operationKey } from "@/lib/api/client";
 import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { PhaseTwoScreen } from "@/features/expenses/phase-two-screen";
@@ -60,6 +54,135 @@ import { BucketSelector } from "./bucket-selector";
 
 const navItem =
   "nav-item flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-3 text-left text-xs text-[var(--muted)] hover:bg-[var(--soft)] [&.active]:bg-[var(--sage)] [&.active]:font-semibold [&.active]:text-[var(--green)]";
+const profileMenuItem =
+  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--green)]";
+
+type SidebarGroupId = "spending" | "insights" | "manage";
+type SidebarLink = { label: string; view: string; activeViews: string[]; icon: LucideIcon };
+const sidebarGroups: {
+  id: SidebarGroupId;
+  label: string;
+  icon: LucideIcon;
+  items: SidebarLink[];
+}[] = [
+    {
+      id: "spending",
+      label: "Spending",
+      icon: Wallet,
+      items: [
+        {
+          label: "Expenses",
+          view: "expenses",
+          activeViews: ["expenses", "deleted", "add-expense", "expense"],
+          icon: Wallet,
+        },
+        { label: "EMIs", view: "emis", activeViews: ["emis", "emi-plan"], icon: CreditCard },
+        { label: "Scheduled", view: "scheduled", activeViews: ["scheduled"], icon: CalendarClock },
+      ],
+    },
+    {
+      id: "insights",
+      label: "Insights",
+      icon: BarChart3,
+      items: [
+        { label: "Reports", view: "reports", activeViews: ["reports"], icon: BarChart3 },
+        {
+          label: "Budgets",
+          view: "budgets",
+          activeViews: ["budgets", "budget", "budget-form"],
+          icon: BookOpen,
+        },
+      ],
+    },
+    {
+      id: "manage",
+      label: "Manage",
+      icon: SlidersHorizontal,
+      items: [
+        {
+          label: "Reference settings",
+          view: "references",
+          activeViews: ["references"],
+          icon: SlidersHorizontal,
+        },
+        { label: "Members", view: "members", activeViews: ["members"], icon: Users },
+        { label: "Notifications", view: "notifications", activeViews: ["notifications"], icon: Bell },
+        {
+          label: "Reminders & cadence",
+          view: "reminders",
+          activeViews: ["reminders"],
+          icon: CalendarClock,
+        },
+        { label: "Contacts", view: "contacts", activeViews: ["contacts"], icon: ContactRound },
+        { label: "Import CSV", view: "csv-import", activeViews: ["csv-import"], icon: FileUp },
+        { label: "Export CSV", view: "csv-export", activeViews: ["csv-export"], icon: FileDown },
+        {
+          label: "Bucket settings",
+          view: "bucket-settings",
+          activeViews: ["bucket-settings"],
+          icon: Settings2,
+        },
+      ],
+    },
+  ];
+
+function ProfileAvatar({ profile, size = 34 }: { profile: Profile; size?: 34 | 38 | 56 }) {
+  const dimensions = size === 56 ? "size-14" : size === 38 ? "size-[38px]" : "size-[34px]";
+  return profile.avatarDataUrl ? (
+    <Image
+      src={profile.avatarDataUrl}
+      alt=""
+      width={size}
+      height={size}
+      unoptimized
+      className={`${dimensions} shrink-0 rounded-full object-cover`}
+    />
+  ) : (
+    <span
+      className={`${dimensions} grid shrink-0 place-items-center rounded-full bg-[var(--sage)] font-semibold text-[var(--green)]`}
+      aria-hidden="true"
+    >
+      {profile.displayName.charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+async function prepareAvatar(file: File): Promise<string> {
+  if (
+    !(["image/png", "image/jpeg", "image/webp"] as string[]).includes(file.type) ||
+    file.size > 5_000_000
+  )
+    throw new Error("Choose a PNG, JPEG, or WebP image under 5 MB.");
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new window.Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser could not prepare the image.");
+    const edge = Math.min(image.naturalWidth, image.naturalHeight);
+    if (!edge) throw new Error("Choose an image that can be opened.");
+    context.drawImage(
+      image,
+      (image.naturalWidth - edge) / 2,
+      (image.naturalHeight - edge) / 2,
+      edge,
+      edge,
+      0,
+      0,
+      256,
+      256,
+    );
+    const dataUrl = canvas.toDataURL("image/webp", 0.82);
+    if (dataUrl.length > 120_000) throw new Error("Choose a less detailed image.");
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export function WorkspaceScreen() {
   return (
@@ -76,25 +199,76 @@ function Workspace() {
   const profile = auth.profile!;
   const params = useSearchParams();
   const router = useRouter();
+  const bucketQuery = params.get("bucket");
+  const phaseView = params.get("view");
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [selected, setSelected] = useState<Bucket | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [modal, setModal] = useState<"invite" | "profile" | "tour" | null>(null);
-  const [invite, setInvite] = useState<Invitation | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [modal, setModal] = useState<"profile" | "tour" | null>(null);
   const [step, setStep] = useState(profile.tour.lastStep);
   const tourPrompted = useRef(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [ledgerMonth, setLedgerMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
-  const sidebarRef = useRef<HTMLElement>(null);
+  const [openGroups, setOpenGroups] = useState<Record<SidebarGroupId, boolean>>(() => {
+    const active = sidebarGroups.find((group) =>
+      group.items.some((item) => item.activeViews.includes(phaseView ?? "")),
+    )?.id;
+    return {
+      spending: !active || active === "spending",
+      insights: active === "insights",
+      manage: active === "manage",
+    };
+  });
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [avatarDraft, setAvatarDraft] = useState<string | null>(profile.avatarDataUrl);
+  const [avatarProcessing, setAvatarProcessing] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const sidebarHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bucketPickerOpen = useRef(false);
   const requestedBucketTarget = useRef<string | null>(null);
   const loadedBuckets = useRef<Bucket[]>([]);
+  useEffect(() => {
+    const active = sidebarGroups.find((group) =>
+      group.items.some((item) => item.activeViews.includes(phaseView ?? "")),
+    )?.id;
+    if (active)
+      queueMicrotask(() =>
+        setOpenGroups((current) => (current[active] ? current : { ...current, [active]: true })),
+      );
+  }, [phaseView]);
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    function closeOutside(event: PointerEvent) {
+      if (!profileMenuRef.current?.contains(event.target as Node)) setProfileMenuOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setProfileMenuOpen(false);
+        profileButtonRef.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [profileMenuOpen]);
+  function openProfile() {
+    setAvatarDraft(profile.avatarDataUrl);
+    setProfileMenuOpen(false);
+    setError("");
+    setModal("profile");
+  }
+  function focusMenuItem(index: number) {
+    const items = profileMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']");
+    if (items?.length) items[(index + items.length) % items.length].focus();
+  }
   function navigateWithinWorkspace(event: MouseEvent<HTMLAnchorElement>) {
     if (
       event.defaultPrevented ||
@@ -117,21 +291,13 @@ function Workspace() {
       });
     }
   }, []);
-  function minimizeSidebar() {
-    setSidebarPinned(false);
-    setSidebarExpanded(false);
-    setPreference("buckit-sidebar-pinned", "false");
-  }
   function togglePin() {
     const next = !sidebarPinned;
     setSidebarPinned(next);
-    if (next) setSidebarExpanded(true);
+    setSidebarExpanded(next);
     setPreference("buckit-sidebar-pinned", String(next));
   }
-  const inviteKey = useRef<{ body: string; key: string } | null>(null);
   const profileKey = useRef<{ body: string; key: string } | null>(null);
-  const bucketQuery = params.get("bucket");
-  const phaseView = params.get("view");
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -265,23 +431,6 @@ function Workspace() {
       setBusy(false);
     }
   }
-  async function generateInvite() {
-    if (!selected) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await api<Invitation>(`buckets/${selected.id}/invitations`, {
-        method: "POST",
-        body: {},
-        key: operationKey(inviteKey, { bucketId: selected.id }),
-      });
-      setInvite(result.data);
-    } catch (e) {
-      setError(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -293,6 +442,7 @@ function Workspace() {
         displayName: String(form.get("displayName")).trim(),
         timezone: String(form.get("timezone")),
         theme,
+        ...(avatarDraft !== profile.avatarDataUrl ? { avatarDataUrl: avatarDraft } : {}),
       });
       auth.setTheme(theme);
       setModal(null);
@@ -310,12 +460,12 @@ function Workspace() {
     },
     ...(selected?.isOwner
       ? [
-          {
-            title: "Bring your people",
-            text: "Use Invite people to copy a seven-day link, show its QR code, or share it through WhatsApp. People join only after signing in and confirming.",
-            icon: Users,
-          },
-        ]
+        {
+          title: "Bring your people",
+          text: "Open Members to create and manage invitation links. People join only after signing in and confirming.",
+          icon: Users,
+        },
+      ]
       : []),
     {
       title: "Make yourself at home",
@@ -340,12 +490,9 @@ function Workspace() {
     }
   }
   return (
-    <div
-      className={`workspace-layout block min-h-svh ${sidebarExpanded ? "sidebar-expanded max-[767px]:[&_.sidebar]:[width:min(248px,_85vw)] max-[767px]:[&_.sidebar-top]:flex-row max-[767px]:[&_.sidebar_.sidebar-section]:flex max-[767px]:[&_.sidebar_.nav-item]:[justify-content:flex-start] max-[767px]:[&_.sidebar_.nav-item]:[gap:11px] max-[767px]:[&_.sidebar_.nav-item]:text-xs max-[767px]:[&_.sidebar_.nav-item]:[padding:13px_12px] max-[767px]:[&_.sidebar_.compact-create]:hidden" : "sidebar-collapsed [&_.compact-create]:flex [&_.workspace-main]:[margin-left:68px] [&_.sidebar]:[width:68px] [&_.sidebar]:[padding-left:9px] [&_.sidebar]:[padding-right:9px] [&_.sidebar-top]:flex-col [&_.sidebar-top]:[gap:12px] [&_.sidebar-section]:hidden [&_.sidebar_nav_.nav-item_small]:hidden [&_.nav-item]:justify-center [&_.nav-item]:[gap:0] [&_.nav-item]:[font-size:0] [&_.nav-item]:[padding:13px_0] [&_.nav-item_svg]:[width:20px] [&_.nav-item_svg]:[height:20px] max-[767px]:[&_.sidebar]:flex max-[767px]:[&_.sidebar]:fixed max-[767px]:[&_.sidebar]:[inset:0_auto_0_0] max-[767px]:[&_.sidebar]:[width:68px] max-[767px]:[&_.sidebar]:[padding:14px_9px] max-[767px]:[&_.sidebar]:[border-right:1px_solid_var(--line)] max-[767px]:[&_.sidebar]:[border-bottom:0] max-[767px]:[&_.workspace-main]:[margin-left:68px]"}`}
-    >
+    <div className="workspace-layout min-h-svh">
       <aside
-        ref={sidebarRef}
-        className={`sidebar bg-[var(--surface)] [border-right:1px_solid_var(--line)] [padding:22px_16px_18px] flex flex-col [gap:22px] fixed [inset:0_auto_0_0] [width:248px] [z-index:30] [transition:width_.2s] overflow-y-auto overflow-x-hidden [&_>_.brand]:[margin:0_10px] [&_nav]:flex [&_nav]:flex-col [&_nav]:[gap:5px] max-[767px]:[padding:18px_20px] max-[767px]:[gap:17px] max-[767px]:[border-right:0] max-[767px]:[border-bottom:1px_solid_var(--line)] max-[767px]:[&_>_.brand]:[margin:0] max-[767px]:flex max-[767px]:fixed max-[767px]:[inset:0_auto_0_0] max-[767px]:[width:68px] max-[767px]:[padding:14px_9px] max-[767px]:[border-right:1px_solid_var(--line)] max-[767px]:[border-bottom:0] max-[767px]:[&_.sidebar-section]:hidden max-[767px]:[&_.compact-create]:flex max-[767px]:[&_.sidebar-top]:flex-col max-[767px]:[&_.sidebar-top]:[gap:12px] max-[767px]:[&_.nav-item]:flex max-[767px]:[&_.nav-item]:justify-center max-[767px]:[&_.nav-item]:[gap:0] max-[767px]:[&_.nav-item]:[padding:13px_0] max-[767px]:[&_.sidebar-bottom_.nav-item_svg]:[width:20px] max-[767px]:[&_.sidebar-bottom_.nav-item_svg]:[height:20px] ${sidebarExpanded ? "max-[767px]:[&_.nav-item]:!text-xs" : "[&_.nav-item]:!text-[0px]"}`}
+        className={`sidebar fixed inset-y-0 left-0 z-30 flex flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--line)] bg-[var(--surface)] py-5 transition-[width,padding] duration-200 ${sidebarExpanded ? "w-[248px] px-4 max-[767px]:w-[min(248px,85vw)]" : "w-[68px] px-[9px] [&_.nav-item]:justify-center [&_.nav-item]:gap-0 [&_.nav-item]:px-0 [&_.nav-item]:text-[0px] [&_.nav-item_svg]:size-5"}`}
         onMouseEnter={() => {
           if (!sidebarPinned) {
             sidebarHoverTimer.current = setTimeout(() => setSidebarExpanded(true), 250);
@@ -353,7 +500,7 @@ function Workspace() {
         }}
         onMouseLeave={() => {
           if (sidebarHoverTimer.current) clearTimeout(sidebarHoverTimer.current);
-          if (!sidebarPinned && !bucketPickerOpen.current) setSidebarExpanded(false);
+          if (!sidebarPinned) setSidebarExpanded(false);
         }}
       >
         <div className="sidebar-top flex items-center justify-between [min-height:38px] [&_.brand]:[margin:0]">
@@ -370,23 +517,7 @@ function Workspace() {
           {sidebarExpanded && (
             <button
               type="button"
-              className="icon-button inline-flex items-center justify-center [width:44px] [height:44px] border-0 bg-transparent text-[var(--muted)] [&:hover]:bg-[var(--soft)] sidebar-toggle [width:34px] [height:34px] [flex:none]"
-              onClick={minimizeSidebar}
-              aria-label="Minimize sidebar"
-              title="Minimize sidebar"
-            >
-              <PanelLeftClose size={18} />
-            </button>
-          )}
-        </div>
-        <div className="sidebar-section flex flex-col [gap:12px] max-[767px]:grid max-[767px]:[grid-template-columns:minmax(0,1fr)_auto] max-[767px]:items-center max-[767px]:[gap:10px]">
-          <div className="sidebar-heading flex items-center justify-between pl-[10px]">
-            <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
-              YOUR SPACE
-            </span>
-            <button
-              type="button"
-              className="sidebar-pin-icon inline-grid size-[30px] place-items-center rounded-md text-[var(--muted)] hover:bg-[var(--soft)] hover:text-[var(--green)]"
+              className="inline-grid size-[34px] shrink-0 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--soft)] hover:text-[var(--green)]"
               onClick={togglePin}
               aria-label={sidebarPinned ? "Unpin sidebar" : "Pin sidebar"}
               aria-pressed={sidebarPinned}
@@ -394,205 +525,108 @@ function Workspace() {
             >
               {sidebarPinned ? <Pin size={16} /> : <PinOff size={16} />}
             </button>
-          </div>
-          <label
-            className="sr-only absolute [width:1px] [height:1px] [padding:0] [margin:-1px] [clip:rect(0,0,0,0)] overflow-hidden"
-            htmlFor="bucket-picker"
-          >
-            Current bucket
-          </label>
-          <BucketSelector
-            buckets={buckets}
-            selected={selected}
-            disabled={busy || loading || !buckets.length}
-            onValueChange={selectBucket}
-            onOpenChange={(open) => {
-              bucketPickerOpen.current = open;
-              if (open) setSidebarExpanded(true);
-              else if (!sidebarPinned && !sidebarRef.current?.matches(":hover"))
-                setSidebarExpanded(false);
-            }}
-          />
-          {cursor && (
-            <button
-              className="text-link [background:none] border-0 [padding:0] inline-flex items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px]"
-              onClick={moreBuckets}
-              disabled={busy}
-            >
-              Load more buckets
-            </button>
           )}
-          <Link
-            className="sidebar-create flex items-center [gap:9px] text-xs [padding:0_11px] text-[var(--muted)]"
-            href="/buckets/new"
-          >
-            <Plus size={15} /> Create a bucket
-          </Link>
         </div>
-        <Link
-          className="compact-create hidden items-center justify-center rounded-lg p-3 text-[var(--green)] hover:bg-[var(--soft)]"
-          href="/buckets/new"
-          aria-label="Create a bucket"
-          title="Create a bucket"
-        >
-          <Plus size={20} />
-        </Link>
         <nav aria-label="Workspace" className="!flex flex-col gap-1">
+          <Link
+            className={navItem}
+            href="/buckets/new"
+            aria-label="Create a bucket"
+            title="Create a bucket"
+          >
+            <Plus size={18} /> Create a bucket
+          </Link>
           <Link
             href={selected ? `/workspace?bucket=${selected.id}` : "/workspace"}
             onClick={navigateWithinWorkspace}
             className={`${navItem} ${!phaseView ? "active" : ""}`}
+            aria-label="Overview"
+            title="Overview"
           >
             <LayoutDashboard size={18} /> Overview
           </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=expenses` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${["expenses", "deleted", "add-expense", "expense"].includes(phaseView ?? "") ? "active" : ""}`}
-          >
-            <Wallet size={18} /> Expenses
-          </Link>
-          {sidebarExpanded && (
-            <div className="sidebar-heading flex items-center justify-between pl-[10px] mt-4">
-              <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
-                MANAGEMENT
-              </span>
-            </div>
-          )}
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=references` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "references" ? "active" : ""}`}
-          >
-            <SlidersHorizontal size={18} /> Reference settings
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=members` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "members" ? "active" : ""}`}
-          >
-            <Users size={18} /> Members
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=reports` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "reports" ? "active" : ""}`}
-          >
-            <BarChart3 size={18} /> Reports
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=budgets` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${["budgets", "budget", "budget-form"].includes(phaseView ?? "") ? "active" : ""}`}
-          >
-            <BookOpen size={18} /> Budgets
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=emis` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${["emis", "emi-plan"].includes(phaseView ?? "") ? "active" : ""}`}
-          >
-            <CreditCard size={18} /> EMIs
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=scheduled` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "scheduled" ? "active" : ""}`}
-          >
-            <CalendarClock size={18} /> Scheduled
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=notifications` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "notifications" ? "active" : ""}`}
-          >
-            <Bell size={18} /> Notifications
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=reminders` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "reminders" ? "active" : ""}`}
-          >
-            <CalendarClock size={18} /> Reminders & cadence
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=contacts` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "contacts" ? "active" : ""}`}
-          >
-            <ContactRound size={18} /> Contacts
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=csv-import` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "csv-import" ? "active" : ""}`}
-          >
-            <FileUp size={18} /> Import CSV
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=csv-export` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "csv-export" ? "active" : ""}`}
-          >
-            <FileDown size={18} /> Export CSV
-          </Link>
-          <Link
-            href={selected ? `/workspace?bucket=${selected.id}&view=bucket-settings` : "/workspace"}
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "bucket-settings" ? "active" : ""}`}
-          >
-            <Settings2 size={18} /> Bucket settings
-          </Link>
+          {sidebarGroups.map((group) => {
+            const GroupIcon = group.icon;
+            return (
+              <div key={group.id} className="flex flex-col gap-1">
+                {sidebarExpanded && (
+                  <button
+                    type="button"
+                    className={`${navItem} font-semibold ${openGroups[group.id] ? "text-[var(--ink)]" : ""}`}
+                    aria-expanded={openGroups[group.id]}
+                    aria-controls={`sidebar-group-${group.id}`}
+                    onClick={() =>
+                      setOpenGroups((current) => ({ ...current, [group.id]: !current[group.id] }))
+                    }
+                  >
+                    <GroupIcon size={18} /> {group.label}
+                    <ChevronDown
+                      size={15}
+                      className={`ml-auto transition-transform ${openGroups[group.id] ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                )}
+                <div
+                  id={`sidebar-group-${group.id}`}
+                  className={`${sidebarExpanded && !openGroups[group.id] ? "hidden" : "flex"} flex-col gap-1 ${sidebarExpanded ? "ml-5 border-l border-[var(--line)] pl-2" : ""}`}
+                >
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.view}
+                        href={
+                          selected
+                            ? `/workspace?bucket=${selected.id}&view=${item.view}`
+                            : "/workspace"
+                        }
+                        onClick={navigateWithinWorkspace}
+                        className={`${navItem} ${item.activeViews.includes(phaseView ?? "") ? "active" : ""}`}
+                        aria-label={item.label}
+                        title={item.label}
+                      >
+                        <Icon size={18} /> {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </nav>
-        <div className="sidebar-bottom mt-auto flex flex-col gap-1 pt-10 max-[767px]:!flex max-[767px]:!flex-col max-[767px]:!gap-1 max-[767px]:!p-0">
-          <button
-            className={navItem}
-            onClick={() => {
-              setStep(0);
-              setModal("tour");
-            }}
-            disabled={!selected}
-          >
-            <HelpCircle size={18} /> Help & tour
-          </button>
-          <button className={navItem} onClick={() => setModal("profile")}>
-            <Settings2 size={18} /> Profile & appearance
-          </button>
-          <Link
-            href={
-              selected
-                ? `/workspace?bucket=${selected.id}&view=account-settings`
-                : "/workspace?view=account-settings"
-            }
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "account-settings" ? "active" : ""}`}
-          >
-            <ShieldCheck size={18} /> Account settings
-          </Link>
-          <button className={navItem} onClick={() => auth.logout()}>
-            <LogOut size={18} /> Sign out
-          </button>
-        </div>
       </aside>
-      <div className="workspace-main [margin-left:248px] [min-width:0] [transition:margin-left_.2s] max-[767px]:[margin-left:68px]">
-        <header className="workspace-header flex [min-height:64px] justify-between items-center [padding:0_32px] [border-bottom:1px_solid_var(--line)] text-xs [gap:16px] sticky [top:0] [z-index:20] [background:var(--canvas)] max-[767px]:[padding:15px_20px] max-[767px]:[padding:12px_16px]">
+      <div
+        className={`workspace-main min-w-0 transition-[margin-left] duration-200 ${sidebarExpanded ? "ml-[248px] max-[767px]:ml-[68px]" : "ml-[68px]"}`}
+      >
+        <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-8 text-xs max-[767px]:gap-2 max-[767px]:px-4 sticky top-0 z-20">
           <nav
             aria-label="Breadcrumb"
             className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium"
           >
-            <Link
-              href={selected ? `/workspace?bucket=${selected.id}` : "/workspace"}
-              onClick={navigateWithinWorkspace}
-              className={`truncate text-[var(--muted)] hover:text-[var(--ink)] ${phaseView ? "max-sm:hidden" : ""}`}
-            >
-              {selected?.name ?? "Your workspace"}
-            </Link>
+            <label className="sr-only" htmlFor="bucket-picker">
+              Current bucket
+            </label>
+            <BucketSelector
+              buckets={buckets}
+              selected={selected}
+              disabled={busy || loading}
+              onValueChange={selectBucket}
+              onCreateBucket={() => router.push("/buckets/new")}
+              hasMore={!!cursor}
+              onLoadMore={() => void moreBuckets()}
+            />
             {phaseView && (
               <>
-                <span className="text-[var(--line)] max-sm:hidden" aria-hidden="true">
+                <span
+                  className={`text-[var(--line)] ${sidebarExpanded ? "max-[1000px]:hidden" : "max-[640px]:hidden"}`}
+                  aria-hidden="true"
+                >
                   /
                 </span>
-                <span className="truncate font-semibold text-[var(--ink)]" aria-current="page">
+                <span
+                  className={`shrink-0 font-semibold text-[var(--ink)] ${sidebarExpanded ? "max-[1000px]:hidden" : "max-[640px]:hidden"}`}
+                  aria-current="page"
+                >
                   {phaseView === "references"
                     ? "Reference settings"
                     : phaseView === "members"
@@ -624,32 +658,112 @@ function Workspace() {
               </>
             )}
           </nav>
-          <div className="workspace-header-actions flex items-center justify-between [gap:14px] max-sm:!gap-2">
+          <div className="workspace-header-actions flex shrink-0 items-center justify-between gap-3 max-sm:!gap-1">
             {phaseView === "expenses" && (
               <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
             )}
             <ThemeToggle />
-            {selected?.isOwner && selected.status === "active" && phaseView && (
+            <div ref={profileMenuRef} className="relative shrink-0">
               <button
-                className={`${controls.primary} button max-sm:!size-9 max-sm:!min-h-9 max-sm:!p-0`}
-                aria-label="Invite people"
-                onClick={() => {
-                  setInvite(null);
-                  inviteKey.current = null;
-                  setCopied(false);
-                  setModal("invite");
+                ref={profileButtonRef}
+                type="button"
+                className="profile-chip flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)]"
+                aria-label={`Account menu for ${profile.displayName}`}
+                aria-haspopup="menu"
+                aria-expanded={profileMenuOpen}
+                onClick={() => setProfileMenuOpen((open) => !open)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setProfileMenuOpen(true);
+                    requestAnimationFrame(() => focusMenuItem(0));
+                  }
                 }}
               >
-                <Users size={16} /> <span className="max-sm:hidden">Invite people</span>
+                <ProfileAvatar profile={profile} size={34} />
+                <ChevronDown size={12} className="text-[var(--muted)]" />
               </button>
-            )}
-            <button
-              className="profile-chip border-0 flex items-center [gap:9px] bg-transparent text-xs [&_>_span]:grid [&_>_span]:[place-items:center] [&_>_span]:[width:31px] [&_>_span]:[height:31px] [&_>_span]:rounded-full [&_>_span]:bg-[var(--sage)] [&_>_span]:text-[var(--green)] max-[767px]:[font-size:0] max-sm:!hidden"
-              onClick={() => setModal("profile")}
-            >
-              <span>{profile.displayName.charAt(0).toUpperCase()}</span>
-              {profile.displayName}
-            </button>
+              {profileMenuOpen && (
+                <div
+                  role="menu"
+                  aria-label="Account"
+                  className="absolute right-0 top-[calc(100%+10px)] z-50 w-60 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_14px_38px_rgba(0,0,0,.15)]"
+                  onKeyDown={(event) => {
+                    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                    event.preventDefault();
+                    const items = Array.from(
+                      profileMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ??
+                      [],
+                    );
+                    const index = items.indexOf(document.activeElement as HTMLElement);
+                    focusMenuItem(index + (event.key === "ArrowDown" ? 1 : -1));
+                  }}
+                >
+                  <div className="flex items-center gap-3 border-b border-[var(--line)] px-2 py-2.5">
+                    <ProfileAvatar profile={profile} size={38} />
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-semibold text-[var(--ink)]">
+                        {profile.displayName}
+                      </div>
+                      <div className="text-[11px] text-[var(--muted)]">
+                        {selected ? (selected.isOwner ? "Owner" : "Member") : "Account"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={profileMenuItem}
+                      disabled={!selected}
+                      onClick={() => {
+                        setStep(0);
+                        setProfileMenuOpen(false);
+                        setModal("tour");
+                      }}
+                    >
+                      <HelpCircle size={17} /> Help & tour
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={profileMenuItem}
+                      onClick={openProfile}
+                    >
+                      <Settings2 size={17} /> Profile & appearance
+                    </button>
+                    <Link
+                      role="menuitem"
+                      href={
+                        selected
+                          ? `/workspace?bucket=${selected.id}&view=account-settings`
+                          : "/workspace?view=account-settings"
+                      }
+                      onClick={(event) => {
+                        navigateWithinWorkspace(event);
+                        setProfileMenuOpen(false);
+                      }}
+                      className={profileMenuItem}
+                    >
+                      <ShieldCheck size={17} /> Account settings
+                    </Link>
+                  </div>
+                  <div className="border-t border-[var(--line)] pt-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={profileMenuItem}
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        void auth.logout();
+                      }}
+                    >
+                      <LogOut size={17} /> Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main
@@ -708,7 +822,7 @@ function Workspace() {
               profile={profile}
               view={
                 phaseView as
-                  "expenses" | "deleted" | "add-expense" | "expense" | "references" | "members"
+                "expenses" | "deleted" | "add-expense" | "expense" | "references" | "members"
               }
               expenseId={params.get("expense")}
               refundOf={params.get("refundOf")}
@@ -749,7 +863,7 @@ function Workspace() {
               bucket={selected}
               view={
                 (phaseView || "dashboard") as
-                  "dashboard" | "reports" | "budgets" | "budget" | "budget-form"
+                "dashboard" | "reports" | "budgets" | "budget" | "budget-form"
               }
               budgetId={params.get("budget")}
             />
@@ -767,19 +881,6 @@ function Workspace() {
                       : "Everyday clarity starts with your first bucket."}
                   </p>
                 </div>
-                {selected?.isOwner && selected.status === "active" && (
-                  <button
-                    className={`${controls.primary} button`}
-                    onClick={() => {
-                      setInvite(null);
-                      inviteKey.current = null;
-                      setCopied(false);
-                      setModal("invite");
-                    }}
-                  >
-                    <Users size={17} /> Invite people
-                  </button>
-                )}
               </div>
               {selected ? (
                 <>
@@ -871,104 +972,68 @@ function Workspace() {
       </div>
       {modal && (
         <Dialog
-          title={
-            modal === "invite"
-              ? "A space to share"
-              : modal === "profile"
-                ? "Make yourself at home"
-                : steps[currentStep].title
-          }
+          title={modal === "profile" ? "Make yourself at home" : steps[currentStep].title}
           subtitle=""
           onClose={closeModal}
         >
           {error && <Notice>{error}</Notice>}
-          {modal === "invite" && (
-            <div className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]">
-              <p>
-                Invite someone to <b>{selected?.name}</b>. The link works for seven days and can be
-                used by more than one person.
-              </p>
-              {!invite ? (
-                <button
-                  className={`${controls.primary} button w-full`}
-                  disabled={busy}
-                  onClick={generateInvite}
-                >
-                  {busy ? "Creating link…" : "Create invitation link"}
-                  <Link2 size={16} />
-                </button>
-              ) : invite.secretUnavailable ? (
-                <>
-                  <Notice kind="info">
-                    This link was created, but its one-time response was lost. Create a new link to
-                    share; the original expires in seven days.
-                  </Notice>
-                  <button
-                    className={`${controls.primary} button`}
-                    disabled={busy}
-                    onClick={() => {
-                      inviteKey.current = null;
-                      void generateInvite();
-                    }}
-                  >
-                    Create a new link
-                  </button>
-                </>
-              ) : (
-                invite.shareUrl && (
-                  <>
-                    <div className="qr-wrap flex justify-center [padding:20px] [background:white] rounded-lg">
-                      <QRCodeSVG
-                        value={invite.shareUrl}
-                        size={168}
-                        title={`Invitation to ${selected?.name}`}
-                      />
-                    </div>
-                    <label className="flex flex-col gap-[7px] text-xs font-medium">
-                      Invitation link
-                      <input
-                        className={controls.input}
-                        value={invite.shareUrl}
-                        readOnly
-                        onFocus={(e) => e.target.select()}
-                      />
-                    </label>
-                    <button
-                      className={`${controls.primary} button w-full`}
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(invite.shareUrl!);
-                          setCopied(true);
-                        } catch {
-                          setError("Copy the link from the field above.");
-                        }
-                      }}
-                    >
-                      {copied ? <Check size={16} /> : <Copy size={16} />}
-                      {copied ? "Copied" : "Copy link"}
-                    </button>
-                    <a
-                      className={`${controls.secondary} button w-full`}
-                      href={`https://wa.me/?text=${encodeURIComponent(`Join my Buckit bucket:\n ${invite.shareUrl}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Share on WhatsApp
-                    </a>
-                    <p className="field-hint flex items-center [gap:6px] text-xs [line-height:1.7] text-[var(--muted)]">
-                      Expires {new Date(invite.expiresAt).toLocaleDateString()}. Anyone with this
-                      link can join after signing in.
-                    </p>
-                  </>
-                )
-              )}
-            </div>
-          )}
           {modal === "profile" && (
             <form
               className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]"
               onSubmit={saveProfile}
             >
+              <div className="flex items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--soft)] p-3">
+                <ProfileAvatar profile={{ ...profile, avatarDataUrl: avatarDraft }} size={56} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-[var(--ink)]">Profile image</div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">
+                    PNG, JPEG, or WebP. Cropped to a square.
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      aria-label="Choose profile image"
+                      onChange={async (event) => {
+                        const file = event.currentTarget.files?.[0];
+                        event.currentTarget.value = "";
+                        if (!file) return;
+                        setAvatarProcessing(true);
+                        setError("");
+                        try {
+                          setAvatarDraft(await prepareAvatar(file));
+                        } catch (error) {
+                          setError(
+                            error instanceof Error ? error.message : "Could not open that image.",
+                          );
+                        } finally {
+                          setAvatarProcessing(false);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={`${controls.secondary} button`}
+                      disabled={avatarProcessing || busy}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      <Camera size={15} /> {avatarDraft ? "Change image" : "Add image"}
+                    </button>
+                    {avatarDraft && (
+                      <button
+                        type="button"
+                        className={`${controls.secondary} button`}
+                        disabled={avatarProcessing || busy}
+                        onClick={() => setAvatarDraft(null)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
               <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Display name
                 <input
@@ -1003,8 +1068,11 @@ function Workspace() {
                   placeholder="Appearance"
                 />
               </label>
-              <button className={`${controls.primary} button w-full`} disabled={busy}>
-                {busy ? "Saving…" : "Save changes"}
+              <button
+                className={`${controls.primary} button w-full`}
+                disabled={busy || avatarProcessing}
+              >
+                {busy ? "Saving…" : avatarProcessing ? "Preparing image…" : "Save changes"}
               </button>
               <p className="field-hint flex items-center [gap:6px] text-xs [line-height:1.7] text-[var(--muted)]">
                 {profile.email}

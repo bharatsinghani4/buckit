@@ -15,6 +15,7 @@ const userSchema = new Schema(
     email: String,
     status: { type: String, enum: ["active", "deleting", "deleted"], default: "active" },
     displayName: { type: String, required: true },
+    avatarDataUrl: { type: String, default: null },
     timezone: { type: String, default: "UTC" },
     theme: { type: String, enum: ["light", "dark", "system"], default: "system" },
     lastBucketId: { type: Schema.Types.ObjectId, default: null },

@@ -1,54 +1,57 @@
 "use client";
 
 import * as Select from "@radix-ui/react-select";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import type { Bucket } from "@/features/identity/contracts";
 import { controls } from "@/components/control-styles";
 
 function bucketCaption(bucket: Bucket) {
-  const kind = bucket.status === "archived" ? "Archived bucket" : "Shared bucket";
-  return `${kind} · ${bucket.memberCount} ${bucket.memberCount === 1 ? "member" : "members"}`;
+  const kind = bucket.status === "archived" ? "Archived" : "Shared";
+  return `${kind} · ${bucket.memberCount} ${bucket.memberCount === 1 ? "member" : "members"} · ${bucket.primaryCurrency}`;
 }
+
+const createBucketValue = "create-bucket";
+const loadMoreValue = "load-more-buckets";
 
 export function BucketSelector({
   buckets,
   selected,
   disabled,
   onValueChange,
-  onOpenChange,
+  onCreateBucket,
+  hasMore,
+  onLoadMore,
 }: {
   buckets: Bucket[];
   selected: Bucket | null;
   disabled: boolean;
   onValueChange: (id: string) => void;
-  onOpenChange: (open: boolean) => void;
+  onCreateBucket: () => void;
+  hasMore: boolean;
+  onLoadMore: () => void;
 }) {
   return (
     <Select.Root
       value={selected?.id ?? ""}
       disabled={disabled}
-      onValueChange={onValueChange}
-      onOpenChange={onOpenChange}
+      onValueChange={(value) => {
+        if (value === createBucketValue) onCreateBucket();
+        else if (value === loadMoreValue) onLoadMore();
+        else onValueChange(value);
+      }}
     >
       <Select.Trigger
         id="bucket-picker"
-        className={`${controls.dropdownTrigger} !h-auto min-h-10 py-2 shadow-sm hover:border-[var(--muted)]`}
+        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)]`}
       >
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className={`size-2 shrink-0 rounded-full ${selected?.status === "archived" ? "bg-[var(--muted)]" : "bg-[var(--mint)]"}`}
-              aria-hidden="true"
-            />
-            <span className="min-w-0 truncate text-sm font-semibold text-[var(--ink)]">
-              <Select.Value placeholder="Choose a bucket" />
-            </span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className={`size-2 shrink-0 rounded-full ${selected?.status === "archived" ? "bg-[var(--muted)]" : "bg-[var(--mint)]"}`}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 truncate text-xs font-semibold text-[var(--ink)]">
+            <Select.Value placeholder="Choose bucket" />
           </span>
-          {selected && (
-            <span className="truncate pl-4 text-[10px] text-[var(--muted)]">
-              {bucketCaption(selected)}
-            </span>
-          )}
         </span>
         <Select.Icon className="shrink-0 text-[var(--muted)]">
           <ChevronDown size={16} aria-hidden="true" />
@@ -79,6 +82,22 @@ export function BucketSelector({
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
+            <Select.Separator className="my-1 h-px bg-[var(--line)]" />
+            {hasMore && (
+              <Select.Item
+                value={loadMoreValue}
+                className={`${controls.dropdownOption} justify-start font-semibold`}
+              >
+                <Select.ItemText>Load more buckets</Select.ItemText>
+              </Select.Item>
+            )}
+            <Select.Item
+              value={createBucketValue}
+              className={`${controls.dropdownOption} justify-start gap-2 font-semibold text-[var(--green)]`}
+            >
+              <Plus size={16} aria-hidden="true" />
+              <Select.ItemText>Create a bucket</Select.ItemText>
+            </Select.Item>
           </Select.Viewport>
           <Select.ScrollDownButton className={controls.dropdownScroll}>▼</Select.ScrollDownButton>
         </Select.Content>
