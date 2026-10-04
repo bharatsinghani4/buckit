@@ -72,10 +72,20 @@ export function LedgerMonthPicker({
           setOpen((current) => !current);
         }}
       >
-        <CalendarDays size={16} className="text-[var(--muted)] max-sm:hidden" aria-hidden="true" />
+        <CalendarDays
+          size={16}
+          className="hidden text-[var(--muted)] sm:block max-[450px]:!block"
+          aria-hidden="true"
+        />
         <span className="hidden whitespace-nowrap sm:inline">{monthLabel(value, "long")}</span>
-        <span className="whitespace-nowrap sm:hidden">{monthLabel(value, "short")}</span>
-        <ChevronDown size={14} className="text-[var(--muted)]" aria-hidden="true" />
+        <span className="whitespace-nowrap sm:hidden max-[450px]:hidden">
+          {monthLabel(value, "short")}
+        </span>
+        <ChevronDown
+          size={14}
+          className="text-[var(--muted)] max-[450px]:hidden"
+          aria-hidden="true"
+        />
       </button>
       {open && (
         <div
