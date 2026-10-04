@@ -550,6 +550,7 @@ export async function deleteAccount(identity: DecodedIdToken, raw: unknown, key:
         $set: {
           status: "deleting",
           displayName: "Deleted user",
+          avatarDataUrl: null,
           lastBucketId: null,
           notificationPreferences: {},
         },
@@ -733,6 +734,7 @@ export async function processLifecycleCleanup(deadline = Date.now() + 8_000) {
               $set: {
                 status: "deleted",
                 displayName: "Deleted user",
+                avatarDataUrl: null,
                 timezone: "UTC",
                 theme: "system",
                 notificationPreferences: {},

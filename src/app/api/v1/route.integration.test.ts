@@ -1593,6 +1593,40 @@ async function request(
 }
 
 describe("Phase 1 HTTP API flows", () => {
+  it("saves and clears a validated profile image", async () => {
+    const actor = "profileavatarowner";
+    await request("POST", "me/bootstrap", actor, {});
+    const initial = await request("GET", "me", actor);
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==";
+    const invalid = await request(
+      "PATCH",
+      "me",
+      actor,
+      { avatarDataUrl: png.replace("image/png", "image/webp") },
+      { "If-Match": initial.response.headers.get("ETag")! },
+    );
+    expect(invalid.response.status).toBe(422);
+    const saved = await request(
+      "PATCH",
+      "me",
+      actor,
+      { avatarDataUrl: png },
+      { "If-Match": initial.response.headers.get("ETag")! },
+    );
+    expect(saved.response.status).toBe(200);
+    expect(saved.payload.data.avatarDataUrl).toBe(png);
+    expect((await request("GET", "me", actor)).payload.data.avatarDataUrl).toBe(png);
+    const cleared = await request(
+      "PATCH",
+      "me",
+      actor,
+      { avatarDataUrl: null },
+      { "If-Match": saved.response.headers.get("ETag")! },
+    );
+    expect(cleared.payload.data.avatarDataUrl).toBeNull();
+  });
+
   it("handles bootstrap, profile, buckets, invitation and access errors", async () => {
     expect((await request("GET", "me")).response.status).toBe(403);
     const owner = await request("POST", "me/bootstrap", "owner", {});

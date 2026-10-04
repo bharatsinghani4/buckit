@@ -102,7 +102,7 @@ The diagram is conceptual. Reference consistency and permissions are enforced by
 
 ### 4.1 `users`
 
-Required fields: `status` (`active`, `deleting`, `deleted`), `displayName`, `timezone`, `theme` (`light`, `dark`, `system`), `revision`, and an integer `accessRevision` used as a lifecycle write guard. Active users also have `firebaseUid` and normalized authentication email. Optional fields include `avatarUrl`, `lastBucketId`, and tour progress (`version`, `state`, `lastStep`).
+Required fields: `status` (`active`, `deleting`, `deleted`), `displayName`, `timezone`, `theme` (`light`, `dark`, `system`), `revision`, and an integer `accessRevision` used as a lifecycle write guard. Active users also have `firebaseUid` and normalized authentication email. Optional fields include a size-bounded `avatarDataUrl` (client-cropped PNG/JPEG/WebP, or `null`), `lastBucketId`, and tour progress (`version`, `state`, `lastStep`). The image is returned only in the owner's profile response and cleared when account deletion begins.
 
 Embed a bounded `notificationPreferences` map keyed by the supported trigger catalog. Each value has independent `inApp` and `push` booleans, plus an `enabledSince` timestamp for each enabled channel. Initial optional-trigger values are true and false respectively. Enabling or re-enabling sets a new timestamp; events predating it cannot be delivered later merely because fan-out was delayed. Authentication email behavior is not stored in this map.
 

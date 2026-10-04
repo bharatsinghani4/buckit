@@ -134,15 +134,15 @@ Expired, revoked, and unknown invitation tokens share `404 INVITATION_UNAVAILABL
 
 All paths in endpoint tables are relative to `/api/v1`. `{b}` means bucket ID; other placeholders identify the named resource.
 
-| Method and path                 | Access                     | Input/result                                                                                                                                 |
-| ------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /me/bootstrap`            | Verified Firebase identity | Optional initial displayName/timezone; create missing app profile or return existing profile; 201/200                                        |
-| `GET /me`                       | User                       | Own profile, verification status, theme/timezone, last accessible bucket, tour progress, revision                                            |
-| `PATCH /me`                     | User                       | Allowlisted displayName, timezone, theme, lastBucketId, tour progress; updated profile                                                       |
-| `GET /capabilities`             | User                       | Supported currencies and precision, payment modes, date/import rules, current size limits, trigger catalog, scheduled-processing description |
-| `GET /me/deletion-preview`      | User                       | Shared buckets needing ownership transfer and sole-owned buckets needing explicit deletion; no mutation                                      |
-| `POST /me/deletion`             | User + recent auth         | `confirmation: "DELETE MY ACCOUNT"`; begin irreversible access revocation/cleanup; 202                                                       |
-| `GET /operations/{operationId}` | Authorized operation actor | Safe operation state/progress for active users; no internal worker secrets                                                                   |
+| Method and path                 | Access                     | Input/result                                                                                                                                     |
+| ------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /me/bootstrap`            | Verified Firebase identity | Optional initial displayName/timezone; create missing app profile or return existing profile; 201/200                                            |
+| `GET /me`                       | User                       | Own profile, verification status, theme/timezone, optional profile image, last accessible bucket, tour progress, revision                        |
+| `PATCH /me`                     | User                       | Allowlisted displayName, timezone, theme, avatarDataUrl (bounded PNG/JPEG/WebP data URL or `null`), lastBucketId, tour progress; updated profile |
+| `GET /capabilities`             | User                       | Supported currencies and precision, payment modes, date/import rules, current size limits, trigger catalog, scheduled-processing description     |
+| `GET /me/deletion-preview`      | User                       | Shared buckets needing ownership transfer and sole-owned buckets needing explicit deletion; no mutation                                          |
+| `POST /me/deletion`             | User + recent auth         | `confirmation: "DELETE MY ACCOUNT"`; begin irreversible access revocation/cleanup; 202                                                           |
+| `GET /operations/{operationId}` | Authorized operation actor | Safe operation state/progress for active users; no internal worker secrets                                                                       |
 
 Bootstrap derives email/UID/provider state from verified identity, not the body. A missing app profile may access bootstrap only. Capabilities report app configuration, not a promise that provider quotas are unlimited.
 

@@ -29,6 +29,7 @@ export type AppUser = {
   _id: mongoose.Types.ObjectId;
   status: string;
   displayName: string;
+  avatarDataUrl?: string | null;
   email: string;
   timezone: string;
   theme: Profile["theme"];
@@ -105,6 +106,7 @@ export async function profileDto(
   return {
     id: String(user._id),
     displayName: user.displayName,
+    avatarDataUrl: user.avatarDataUrl ?? null,
     email: identity.email ?? "",
     emailVerified: identity.email_verified === true,
     timezone: user.timezone,
@@ -299,6 +301,24 @@ export async function updateProfile(
   etag: string | null,
 ) {
   const input = profileSchema.parse(raw);
+  if (input.avatarDataUrl) {
+    const [header, encoded] = input.avatarDataUrl.split(",", 2);
+    const bytes = Buffer.from(encoded, "base64");
+    const isPng =
+      header === "data:image/png;base64" &&
+      bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex"));
+    const isJpeg =
+      header === "data:image/jpeg;base64" &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff;
+    const isWebp =
+      header === "data:image/webp;base64" &&
+      bytes.toString("ascii", 0, 4) === "RIFF" &&
+      bytes.toString("ascii", 8, 12) === "WEBP";
+    if (bytes.length > 90_000 || !(isPng || isJpeg || isWebp))
+      throw new ApiError(422, "INVALID_AVATAR", "Choose a smaller PNG, JPEG, or WebP image.");
+  }
   return mutate(
     identity,
     "profile",

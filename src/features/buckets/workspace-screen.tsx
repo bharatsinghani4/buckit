@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { controls } from "@/components/control-styles";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -31,6 +32,8 @@ import {
   ContactRound,
   FileDown,
   FileUp,
+  Camera,
+  ChevronDown,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Brand } from "@/components/brand";
@@ -60,6 +63,66 @@ import { BucketSelector } from "./bucket-selector";
 
 const navItem =
   "nav-item flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-3 text-left text-xs text-[var(--muted)] hover:bg-[var(--soft)] [&.active]:bg-[var(--sage)] [&.active]:font-semibold [&.active]:text-[var(--green)]";
+const profileMenuItem =
+  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--green)]";
+
+function ProfileAvatar({ profile, size = 34 }: { profile: Profile; size?: 34 | 38 | 56 }) {
+  const dimensions = size === 56 ? "size-14" : size === 38 ? "size-[38px]" : "size-[34px]";
+  return profile.avatarDataUrl ? (
+    <Image
+      src={profile.avatarDataUrl}
+      alt=""
+      width={size}
+      height={size}
+      unoptimized
+      className={`${dimensions} shrink-0 rounded-full object-cover`}
+    />
+  ) : (
+    <span
+      className={`${dimensions} grid shrink-0 place-items-center rounded-full bg-[var(--sage)] font-semibold text-[var(--green)]`}
+      aria-hidden="true"
+    >
+      {profile.displayName.charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+async function prepareAvatar(file: File): Promise<string> {
+  if (
+    !(["image/png", "image/jpeg", "image/webp"] as string[]).includes(file.type) ||
+    file.size > 5_000_000
+  )
+    throw new Error("Choose a PNG, JPEG, or WebP image under 5 MB.");
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new window.Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser could not prepare the image.");
+    const edge = Math.min(image.naturalWidth, image.naturalHeight);
+    if (!edge) throw new Error("Choose an image that can be opened.");
+    context.drawImage(
+      image,
+      (image.naturalWidth - edge) / 2,
+      (image.naturalHeight - edge) / 2,
+      edge,
+      edge,
+      0,
+      0,
+      256,
+      256,
+    );
+    const dataUrl = canvas.toDataURL("image/webp", 0.82);
+    if (dataUrl.length > 120_000) throw new Error("Choose a less detailed image.");
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export function WorkspaceScreen() {
   return (
@@ -90,11 +153,45 @@ function Workspace() {
   const [ledgerMonth, setLedgerMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [avatarDraft, setAvatarDraft] = useState<string | null>(profile.avatarDataUrl);
+  const [avatarProcessing, setAvatarProcessing] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const sidebarHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bucketPickerOpen = useRef(false);
   const requestedBucketTarget = useRef<string | null>(null);
   const loadedBuckets = useRef<Bucket[]>([]);
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    function closeOutside(event: PointerEvent) {
+      if (!profileMenuRef.current?.contains(event.target as Node)) setProfileMenuOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setProfileMenuOpen(false);
+        profileButtonRef.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [profileMenuOpen]);
+  function openProfile() {
+    setAvatarDraft(profile.avatarDataUrl);
+    setProfileMenuOpen(false);
+    setError("");
+    setModal("profile");
+  }
+  function focusMenuItem(index: number) {
+    const items = profileMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']");
+    if (items?.length) items[(index + items.length) % items.length].focus();
+  }
   function navigateWithinWorkspace(event: MouseEvent<HTMLAnchorElement>) {
     if (
       event.defaultPrevented ||
@@ -293,6 +390,7 @@ function Workspace() {
         displayName: String(form.get("displayName")).trim(),
         timezone: String(form.get("timezone")),
         theme,
+        ...(avatarDraft !== profile.avatarDataUrl ? { avatarDataUrl: avatarDraft } : {}),
       });
       auth.setTheme(theme);
       setModal(null);
@@ -544,35 +642,6 @@ function Workspace() {
             <Settings2 size={18} /> Bucket settings
           </Link>
         </nav>
-        <div className="sidebar-bottom mt-auto flex flex-col gap-1 pt-10 max-[767px]:!flex max-[767px]:!flex-col max-[767px]:!gap-1 max-[767px]:!p-0">
-          <button
-            className={navItem}
-            onClick={() => {
-              setStep(0);
-              setModal("tour");
-            }}
-            disabled={!selected}
-          >
-            <HelpCircle size={18} /> Help & tour
-          </button>
-          <button className={navItem} onClick={() => setModal("profile")}>
-            <Settings2 size={18} /> Profile & appearance
-          </button>
-          <Link
-            href={
-              selected
-                ? `/workspace?bucket=${selected.id}&view=account-settings`
-                : "/workspace?view=account-settings"
-            }
-            onClick={navigateWithinWorkspace}
-            className={`${navItem} ${phaseView === "account-settings" ? "active" : ""}`}
-          >
-            <ShieldCheck size={18} /> Account settings
-          </Link>
-          <button className={navItem} onClick={() => auth.logout()}>
-            <LogOut size={18} /> Sign out
-          </button>
-        </div>
       </aside>
       <div className="workspace-main [margin-left:248px] [min-width:0] [transition:margin-left_.2s] max-[767px]:[margin-left:68px]">
         <header className="workspace-header flex [min-height:64px] justify-between items-center [padding:0_32px] [border-bottom:1px_solid_var(--line)] text-xs [gap:16px] sticky [top:0] [z-index:20] [background:var(--canvas)] max-[767px]:[padding:15px_20px] max-[767px]:[padding:12px_16px]">
@@ -643,13 +712,115 @@ function Workspace() {
                 <Users size={16} /> <span className="max-sm:hidden">Invite people</span>
               </button>
             )}
-            <button
-              className="profile-chip border-0 flex items-center [gap:9px] bg-transparent text-xs [&_>_span]:grid [&_>_span]:[place-items:center] [&_>_span]:[width:31px] [&_>_span]:[height:31px] [&_>_span]:rounded-full [&_>_span]:bg-[var(--sage)] [&_>_span]:text-[var(--green)] max-[767px]:[font-size:0] max-sm:!hidden"
-              onClick={() => setModal("profile")}
-            >
-              <span>{profile.displayName.charAt(0).toUpperCase()}</span>
-              {profile.displayName}
-            </button>
+            <div ref={profileMenuRef} className="relative shrink-0">
+              <button
+                ref={profileButtonRef}
+                type="button"
+                className="profile-chip flex min-h-10 items-center gap-2 rounded-lg border-0 bg-transparent px-1 text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)]"
+                aria-label={`Account menu for ${profile.displayName}`}
+                aria-haspopup="menu"
+                aria-expanded={profileMenuOpen}
+                onClick={() => setProfileMenuOpen((open) => !open)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setProfileMenuOpen(true);
+                    requestAnimationFrame(() => focusMenuItem(0));
+                  }
+                }}
+              >
+                <ProfileAvatar profile={profile} size={34} />
+                <span className="hidden min-w-0 max-w-28 flex-col sm:flex">
+                  <span className="truncate font-semibold leading-tight">
+                    {profile.displayName}
+                  </span>
+                  <span className="text-[11px] leading-tight text-[var(--muted)]">
+                    {selected ? (selected.isOwner ? "Owner" : "Member") : "Account"}
+                  </span>
+                </span>
+                <ChevronDown size={14} className="hidden text-[var(--muted)] sm:block" />
+              </button>
+              {profileMenuOpen && (
+                <div
+                  role="menu"
+                  aria-label="Account"
+                  className="absolute right-0 top-[calc(100%+10px)] z-50 w-60 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_14px_38px_rgba(0,0,0,.15)]"
+                  onKeyDown={(event) => {
+                    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                    event.preventDefault();
+                    const items = Array.from(
+                      profileMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ??
+                        [],
+                    );
+                    const index = items.indexOf(document.activeElement as HTMLElement);
+                    focusMenuItem(index + (event.key === "ArrowDown" ? 1 : -1));
+                  }}
+                >
+                  <div className="flex items-center gap-3 border-b border-[var(--line)] px-2 py-2.5">
+                    <ProfileAvatar profile={profile} size={38} />
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-semibold text-[var(--ink)]">
+                        {profile.displayName}
+                      </div>
+                      <div className="text-[11px] text-[var(--muted)]">
+                        {selected ? (selected.isOwner ? "Owner" : "Member") : "Account"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={profileMenuItem}
+                      disabled={!selected}
+                      onClick={() => {
+                        setStep(0);
+                        setProfileMenuOpen(false);
+                        setModal("tour");
+                      }}
+                    >
+                      <HelpCircle size={17} /> Help & tour
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={profileMenuItem}
+                      onClick={openProfile}
+                    >
+                      <Settings2 size={17} /> Profile & appearance
+                    </button>
+                    <Link
+                      role="menuitem"
+                      href={
+                        selected
+                          ? `/workspace?bucket=${selected.id}&view=account-settings`
+                          : "/workspace?view=account-settings"
+                      }
+                      onClick={(event) => {
+                        navigateWithinWorkspace(event);
+                        setProfileMenuOpen(false);
+                      }}
+                      className={profileMenuItem}
+                    >
+                      <ShieldCheck size={17} /> Account settings
+                    </Link>
+                  </div>
+                  <div className="border-t border-[var(--line)] pt-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={profileMenuItem}
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        void auth.logout();
+                      }}
+                    >
+                      <LogOut size={17} /> Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main
@@ -969,6 +1140,58 @@ function Workspace() {
               className="form-stack flex flex-col [gap:16px] [&_>_.notice]:[margin-bottom:0]"
               onSubmit={saveProfile}
             >
+              <div className="flex items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--soft)] p-3">
+                <ProfileAvatar profile={{ ...profile, avatarDataUrl: avatarDraft }} size={56} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-[var(--ink)]">Profile image</div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">
+                    PNG, JPEG, or WebP. Cropped to a square.
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      aria-label="Choose profile image"
+                      onChange={async (event) => {
+                        const file = event.currentTarget.files?.[0];
+                        event.currentTarget.value = "";
+                        if (!file) return;
+                        setAvatarProcessing(true);
+                        setError("");
+                        try {
+                          setAvatarDraft(await prepareAvatar(file));
+                        } catch (error) {
+                          setError(
+                            error instanceof Error ? error.message : "Could not open that image.",
+                          );
+                        } finally {
+                          setAvatarProcessing(false);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={`${controls.secondary} button`}
+                      disabled={avatarProcessing || busy}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      <Camera size={15} /> {avatarDraft ? "Change image" : "Add image"}
+                    </button>
+                    {avatarDraft && (
+                      <button
+                        type="button"
+                        className={`${controls.secondary} button`}
+                        disabled={avatarProcessing || busy}
+                        onClick={() => setAvatarDraft(null)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
               <label className="flex flex-col gap-[7px] text-xs font-medium">
                 Display name
                 <input
@@ -1003,8 +1226,11 @@ function Workspace() {
                   placeholder="Appearance"
                 />
               </label>
-              <button className={`${controls.primary} button w-full`} disabled={busy}>
-                {busy ? "Saving…" : "Save changes"}
+              <button
+                className={`${controls.primary} button w-full`}
+                disabled={busy || avatarProcessing}
+              >
+                {busy ? "Saving…" : avatarProcessing ? "Preparing image…" : "Save changes"}
               </button>
               <p className="field-hint flex items-center [gap:6px] text-xs [line-height:1.7] text-[var(--muted)]">
                 {profile.email}
