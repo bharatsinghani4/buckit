@@ -7,22 +7,39 @@ import {
   ExpenseModel,
   ReminderModel,
   UserModel,
-  phaseSixModels,
+  phaseSevenModels,
+  ArchiveIntervalModel,
+  BucketModel,
+  ContactModel,
+  ContactShareModel,
+  LifecycleOperationModel,
+  NotificationModel,
 } from "@/lib/db/models";
 import { generateInstallments, processDaily } from "@/features/scheduling/service";
 import { processDueReminders } from "@/features/notifications/reminder-worker";
 import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
 import { localDate } from "@/features/scheduling/dates";
 import { continuePendingImports } from "@/features/csv/import-service";
+import { processLifecycleCleanup } from "@/features/lifecycle/service";
 import { GET as dailyGET } from "../internal/jobs/daily/route";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/mongoose", () => ({ connectDatabase: async () => mongoose.connection }));
+vi.mock("@/lib/firebase/admin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/firebase/admin")>()),
+  getFirebaseAdminAuth: () => ({ deleteUser: async () => undefined }),
+}));
 vi.mock("@/lib/api/auth", () => ({
   authenticate: async (request: Request) => {
     const uid = request.headers.get("authorization")?.replace("Bearer ", "");
     if (!uid) throw { status: 401, code: "AUTHENTICATION_REQUIRED" };
-    return { uid, email: `${uid}@example.test`, email_verified: true, name: uid };
+    return {
+      uid,
+      email: `${uid}@example.test`,
+      email_verified: true,
+      name: uid,
+      auth_time: request.headers.get("x-test-old-auth") ? 1 : Math.floor(Date.now() / 1000),
+    };
   },
 }));
 import { DELETE, GET, POST, PATCH, PUT } from "./[...path]/route";
@@ -38,7 +55,7 @@ beforeAll(async () => {
     autoIndex: false,
     autoCreate: false,
   });
-  for (const model of phaseSixModels) {
+  for (const model of phaseSevenModels) {
     await model.createCollection();
     await model.createIndexes();
   }
@@ -50,6 +67,360 @@ afterAll(async () => {
   await database?.stop();
   delete process.env.API_CURSOR_SECRET;
   delete process.env.PUSH_TOKEN_ENCRYPTION_KEY;
+});
+
+describe("Phase 7 lifecycle", () => {
+  it("archives atomically, preserves read access, and requires creator review after restoration", async () => {
+    const actor = "phase7archiveowner";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "buckets", actor, {
+      name: "Archive Flow",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const category = (await request("GET", `${root}/options/categories`, actor)).payload.data[0].id;
+    const account = (await request("POST", `${root}/options/accounts`, actor, { name: "Account" }))
+      .payload.data.id;
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const expense = await request("POST", `${root}/expenses`, actor, {
+      expenseDate: tomorrow,
+      description: "Overdue while archived",
+      paidByUserId: String((await UserModel.findOne({ firebaseUid: actor }))!._id),
+      categoryId: category,
+      accountId: account,
+      paymentMode: "cash",
+      originalAmount: "10.00",
+    });
+    expect(expense.response.status, JSON.stringify(expense.payload)).toBe(201);
+    const lockedCurrency = await request(
+      "PATCH",
+      root,
+      actor,
+      { primaryCurrency: "USD" },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(lockedCurrency.payload.error.code).toBe("CURRENCY_LOCKED");
+    const archived = await request("POST", `${root}/archive`, actor, undefined, {
+      "If-Match": created.response.headers.get("ETag")!,
+    });
+    expect(archived.response.status, JSON.stringify(archived.payload)).toBe(200);
+    expect((await request("GET", root, actor)).payload.data.status).toBe("archived");
+    expect(
+      (
+        await request(
+          "PATCH",
+          root,
+          actor,
+          { name: "Read only" },
+          { "If-Match": archived.response.headers.get("ETag")! },
+        )
+      ).payload.error.code,
+    ).toBe("BUCKET_ARCHIVED");
+    expect(
+      (await request("POST", `${root}/options/accounts`, actor, { name: "Blocked" })).response
+        .status,
+    ).toBe(409);
+    await ExpenseModel.updateOne(
+      { _id: expense.payload.data.id },
+      {
+        $set: {
+          dueAt: new Date(Date.now() - 60_000),
+          expenseDate: new Date().toISOString().slice(0, 10),
+        },
+      },
+    );
+    const activeBucket = await request("POST", "buckets", actor, {
+      name: "Still Active",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const activeRoot = `buckets/${activeBucket.payload.data.id}`;
+    const activeCategory = (await request("GET", `${activeRoot}/options/categories`, actor)).payload
+      .data[0].id;
+    const activeAccount = (
+      await request("POST", `${activeRoot}/options/accounts`, actor, { name: "Active account" })
+    ).payload.data.id;
+    const activeExpense = await request("POST", `${activeRoot}/expenses`, actor, {
+      expenseDate: tomorrow,
+      description: "Should post",
+      paidByUserId: String((await UserModel.findOne({ firebaseUid: actor }))!._id),
+      categoryId: activeCategory,
+      accountId: activeAccount,
+      paymentMode: "cash",
+      originalAmount: "11.00",
+    });
+    await ExpenseModel.updateOne(
+      { _id: activeExpense.payload.data.id },
+      {
+        $set: {
+          dueAt: new Date(Date.now() - 60_000),
+          expenseDate: new Date().toISOString().slice(0, 10),
+        },
+      },
+    );
+    const daily = await processDaily(1);
+    expect(daily.posted).toBe(1);
+    expect((await ExpenseModel.findById(expense.payload.data.id))!.postingState).toBe("unposted");
+    const restored = await request("POST", `${root}/restore`, actor, undefined, {
+      "If-Match": archived.response.headers.get("ETag")!,
+    });
+    expect(restored.response.status, JSON.stringify(restored.payload)).toBe(200);
+    expect(restored.payload.data.pendingCreatorReview).toBe(1);
+    expect((await ExpenseModel.findById(expense.payload.data.id))!.reviewState).toBe(
+      "archive_review_required",
+    );
+    expect(
+      await ArchiveIntervalModel.countDocuments({
+        bucketId: created.payload.data.id,
+        endedAt: { $ne: null },
+      }),
+    ).toBe(1);
+  });
+
+  it("requires recent authentication, transfers ownership, and revokes access on departure", async () => {
+    const owner = "phase7transferowner";
+    const member = "phase7transfermember";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", member, {});
+    const created = await request("POST", "buckets", owner, {
+      name: "Transfer Flow",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const invite = await request("POST", `${root}/invitations`, owner, {});
+    await request("POST", "invitations/join", member, {
+      token: new URL(invite.payload.data.shareUrl).hash.slice(1),
+    });
+    const targetId = String((await UserModel.findOne({ firebaseUid: member }))!._id);
+    const stale = await request(
+      "POST",
+      `${root}/ownership-transfer`,
+      owner,
+      { newOwnerUserId: targetId },
+      { "If-Match": created.response.headers.get("ETag")!, "x-test-old-auth": "1" },
+    );
+    expect(stale.payload.error.code).toBe("REAUTHENTICATION_REQUIRED");
+    const transferred = await request(
+      "POST",
+      `${root}/ownership-transfer`,
+      owner,
+      { newOwnerUserId: targetId },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(transferred.response.status, JSON.stringify(transferred.payload)).toBe(200);
+    const membership = (await request("GET", `${root}/members`, owner)).payload.data.find(
+      (item: { isOwner: boolean }) => !item.isOwner,
+    );
+    const left = await request("POST", `${root}/leave`, owner, undefined, {
+      "If-Match": `"r${membership.revision}"`,
+    });
+    expect(left.response.status, JSON.stringify(left.payload)).toBe(200);
+    expect((await request("GET", root, owner)).response.status).toBe(404);
+    expect((await request("GET", root, member)).payload.data.isOwner).toBe(true);
+    expect(
+      (await request("GET", `${root}/members?state=all`, member)).payload.data.some(
+        (item: { state: string }) => item.state === "left",
+      ),
+    ).toBe(true);
+  });
+
+  it("cancels only the departing creator's future expense, not someone else's expense they paid", async () => {
+    const owner = "phase7cleanupowner";
+    const member = "phase7cleanupmember";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", member, {});
+    const created = await request("POST", "buckets", owner, {
+      name: "Creator Cleanup",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const invite = await request("POST", `${root}/invitations`, owner, {});
+    await request("POST", "invitations/join", member, {
+      token: new URL(invite.payload.data.shareUrl).hash.slice(1),
+    });
+    const ownerId = String((await UserModel.findOne({ firebaseUid: owner }))!._id);
+    const memberId = String((await UserModel.findOne({ firebaseUid: member }))!._id);
+    const categoryId = (await request("GET", `${root}/options/categories`, owner)).payload.data[0]
+      .id;
+    const accountId = (
+      await request("POST", `${root}/options/accounts`, owner, { name: "Shared account" })
+    ).payload.data.id;
+    const expenseDate = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const fields = {
+      expenseDate,
+      categoryId,
+      accountId,
+      paymentMode: "cash",
+      originalAmount: "10.00",
+    };
+    const memberCreated = await request("POST", `${root}/expenses`, member, {
+      ...fields,
+      description: "Member created",
+      paidByUserId: ownerId,
+    });
+    const ownerCreated = await request("POST", `${root}/expenses`, owner, {
+      ...fields,
+      description: "Owner created",
+      paidByUserId: memberId,
+    });
+    expect(memberCreated.response.status).toBe(201);
+    expect(ownerCreated.response.status).toBe(201);
+    const membership = (await request("GET", `${root}/members`, owner)).payload.data.find(
+      (item: { id: string }) => item.id === memberId,
+    );
+    const removed = await request(
+      "DELETE",
+      `${root}/members/${membership.membershipId}`,
+      owner,
+      undefined,
+      { "If-Match": `"r${membership.revision}"` },
+    );
+    expect(removed.response.status).toBe(200);
+    expect((await ExpenseModel.findById(memberCreated.payload.data.id))!.postingState).toBe(
+      "canceled",
+    );
+    expect((await ExpenseModel.findById(ownerCreated.payload.data.id))!.postingState).toBe(
+      "unposted",
+    );
+  });
+
+  it("quarantines a confirmed bucket and purges it in resumable batches", async () => {
+    const actor = "phase7deleteowner";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "buckets", actor, {
+      name: "Purge Me",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const globalContact = await request("POST", "contacts", actor, {
+      name: "Keep globally",
+      serviceType: "Other",
+      phone: "+91 9111111111",
+    });
+    expect(globalContact.response.status).toBe(201);
+    await NotificationModel.create({
+      eventId: new mongoose.Types.ObjectId(),
+      recipientUserId: (await UserModel.findOne({ firebaseUid: actor }))!._id,
+      bucketId: created.payload.data.id,
+      triggerType: "membership.joined",
+      title: "Old bucket update",
+    });
+    expect((await request("GET", "notifications", actor)).payload.data.length).toBeGreaterThan(0);
+    const wrong = await request(
+      "POST",
+      `${root}/deletion`,
+      actor,
+      { confirmationName: "wrong" },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(wrong.response.status).toBe(422);
+    const deleted = await request(
+      "POST",
+      `${root}/deletion`,
+      actor,
+      { confirmationName: "Purge Me" },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(deleted.response.status, JSON.stringify(deleted.payload)).toBe(202);
+    expect((await request("GET", root, actor)).response.status).toBe(404);
+    expect((await request("GET", "notifications", actor)).payload.data).toHaveLength(0);
+    expect(
+      (await request("GET", `operations/${deleted.payload.data.operationId}`, actor)).response
+        .status,
+    ).toBe(200);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const state = await processLifecycleCleanup(Date.now() + 4_000);
+      if (!state.hasMore) break;
+    }
+    expect(await BucketModel.findById(created.payload.data.id)).toBeNull();
+    expect(await ContactModel.findById(globalContact.payload.data.id)).not.toBeNull();
+    expect((await LifecycleOperationModel.findById(deleted.payload.data.operationId))!.state).toBe(
+      "completed",
+    );
+  });
+
+  it("blocks account deletion until ownership is resolved, then revokes access immediately", async () => {
+    const owner = "phase7accountowner";
+    const recipient = "phase7accountrecipient";
+    await request("POST", "me/bootstrap", owner, {});
+    await request("POST", "me/bootstrap", recipient, {});
+    const created = await request("POST", "buckets", owner, {
+      name: "Account Flow",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const blocked = await request("POST", "me/deletion", owner, {
+      confirmation: "DELETE MY ACCOUNT",
+    });
+    expect(blocked.payload.error.code).toBe("OWNED_BUCKETS_REMAIN");
+    const invite = await request("POST", `${root}/invitations`, owner, {});
+    await request("POST", "invitations/join", recipient, {
+      token: new URL(invite.payload.data.shareUrl).hash.slice(1),
+    });
+    const newOwnerUserId = String((await UserModel.findOne({ firebaseUid: recipient }))!._id);
+    const transfer = await request(
+      "POST",
+      `${root}/ownership-transfer`,
+      owner,
+      { newOwnerUserId },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(transfer.response.status).toBe(200);
+    const contact = await request("POST", "contacts", owner, {
+      name: "Private contact",
+      serviceType: "Other",
+      phone: "+91 9000000000",
+    });
+    expect(contact.response.status).toBe(201);
+    await request("POST", `contacts/${contact.payload.data.id}/shares`, owner, {
+      recipientUserIds: [newOwnerUserId],
+    });
+    const deletionKey = randomUUID();
+    const deleted = await request(
+      "POST",
+      "me/deletion",
+      owner,
+      { confirmation: "DELETE MY ACCOUNT" },
+      { "Idempotency-Key": deletionKey },
+    );
+    expect(deleted.response.status, JSON.stringify(deleted.payload)).toBe(202);
+    const replay = await request(
+      "POST",
+      "me/deletion",
+      owner,
+      { confirmation: "DELETE MY ACCOUNT" },
+      { "Idempotency-Key": deletionKey },
+    );
+    expect(replay.payload.data.operationId).toBe(deleted.payload.data.operationId);
+    expect((await request("GET", "me", owner)).payload.error.code).toBe("ACCOUNT_INACTIVE");
+    expect((await request("GET", root, recipient)).response.status).toBe(200);
+    expect((await UserModel.findOne({ firebaseUid: owner }))!.status).toBe("deleting");
+    expect((await UserModel.findOne({ firebaseUid: owner }))!.displayName).toBe("Deleted user");
+    expect(
+      (await request("GET", `contacts/${contact.payload.data.id}`, recipient)).response.status,
+    ).toBe(404);
+    expect(
+      (await request("GET", `operations/${deleted.payload.data.operationId}`, owner)).response
+        .status,
+    ).toBe(403);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const state = await processLifecycleCleanup(Date.now() + 4_000);
+      if (!state.hasMore) break;
+    }
+    const operation = await LifecycleOperationModel.findById(deleted.payload.data.operationId);
+    const stub = await UserModel.findById(operation!.userId);
+    expect(stub?.status).toBe("deleted");
+    expect(stub?.displayName).toBe("Deleted user");
+    expect(stub?.firebaseUid).toBeUndefined();
+    expect(stub?.email).toBeUndefined();
+    expect(await ContactModel.findById(contact.payload.data.id)).toBeNull();
+    expect(await ContactShareModel.countDocuments({ contactId: contact.payload.data.id })).toBe(0);
+  });
 });
 
 describe("Phase 6 contacts and CSV", () => {
@@ -1273,7 +1644,7 @@ describe("Phase 1 HTTP API flows", () => {
     ).toBe("light");
     expect((await request("GET", `buckets/${id}`)).payload.data.name).toBe("Shared Living");
     expect((await request("GET", "buckets")).payload.data).toHaveLength(1);
-    expect((await request("GET", "capabilities")).payload.data.phase).toBe(6);
+    expect((await request("GET", "capabilities")).payload.data.phase).toBe(7);
     const invite = await request("POST", `buckets/${id}/invitations`, "owner", {});
     expect(invite.response.status).toBe(201);
     const token = new URL(invite.payload.data.shareUrl).hash.slice(1);

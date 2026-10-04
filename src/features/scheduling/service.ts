@@ -909,6 +909,73 @@ export async function listScheduled(identity: DecodedIdToken, bucketId: string) 
   }));
 }
 
+async function eligibleDueIds(limit: number, includeConversionMissing = true) {
+  const rows = await ExpenseModel.aggregate([
+    {
+      $match: {
+        postingState: "unposted",
+        deletedAt: null,
+        reviewState: "none",
+        dueAt: { $lte: new Date() },
+        ...(!includeConversionMissing ? { "conversion.status": { $ne: "missing" } } : {}),
+      },
+    },
+    { $sort: { dueAt: 1, _id: 1 } },
+    { $lookup: { from: "buckets", localField: "bucketId", foreignField: "_id", as: "bucket" } },
+    { $unwind: "$bucket" },
+    { $match: { "bucket.status": "active" } },
+    {
+      $lookup: {
+        from: "bucket_memberships",
+        localField: "creatorMembershipId",
+        foreignField: "_id",
+        as: "membership",
+      },
+    },
+    { $unwind: "$membership" },
+    {
+      $match: {
+        $expr: {
+          $or: [
+            { $eq: ["$membership.state", "active"] },
+            { $gte: ["$membership.endedAt", "$dueAt"] },
+          ],
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: "emi_plans",
+        localField: "source.emiPlanId",
+        foreignField: "_id",
+        as: "plan",
+      },
+    },
+    { $unwind: { path: "$plan", preserveNullAndEmptyArrays: true } },
+    {
+      $match: {
+        $expr: {
+          $or: [
+            { $ne: ["$source.kind", "emi"] },
+            {
+              $and: [{ $eq: ["$membership.state", "active"] }, { $eq: ["$plan.state", "active"] }],
+            },
+            {
+              $and: [
+                { $ne: ["$membership.state", "active"] },
+                { $eq: ["$plan.state", "owner_departed"] },
+              ],
+            },
+          ],
+        },
+      },
+    },
+    { $limit: limit },
+    { $project: { _id: 1 } },
+  ]);
+  return rows.map((row) => row._id as mongoose.Types.ObjectId);
+}
+
 export async function processDaily(limit = 100) {
   let generated = 0;
   let posted = 0;
@@ -946,14 +1013,10 @@ export async function processDaily(limit = 100) {
         },
       );
   }
-  const due = await ExpenseModel.find({
-    postingState: "unposted",
-    deletedAt: null,
-    reviewState: "none",
-    dueAt: { $lte: new Date() },
-  })
-    .sort({ dueAt: 1, _id: 1 })
-    .limit(limit);
+  const due = await ExpenseModel.find({ _id: { $in: await eligibleDueIds(limit) } }).sort({
+    dueAt: 1,
+    _id: 1,
+  });
   for (const candidate of due) {
     if (Date.now() >= deadline) break;
     const bucket = await BucketModel.findById(candidate.bucketId);
@@ -987,10 +1050,9 @@ export async function processDaily(limit = 100) {
         reviewState: "none",
       }).session(session);
       if (!expense) return;
-      const membership = await MembershipModel.exists({
-        _id: expense.creatorMembershipId,
-        state: "active",
-      }).session(session);
+      const membership = await MembershipModel.findById(expense.creatorMembershipId).session(
+        session,
+      );
       const currentBucket = await BucketModel.findOne({
         _id: expense.bucketId,
         status: "active",
@@ -998,10 +1060,13 @@ export async function processDaily(limit = 100) {
       if (
         !currentBucket ||
         !membership ||
+        (membership.state !== "active" &&
+          (!membership.endedAt || expense.dueAt > membership.endedAt)) ||
         (expense.source?.kind === "emi" &&
-          !(await EmiPlanModel.exists({ _id: expense.source.emiPlanId, state: "active" }).session(
-            session,
-          )))
+          !(await EmiPlanModel.exists({
+            _id: expense.source.emiPlanId,
+            state: membership.state === "active" ? "active" : "owner_departed",
+          }).session(session)))
       )
         return;
       const postingGuard = await BucketModel.updateOne(
@@ -1093,19 +1158,13 @@ export async function processDaily(limit = 100) {
       state: "active",
       $expr: { $lt: ["$generatedThroughNumber", "$totalInstallments"] },
     }),
-    ExpenseModel.exists({
-      postingState: "unposted",
-      deletedAt: null,
-      reviewState: "none",
-      "conversion.status": { $ne: "missing" },
-      dueAt: { $lte: new Date() },
-    }),
+    eligibleDueIds(1, false),
   ]);
   return {
     generated,
     posted,
     conversionNeeded,
     checked: due.length,
-    hasRemainingWork: Boolean(unfinishedPlan || dueBacklog),
+    hasRemainingWork: Boolean(unfinishedPlan || dueBacklog.length),
   };
 }

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { ApiError } from "@/lib/api/errors";
 import { requireConfig } from "@/lib/config/required";
 import {
+  BucketModel,
   ContactModel,
   ContactShareModel,
   DomainEventModel,
@@ -57,6 +58,10 @@ function parseCursor(raw: string | null, owner: string, unreadOnly: boolean) {
 
 async function visibleFilter(userId: mongoose.Types.ObjectId) {
   const memberships = await MembershipModel.find({ userId, state: "active" }).select("bucketId");
+  const visibleBuckets = await BucketModel.find({
+    _id: { $in: memberships.map((member) => member.bucketId) },
+    status: { $in: ["active", "archived"] },
+  }).select("_id");
   const [owned, shared] = await Promise.all([
     ContactModel.find({ ownerUserId: userId }).select("_id"),
     ContactShareModel.find({ recipientUserId: userId, state: "active", hiddenAt: null }).select(
@@ -74,7 +79,7 @@ async function visibleFilter(userId: mongoose.Types.ObjectId) {
         $or: [
           { bucketId: { $exists: false } },
           { bucketId: null },
-          { bucketId: { $in: memberships.map((member) => member.bucketId) } },
+          { bucketId: { $in: visibleBuckets.map((bucket) => bucket._id) } },
         ],
       },
       {
@@ -192,6 +197,19 @@ export async function fanoutPendingEvents(limit = 30) {
         fanoutState: "pending",
       }).session(session);
       if (!current) return;
+      if (
+        current.bucketId &&
+        !(await BucketModel.exists({
+          _id: current.bucketId,
+          status: { $in: ["active", "archived"] },
+        }).session(session))
+      ) {
+        current.notificationPolicy = "suppressed";
+        current.fanoutState = "complete";
+        current.completedAt = new Date();
+        await current.save({ session });
+        return;
+      }
       const trigger = current.type as NotificationTrigger;
       let hasRecipientPage = false;
       let lastRecipientId: string | null = null;

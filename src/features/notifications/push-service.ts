@@ -5,6 +5,7 @@ import { z } from "zod";
 import { ApiError, assertRevision } from "@/lib/api/errors";
 import { requireConfig } from "@/lib/config/required";
 import {
+  BucketModel,
   ContactShareModel,
   DomainEventModel,
   MembershipModel,
@@ -238,6 +239,9 @@ export async function sendPendingPush(limit = 20) {
             joinedAt: { $lte: event.occurredAt },
           })
         : true;
+    const activeBucket = claimed.bucketId
+      ? await BucketModel.exists({ _id: claimed.bucketId, status: "active" })
+      : true;
     const contactAccess =
       event && ["contact.shared", "contact.updated"].includes(event.type)
         ? await ContactShareModel.exists({
@@ -252,6 +256,7 @@ export async function sendPendingPush(limit = 20) {
       !installation ||
       !event ||
       !membership ||
+      !activeBucket ||
       !contactAccess ||
       !channel?.push ||
       !channel.pushEnabledSince ||

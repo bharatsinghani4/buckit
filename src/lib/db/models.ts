@@ -11,7 +11,7 @@ const common = {
 const ref = { type: Schema.Types.ObjectId, required: true };
 const userSchema = new Schema(
   {
-    firebaseUid: { type: String, required: true },
+    firebaseUid: String,
     email: String,
     status: { type: String, enum: ["active", "deleting", "deleted"], default: "active" },
     displayName: { type: String, required: true },
@@ -75,6 +75,7 @@ const membershipSchema = new Schema(
       default: "active",
     },
     joinedAt: { type: Date, default: Date.now },
+    endedAt: Date,
     revision: { type: Number, default: 1 },
   },
   common,
@@ -551,6 +552,41 @@ importRowSchema.index({ sessionId: 1, state: 1, rowNumber: 1 });
 importRowSchema.index({ sessionId: 1, fingerprint: 1 });
 importRowSchema.index({ bucketId: 1 });
 
+const archiveIntervalSchema = new Schema(
+  {
+    bucketId: ref,
+    startedAt: { type: Date, required: true },
+    endedAt: Date,
+    startedByUserId: ref,
+    endedByUserId: Schema.Types.ObjectId,
+  },
+  common,
+);
+archiveIntervalSchema.index({ bucketId: 1, endedAt: 1 });
+
+const lifecycleOperationSchema = new Schema(
+  {
+    kind: { type: String, enum: ["bucket_deletion", "account_deletion"], required: true },
+    bucketId: Schema.Types.ObjectId,
+    userId: Schema.Types.ObjectId,
+    firebaseUid: String,
+    actorUserId: ref,
+    state: { type: String, enum: ["pending", "running", "completed", "retry"], default: "pending" },
+    stage: { type: Number, default: 0 },
+    stageCursor: { type: Number, default: 0 },
+    processedCount: { type: Number, default: 0 },
+    attemptCount: { type: Number, default: 0 },
+    nextAttemptAt: Date,
+    lastError: String,
+    completedAt: Date,
+  },
+  common,
+);
+lifecycleOperationSchema.index({ state: 1, createdAt: 1 });
+lifecycleOperationSchema.index({ state: 1, nextAttemptAt: 1 });
+lifecycleOperationSchema.index({ bucketId: 1, kind: 1 });
+lifecycleOperationSchema.index({ userId: 1, kind: 1 });
+
 export const UserModel =
   mongoose.models.BuckitUser || mongoose.model("BuckitUser", userSchema, "users");
 export const BucketModel =
@@ -611,6 +647,12 @@ export const ImportSessionModel =
 export const ImportRowModel =
   mongoose.models.BuckitImportRow ||
   mongoose.model("BuckitImportRow", importRowSchema, "import_rows");
+export const ArchiveIntervalModel =
+  mongoose.models.BuckitArchiveInterval ||
+  mongoose.model("BuckitArchiveInterval", archiveIntervalSchema, "bucket_archive_intervals");
+export const LifecycleOperationModel =
+  mongoose.models.BuckitLifecycleOperation ||
+  mongoose.model("BuckitLifecycleOperation", lifecycleOperationSchema, "lifecycle_operations");
 export const phaseOneModels = [
   UserModel,
   BucketModel,
@@ -644,3 +686,4 @@ export const phaseSixModels = [
   ImportSessionModel,
   ImportRowModel,
 ];
+export const phaseSevenModels = [...phaseSixModels, ArchiveIntervalModel, LifecycleOperationModel];
