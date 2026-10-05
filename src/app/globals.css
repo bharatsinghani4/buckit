@@ -93,13 +93,13 @@
     @apply [line-height:1.25] [letter-spacing:-.035em];
   }
   h1 {
-    @apply [font-size:32px] [font-weight:700] min-[768px]:max-[1199px]:text-[28px] max-[767px]:text-[24px];
+    @apply [font-size:32px] [font-weight:700] min-[768px]:max-[1024px]:text-[25px] max-[767px]:text-[24px];
   }
   h2 {
-    @apply [font-size:20px] [font-weight:650] min-[768px]:max-[1199px]:text-[18px] max-[767px]:text-[18px];
+    @apply [font-size:20px] [font-weight:650] min-[768px]:max-[1024px]:text-[17px] max-[767px]:text-[18px];
   }
   h3 {
-    @apply [font-size:16px] [font-weight:650] min-[768px]:max-[1199px]:text-[15px] max-[767px]:text-[14px];
+    @apply [font-size:16px] [font-weight:650] min-[768px]:max-[1024px]:text-[14px] max-[767px]:text-[14px];
   }
   p {
     @apply [color:var(--muted)];

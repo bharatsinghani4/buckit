@@ -283,9 +283,6 @@ export function PhaseSevenScreen({
   return (
     <div className="space-y-6 pb-12">
       <div>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[.14em] text-[var(--green)]">
-          Workspace governance
-        </p>
         <h1 className="text-[29px] font-semibold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
           {view === "bucket-settings" ? "Bucket Settings" : "Account Settings"}
         </h1>
@@ -471,22 +468,24 @@ export function PhaseSevenScreen({
                   <label htmlFor="new-owner" className={label}>
                     Transfer ownership
                   </label>
-                  <Dropdown
-                    id="new-owner"
-                    value={newOwnerId}
-                    onValueChange={setNewOwnerId}
-                    placeholder="Choose a member"
-                    options={members
-                      .filter((member) => !member.isOwner)
-                      .map((member) => ({ value: member.id, label: member.displayName }))}
-                  />
-                  <button
-                    className={controls.secondary}
-                    disabled={!newOwnerId || busy}
-                    onClick={() => void transfer()}
-                  >
-                    <ArrowRightLeft size={15} /> Transfer ownership
-                  </button>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 max-[767px]:grid-cols-1">
+                    <Dropdown
+                      id="new-owner"
+                      value={newOwnerId}
+                      onValueChange={setNewOwnerId}
+                      placeholder="Choose a member"
+                      options={members
+                        .filter((member) => !member.isOwner)
+                        .map((member) => ({ value: member.id, label: member.displayName }))}
+                    />
+                    <button
+                      className={controls.secondary}
+                      disabled={!newOwnerId || busy}
+                      onClick={() => void transfer()}
+                    >
+                      <ArrowRightLeft size={15} /> Transfer ownership
+                    </button>
+                  </div>
                 </div>
               )}
               {!settings.isOwner && (

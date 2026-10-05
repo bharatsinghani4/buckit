@@ -19,6 +19,7 @@ import {
 import { Dropdown } from "@/components/dropdown";
 import { controls } from "@/components/control-styles";
 import { Dialog, Notice, Pending } from "@/components/ui";
+import { CalendarField } from "@/components/calendar-field";
 import { currencies } from "@/features/identity/contracts";
 import type { Bucket } from "@/features/identity/contracts";
 import type { Member, Option } from "@/features/expenses/contracts";
@@ -432,19 +433,16 @@ export function PhaseFourScreen({
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 pb-12 min-[768px]:max-[1199px]:space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          {view === "emi-plan" && (
-            <Link
-              href={page(bucket.id, "emis")}
-              className="mb-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--muted)] hover:text-[var(--green)]"
-            >
-              <ArrowLeft size={14} /> All EMI plans
-            </Link>
-          )}
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--green)]">
-            Scheduled spending<span className="max-[767px]:hidden"> · {bucket.name}</span>
-          </p>
+      {view === "emi-plan" && (
+        <Link
+          href={page(bucket.id, "emis")}
+          className="inline-flex h-7 items-center gap-1 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--green)]"
+        >
+          <ArrowLeft size={14} /> All EMI plans
+        </Link>
+      )}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-[var(--ink)]">
             {view === "scheduled"
               ? "Scheduled expenses"
@@ -452,32 +450,40 @@ export function PhaseFourScreen({
                 ? (selected?.title ?? "EMI plan")
                 : "EMI plans"}
           </h1>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--muted)]">
-            {view === "scheduled"
-              ? "Future commitments stay separate from spending until the daily run records them."
-              : "Track installments and unpaid commitments before they become spending."}
-          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Link
             href={page(bucket.id, view === "scheduled" ? "emis" : "scheduled")}
             className={secondary}
           >
-            <CalendarDays size={15} /> {view === "scheduled" ? "EMI plans" : "Scheduled expenses"}
+            <CalendarDays size={15} />
+            <span className="max-[1024px]:hidden">
+              {view === "scheduled" ? "EMI plans" : "Scheduled expenses"}
+            </span>
+            <span className="min-[1025px]:hidden">
+              {view === "scheduled" ? "EMIs" : "Scheduled"}
+            </span>
           </Link>
           {bucket.status === "active" && view !== "scheduled" && (
             <button className={primary} onClick={() => void openForm(false)}>
-              <Plus size={15} /> Add EMI plan
+              <Plus size={15} />
+              <span className="max-[1024px]:hidden">Add EMI plan</span>
+              <span className="min-[1025px]:hidden">Add plan</span>
             </button>
           )}
         </div>
+        <p className="col-span-2 max-w-2xl text-xs leading-5 text-[var(--muted)]">
+          {view === "scheduled"
+            ? "Future commitments stay separate from spending until the daily run records them."
+            : "Track installments and unpaid commitments before they become spending."}
+        </p>
       </div>
       {error && <Notice>{error}</Notice>}
       {loading ? (
         <Pending label="Loading scheduled spending…" layout="workspace" />
       ) : view === "scheduled" ? (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-2">
             <div className="col-span-2 lg:col-span-1">
               <Summary
                 icon={<CalendarDays size={18} />}
@@ -600,7 +606,7 @@ export function PhaseFourScreen({
               </div>
             </div>
             {plans.length ? (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
                 {plans.map((plan) => (
                   <Link
                     key={plan.id}
@@ -655,7 +661,7 @@ export function PhaseFourScreen({
         </>
       ) : selected ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
             <Summary
               icon={<CheckCircle2 size={18} />}
               label="Recorded"
@@ -694,7 +700,7 @@ export function PhaseFourScreen({
                 <span className="text-xs font-medium text-[var(--muted)]"> / installment</span>
               </strong>
             </div>
-            <div className="mt-4 grid gap-2 border-t border-[var(--line)] pt-4 text-xs sm:grid-cols-3">
+            <div className="mt-4 grid gap-2 border-t border-[var(--line)] pt-4 text-xs sm:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
               <p>
                 First installment{" "}
                 <strong className="block mt-1">{dateLabel(selected.firstInstallmentDate)}</strong>
@@ -834,7 +840,7 @@ export function PhaseFourScreen({
                 placeholder="e.g. Living room air conditioner"
               />
             </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
               <Field label="Installment amount">
                 <input
                   required
@@ -855,7 +861,7 @@ export function PhaseFourScreen({
               </Field>
             </div>
             {dialog === "add" && (
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
                 <Field label="Total installments">
                   <input
                     required
@@ -879,18 +885,15 @@ export function PhaseFourScreen({
                   />
                 </Field>
                 <Field label="First installment">
-                  <input
+                  <CalendarField
                     required
-                    type="date"
-                    className={field}
                     value={form.firstInstallmentDate}
-                    onInput={(event) => update("firstInstallmentDate", event.currentTarget.value)}
-                    onChange={(event) => update("firstInstallmentDate", event.target.value)}
+                    onValueChange={(value) => update("firstInstallmentDate", value)}
                   />
                 </Field>
               </div>
             )}
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
               <Field label="Category">
                 <Dropdown
                   value={form.categoryId}
@@ -1054,13 +1057,7 @@ export function PhaseFourScreen({
             }}
           >
             <Field label="New date">
-              <input
-                name="expenseDate"
-                type="date"
-                required
-                defaultValue={target.scheduledDate}
-                className={field}
-              />
+              <CalendarField name="expenseDate" required defaultValue={target.scheduledDate} />
             </Field>
             <p className="mt-2 text-xs text-[var(--muted)]">
               Other installments keep their original schedule.

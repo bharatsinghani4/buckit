@@ -15,6 +15,7 @@ export function Dropdown({
   disabled,
   placeholder = "Choose an option",
   id,
+  className = "",
 }: {
   value?: string;
   defaultValue?: string;
@@ -25,6 +26,7 @@ export function Dropdown({
   disabled?: boolean;
   placeholder?: string;
   id?: string;
+  className?: string;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | undefined>();
@@ -45,7 +47,7 @@ export function Dropdown({
       name={name}
       disabled={disabled}
     >
-      <Select.Trigger ref={trigger} id={id} className={controls.dropdownTrigger}>
+      <Select.Trigger ref={trigger} id={id} className={`${controls.dropdownTrigger} ${className}`}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon>
           <ChevronDown size={16} />

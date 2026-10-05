@@ -242,24 +242,18 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
   return (
     <div className="mx-auto max-w-[1400px] pb-12">
       <div
-        className={`mb-6 flex flex-wrap items-end justify-between gap-4 ${mode !== "read" || selectedId ? "max-[767px]:hidden" : ""}`}
+        className={`mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 ${mode !== "read" || selectedId ? "max-[767px]:hidden" : ""}`}
       >
-        <div>
-          <Link
-            href="/workspace"
-            className="mb-3 inline-flex h-9 items-center gap-1.5 text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
-          >
-            <ArrowLeft size={15} aria-hidden="true" /> Back to Overview
-          </Link>
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--green)]">
-            Your directory
-          </p>
+        <Link
+          href="/workspace"
+          className="col-span-2 inline-flex h-7 items-center gap-1 text-[11px] font-semibold text-[var(--green)] min-[768px]:hidden"
+        >
+          <ArrowLeft size={15} aria-hidden="true" /> Back to Overview
+        </Link>
+        <div className="min-w-0">
           <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
             Contacts & Directory
           </h1>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            Keep useful contacts private, then share them with people you choose.
-          </p>
         </div>
         <button
           className={controls.primary}
@@ -270,6 +264,9 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
         >
           <Plus size={16} /> Add contact
         </button>
+        <p className="col-span-2 mt-1 text-xs text-[var(--muted)]">
+          Keep useful contacts private, then share them with people you choose.
+        </p>
       </div>
       <div
         className={`${card} mb-5 flex items-start gap-3 bg-[var(--sage)] p-4 max-[767px]:hidden`}
@@ -403,7 +400,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
                   Cancel
                 </button>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
                 <label>
                   <span className={label}>Name *</span>
                   <input
@@ -512,7 +509,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
                   </button>
                 )}
               </div>
-              <dl className="grid gap-4 border-b border-[var(--line)] py-5 sm:grid-cols-2">
+              <dl className="grid gap-4 border-b border-[var(--line)] py-5 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
                 {[
                   ["Phone", selected.phone],
                   ["Email", selected.email],
