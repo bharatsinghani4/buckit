@@ -17,12 +17,24 @@ export function Notice({
   children: ReactNode;
   kind?: "error" | "success" | "info";
 }) {
+  const [dismissedContent, setDismissedContent] = useState<{ value: ReactNode } | null>(null);
+  if (dismissedContent?.value === children) return null;
   return (
     <div
-      className={`d-alert notice [background:var(--error-bg)] [color:var(--error)] [border:1px_solid_currentColor] [border-radius:7px] [padding:12px_14px] flex items-center [gap:8px] text-xs [line-height:1.7] [margin-bottom:18px] [overflow-wrap:anywhere] [&.info]:bg-[var(--sage)] [&.info]:text-[var(--green)] [&.info]:[border-color:transparent] [&.success]:bg-[var(--sage)] [&.success]:text-[var(--green)] [&.success]:[border-color:transparent] [&_a]:[text-decoration:underline] ${kind}`}
+      className={`d-alert notice [background:var(--error-bg)] [color:var(--error)] [border:1px_solid_currentColor] [border-radius:7px] [padding:12px_14px] flex items-start [gap:8px] text-xs [line-height:1.7] [margin-bottom:18px] [overflow-wrap:anywhere] [&.info]:bg-[var(--sage)] [&.info]:text-[var(--green)] [&.info]:[border-color:transparent] [&.success]:bg-[var(--sage)] [&.success]:text-[var(--green)] [&.success]:[border-color:transparent] [&_a]:[text-decoration:underline] ${kind}`}
       role={kind === "error" ? "alert" : "status"}
     >
-      {children}
+      <span className="min-w-0 flex-1">{children}</span>
+      {kind === "error" && (
+        <button
+          type="button"
+          className="-mr-1 -mt-1 grid size-7 shrink-0 place-items-center rounded-md hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-current"
+          onClick={() => setDismissedContent({ value: children })}
+          aria-label="Dismiss error"
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
@@ -63,10 +75,12 @@ export function Pending({
     </div>
   );
 }
-export function SearchField(props: InputHTMLAttributes<HTMLInputElement>) {
-  const { className, ...inputProps } = props;
+export function SearchField(
+  props: InputHTMLAttributes<HTMLInputElement> & { containerClassName?: string },
+) {
+  const { className, containerClassName, ...inputProps } = props;
   return (
-    <label className="relative block min-w-48 flex-1">
+    <label className={`relative block min-w-48 flex-1 ${containerClassName ?? ""}`}>
       <Search
         size={16}
         aria-hidden="true"

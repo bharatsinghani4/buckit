@@ -18,6 +18,7 @@ import {
 import { controls } from "@/components/control-styles";
 import { Dropdown } from "@/components/dropdown";
 import { Notice } from "@/components/ui";
+import { CalendarField } from "@/components/calendar-field";
 import type { Bucket } from "@/features/identity/contracts";
 import { api, ClientError, friendlyError } from "@/lib/api/client";
 import { quoteCsv } from "./codec";
@@ -95,12 +96,9 @@ const steps = ["Upload file", "Map columns", "Review & post"];
 const csvError = (cause: unknown) =>
   cause instanceof Error && !(cause instanceof ClientError) ? cause.message : friendlyError(cause);
 
-function heading(eyebrow: string, title: string, description: string) {
+function heading(_eyebrow: string, title: string, description: string) {
   return (
     <div className="mb-6">
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--green)]">
-        {eyebrow}
-      </p>
       <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
         {title}
       </h1>
@@ -648,7 +646,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                   defaults.
                 </p>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
                 {columns.map((name) => (
                   <label key={name}>
                     <span className={label}>
@@ -1120,24 +1118,20 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
                 )}
                 <label>
                   <span className={label}>From</span>
-                  <input
-                    type="date"
-                    className={controls.date}
+                  <CalendarField
                     value={from}
-                    onChange={(event) => {
-                      setFrom(event.target.value);
+                    onValueChange={(value) => {
+                      setFrom(value);
                       setPreview(null);
                     }}
                   />
                 </label>
                 <label>
                   <span className={label}>To (exclusive)</span>
-                  <input
-                    type="date"
-                    className={controls.date}
+                  <CalendarField
                     value={toExclusive}
-                    onChange={(event) => {
-                      setToExclusive(event.target.value);
+                    onValueChange={(value) => {
+                      setToExclusive(value);
                       setPreview(null);
                     }}
                   />

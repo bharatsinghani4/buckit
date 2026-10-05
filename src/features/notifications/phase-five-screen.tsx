@@ -19,6 +19,7 @@ import {
 import { controls } from "@/components/control-styles";
 import { Dropdown } from "@/components/dropdown";
 import { Notice, Pending } from "@/components/ui";
+import { CalendarField } from "@/components/calendar-field";
 import type { Bucket, Profile } from "@/features/identity/contracts";
 import { api, friendlyError } from "@/lib/api/client";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
@@ -104,12 +105,9 @@ function Switch({
   );
 }
 
-function heading(eyebrow: string, title: string, description: string) {
+function heading(_eyebrow: string, title: string, description: string) {
   return (
     <div className="mb-6">
-      <p className="mb-2 text-[10px] font-bold tracking-[.16em] text-[var(--green)] uppercase">
-        {eyebrow}
-      </p>
       <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
         {title}
       </h1>
@@ -427,9 +425,9 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
                       className={openGroups[group.title] ? "rotate-180" : ""}
                     />
                   </button>
-                  <p className="mb-2 text-[10px] font-bold tracking-[.12em] text-[var(--green)] uppercase max-[767px]:hidden">
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--ink)] max-[767px]:hidden">
                     {group.title}
-                  </p>
+                  </h3>
                   <div className={openGroups[group.title] ? "" : "max-[767px]:hidden"}>
                     <p className="mb-2 text-[11px] text-[var(--muted)]">{group.description}</p>
                     <div className="grid grid-cols-[minmax(0,1fr)_40px_40px] gap-x-2 border-b border-[var(--line)] pb-2 text-[10px] font-semibold text-[var(--muted)] min-[768px]:hidden">
@@ -764,21 +762,19 @@ function ReminderSettings({
         >
           ← Back to reminders
         </button>
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] pb-4">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <CalendarClock size={18} className="text-[var(--green)]" /> Personal spending
-              reminders
-            </h2>
-            <p className={`${small} mt-1`}>
-              Choose a fixed schedule. Reminders do not depend on whether you entered an expense.
-            </p>
-          </div>
+        <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 border-b border-[var(--line)] pb-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarClock size={18} className="shrink-0 text-[var(--green)]" /> Personal spending
+            reminders
+          </h2>
           <Switch
             checked={form.enabled}
             onChange={() => setForm((current) => ({ ...current, enabled: !current.enabled }))}
             label="Enable this reminder"
           />
+          <p className={`${small} col-span-2 mt-1`}>
+            Choose a fixed schedule. Reminders do not depend on whether you entered an expense.
+          </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_250px]">
           <form id="reminder-form" onSubmit={save} className="min-w-0 space-y-5">
@@ -836,12 +832,11 @@ function ReminderSettings({
             {form.frequency === "fortnightly" && (
               <label className="block text-[11px] font-semibold">
                 Anchor date
-                <input
-                  type="date"
-                  className={`${controls.date} mt-2`}
+                <CalendarField
+                  className="mt-2"
                   value={form.anchorDate}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, anchorDate: event.target.value }))
+                  onValueChange={(value) =>
+                    setForm((current) => ({ ...current, anchorDate: value }))
                   }
                   required
                 />
@@ -866,7 +861,7 @@ function ReminderSettings({
                 </span>
               </label>
             )}
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
               <div>
                 <label htmlFor="reminder-bucket" className="mb-2 block text-[11px] font-semibold">
                   Applies to
@@ -958,7 +953,7 @@ function ReminderSettings({
             className={`${card} mb-6 p-5 max-[767px]:order-1 ${mobileEditing ? "max-[767px]:hidden" : ""}`}
           >
             <h2 className="mb-3 text-sm font-semibold max-[767px]:hidden">Your reminders</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
               {reminders.map((item) => (
                 <div
                   key={item.id}
@@ -1008,7 +1003,7 @@ function ReminderSettings({
         <p className={`${small} mb-4`}>
           Automated posting, reminders, and delivery are handled in a bounded daily run.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
           {[
             {
               title: "Daily processing run",

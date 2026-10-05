@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Pin,
   PinOff,
+  ChevronRight,
   Plus,
   Settings2,
   ShieldCheck,
@@ -215,6 +216,7 @@ function Workspace() {
   const [ledgerMonth, setLedgerMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [sidebarTooltip, setSidebarTooltip] = useState<{ label: string; top: number } | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<SidebarGroupId, boolean>>(() => {
     const active = sidebarGroups.find((group) =>
       group.items.some((item) => item.activeViews.includes(phaseView ?? "")),
@@ -228,6 +230,7 @@ function Workspace() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileMoreVisible, setMobileMoreVisible] = useState(false);
+  const [previousWorkspaceUrl, setPreviousWorkspaceUrl] = useState<string | null>(null);
   const mobileMoreDialogRef = useRef<HTMLDialogElement>(null);
   const mobileMoreCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [avatarDraft, setAvatarDraft] = useState<string | null>(profile.avatarDataUrl);
@@ -235,7 +238,6 @@ function Workspace() {
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const sidebarHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestedBucketTarget = useRef<string | null>(null);
   const loadedBuckets = useRef<Bucket[]>([]);
   useEffect(() => {
@@ -319,6 +321,7 @@ function Workspace() {
     )
       return;
     event.preventDefault();
+    setPreviousWorkspaceUrl(window.location.href);
     window.history.pushState(null, "", event.currentTarget.href);
   }
   useEffect(() => {
@@ -334,7 +337,13 @@ function Workspace() {
     const next = !sidebarPinned;
     setSidebarPinned(next);
     setSidebarExpanded(next);
+    setSidebarTooltip(null);
     setPreference("buckit-sidebar-pinned", String(next));
+  }
+  function showSidebarTooltip(label: string, element: HTMLElement) {
+    if (sidebarExpanded) return;
+    const bounds = element.getBoundingClientRect();
+    setSidebarTooltip({ label, top: bounds.top + bounds.height / 2 });
   }
   const profileKey = useRef<{ body: string; key: string } | null>(null);
   const load = useCallback(async () => {
@@ -522,12 +531,40 @@ function Workspace() {
       )
     )
       return null;
-    if (phaseView === "deleted") return { label: "Expenses", view: "expenses" };
-    if (phaseView === "scheduled") return { label: "EMI plans", view: "emis" };
-    if (phaseView === "reminders") return { label: "Notifications", view: "notifications" };
+    const previous = previousWorkspaceUrl ? new URL(previousWorkspaceUrl) : null;
+    if (
+      previous?.pathname === "/workspace" &&
+      previous.searchParams.get("bucket") === selected?.id &&
+      previous.searchParams.get("view") !== phaseView
+    ) {
+      const view = previous.searchParams.get("view") ?? "";
+      const label =
+        view === ""
+          ? "Overview"
+          : view === "expenses"
+            ? "Expenses"
+            : view === "deleted"
+              ? "Deleted expenses"
+              : view === "budgets"
+                ? "Budgets"
+                : view === "reports"
+                  ? "Reports"
+                  : view === "emis"
+                    ? "EMIs"
+                    : view === "scheduled"
+                      ? "Scheduled"
+                      : (sidebarGroups
+                          .flatMap((group) => group.items)
+                          .find((item) => item.view === view)?.label ?? "Previous screen");
+      return { label, view, fromHistory: true };
+    }
+    if (phaseView === "deleted") return { label: "Expenses", view: "expenses", fromHistory: false };
+    if (phaseView === "scheduled") return { label: "EMI plans", view: "emis", fromHistory: false };
+    if (phaseView === "reminders")
+      return { label: "Notifications", view: "notifications", fromHistory: false };
     if (["csv-import", "csv-export"].includes(phaseView))
-      return { label: "Expenses", view: "expenses" };
-    return { label: "Overview", view: "" };
+      return { label: "Expenses", view: "expenses", fromHistory: false };
+    return { label: "Overview", view: "", fromHistory: false };
   })();
   const mobileNavItems = [
     { label: "Overview", view: "", icon: LayoutDashboard, active: !phaseView },
@@ -563,28 +600,17 @@ function Workspace() {
   return (
     <div className="workspace-layout min-h-svh">
       <aside
-        className={`sidebar fixed inset-y-0 left-0 z-30 hidden flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--line)] bg-[var(--surface)] py-5 transition-[width,padding] duration-200 min-[768px]:flex ${sidebarExpanded ? "w-[248px] px-4" : "w-[68px] px-[9px] [&_.nav-item]:justify-center [&_.nav-item]:gap-0 [&_.nav-item]:px-0 [&_.nav-item]:text-[0px] [&_.nav-item_svg]:size-5"}`}
-        onMouseEnter={() => {
-          if (!sidebarPinned) {
-            sidebarHoverTimer.current = setTimeout(() => setSidebarExpanded(true), 250);
-          }
-        }}
+        className={`sidebar fixed inset-y-0 left-0 z-20 hidden flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--line)] bg-[var(--surface)] py-5 transition-[width,padding] duration-200 min-[768px]:flex ${sidebarExpanded ? "w-[248px] px-4 min-[768px]:max-[1024px]:w-[200px] min-[768px]:max-[1024px]:px-3" : "w-[68px] px-[9px] [&_.nav-item]:justify-center [&_.nav-item]:gap-0 [&_.nav-item]:px-0 [&_.nav-item]:text-[0px] [&_.nav-item_svg]:size-5"}`}
         onMouseLeave={() => {
-          if (sidebarHoverTimer.current) clearTimeout(sidebarHoverTimer.current);
+          setSidebarTooltip(null);
           if (!sidebarPinned) setSidebarExpanded(false);
         }}
+        onScroll={() => setSidebarTooltip(null)}
       >
-        <div className="sidebar-top flex items-center justify-between [min-height:38px] [&_.brand]:[margin:0]">
-          <Brand
-            compact={!sidebarExpanded}
-            ariaLabel={sidebarExpanded ? "Buckit home" : "Expand sidebar"}
-            onClick={(event) => {
-              if (!sidebarExpanded) {
-                event.preventDefault();
-                setSidebarExpanded(true);
-              }
-            }}
-          />
+        <div
+          className={`sidebar-top flex items-center [min-height:38px] [&_.brand]:[margin:0] min-[768px]:max-[1024px]:[&_.wordmark]:text-[24px] ${sidebarExpanded ? "justify-between" : "justify-center"}`}
+        >
+          <Brand compact={!sidebarExpanded} ariaLabel="Buckit home" />
           {sidebarExpanded && (
             <button
               type="button"
@@ -603,7 +629,10 @@ function Workspace() {
             className={navItem}
             href="/buckets/new"
             aria-label="Create a bucket"
-            title="Create a bucket"
+            onMouseEnter={(event) => showSidebarTooltip("Create a bucket", event.currentTarget)}
+            onFocus={(event) => showSidebarTooltip("Create a bucket", event.currentTarget)}
+            onMouseLeave={() => setSidebarTooltip(null)}
+            onBlur={() => setSidebarTooltip(null)}
           >
             <Plus size={18} /> Create a bucket
           </Link>
@@ -612,7 +641,10 @@ function Workspace() {
             onClick={navigateWithinWorkspace}
             className={`${navItem} ${!phaseView ? "active" : ""}`}
             aria-label="Overview"
-            title="Overview"
+            onMouseEnter={(event) => showSidebarTooltip("Overview", event.currentTarget)}
+            onFocus={(event) => showSidebarTooltip("Overview", event.currentTarget)}
+            onMouseLeave={() => setSidebarTooltip(null)}
+            onBlur={() => setSidebarTooltip(null)}
           >
             <LayoutDashboard size={18} /> Overview
           </Link>
@@ -654,7 +686,12 @@ function Workspace() {
                         onClick={navigateWithinWorkspace}
                         className={`${navItem} ${item.activeViews.includes(phaseView ?? "") ? "active" : ""}`}
                         aria-label={item.label}
-                        title={item.label}
+                        onMouseEnter={(event) =>
+                          showSidebarTooltip(item.label, event.currentTarget)
+                        }
+                        onFocus={(event) => showSidebarTooltip(item.label, event.currentTarget)}
+                        onMouseLeave={() => setSidebarTooltip(null)}
+                        onBlur={() => setSidebarTooltip(null)}
                       >
                         <Icon size={18} /> {item.label}
                       </Link>
@@ -666,185 +703,211 @@ function Workspace() {
           })}
         </nav>
       </aside>
+      {!sidebarExpanded && sidebarTooltip && (
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed left-[76px] z-50 hidden -translate-y-1/2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] shadow-lg min-[768px]:block"
+          style={{ top: sidebarTooltip.top }}
+        >
+          {sidebarTooltip.label}
+        </div>
+      )}
       <div
-        className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px] [--workspace-sidebar-width:248px]" : "ml-[68px] [--workspace-sidebar-width:68px]"} ${mobileForm ? "[--workspace-bottom-bar:0px]" : "[--workspace-bottom-bar:calc(66px+env(safe-area-inset-bottom))]"}`}
+        className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px] [--workspace-sidebar-width:248px] min-[768px]:max-[1024px]:ml-[200px] min-[768px]:max-[1024px]:[--workspace-sidebar-width:200px]" : "ml-[68px] [--workspace-sidebar-width:68px]"} ${mobileForm ? "[--workspace-bottom-bar:0px]" : "[--workspace-bottom-bar:calc(66px+env(safe-area-inset-bottom))]"}`}
       >
-        <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-8 text-xs max-[767px]:gap-2 max-[767px]:px-4 max-[400px]:gap-1 max-[400px]:px-2 sticky top-0 z-20">
-          <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-9">
-            <Brand compact />
-          </span>
-          <nav
-            aria-label="Breadcrumb"
-            className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium max-[767px]:flex-1 min-[480px]:max-[767px]:max-w-[220px]"
-          >
-            <label className="sr-only" htmlFor="bucket-picker">
-              Current bucket
-            </label>
-            <BucketSelector
-              buckets={buckets}
-              selected={selected}
-              disabled={busy || loading}
-              onValueChange={selectBucket}
-              onCreateBucket={() => router.push("/buckets/new")}
-              hasMore={!!cursor}
-              onLoadMore={() => void moreBuckets()}
-            />
-            {phaseView && (
-              <>
-                <span
-                  className={`text-[var(--line)] ${sidebarExpanded ? "max-[1000px]:hidden" : "max-[640px]:hidden"}`}
-                  aria-hidden="true"
-                >
-                  /
-                </span>
-                <span
-                  className={`shrink-0 font-semibold text-[var(--ink)] ${sidebarExpanded ? "max-[1000px]:hidden" : "max-[640px]:hidden"}`}
-                  aria-current="page"
-                >
-                  {phaseView === "references"
-                    ? "Reference settings"
-                    : phaseView === "members"
-                      ? "Members & invitations"
-                      : phaseView === "reports"
-                        ? "Reports"
-                        : ["budgets", "budget", "budget-form"].includes(phaseView)
-                          ? "Budgets"
-                          : ["emis", "emi-plan"].includes(phaseView)
-                            ? "EMIs"
-                            : phaseView === "scheduled"
-                              ? "Scheduled expenses"
-                              : phaseView === "notifications"
-                                ? "Notifications & channels"
-                                : phaseView === "reminders"
-                                  ? "Reminders & cadence"
-                                  : phaseView === "contacts"
-                                    ? "Contacts & directory"
-                                    : phaseView === "csv-import"
-                                      ? "Import CSV"
-                                      : phaseView === "csv-export"
-                                        ? "Export CSV"
-                                        : phaseView === "bucket-settings"
-                                          ? "Bucket settings"
-                                          : phaseView === "account-settings"
-                                            ? "Account settings"
-                                            : "Expenses"}
-                </span>
-              </>
-            )}
-          </nav>
-          <div className="workspace-header-actions flex shrink-0 items-center justify-between gap-3 max-sm:!gap-1">
-            {phaseView === "expenses" && (
-              <div className="max-[767px]:hidden">
-                <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
-              </div>
-            )}
-            <ThemeToggle />
-            <div ref={profileMenuRef} className="relative shrink-0">
-              <button
-                ref={profileButtonRef}
-                type="button"
-                className="profile-chip flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)] max-[767px]:min-h-11"
-                aria-label={`Account menu for ${profile.displayName}`}
-                aria-haspopup="menu"
-                aria-expanded={profileMenuOpen}
-                onClick={() => setProfileMenuOpen((open) => !open)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setProfileMenuOpen(true);
-                    requestAnimationFrame(() => focusMenuItem(0));
-                  }
-                }}
-              >
-                <ProfileAvatar profile={profile} size={34} />
-                <ChevronDown size={12} className="text-[var(--muted)] max-[400px]:hidden" />
-              </button>
-              {profileMenuOpen && (
-                <div
-                  role="menu"
-                  aria-label="Account"
-                  className="absolute right-0 top-[calc(100%+10px)] z-50 w-60 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_14px_38px_rgba(0,0,0,.15)]"
-                  onKeyDown={(event) => {
-                    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-                    event.preventDefault();
-                    const items = Array.from(
-                      profileMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ??
-                        [],
-                    );
-                    const index = items.indexOf(document.activeElement as HTMLElement);
-                    focusMenuItem(index + (event.key === "ArrowDown" ? 1 : -1));
-                  }}
-                >
-                  <div className="flex items-center gap-3 border-b border-[var(--line)] px-2 py-2.5">
-                    <ProfileAvatar profile={profile} size={38} />
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-semibold text-[var(--ink)]">
-                        {profile.displayName}
-                      </div>
-                      <div className="text-[11px] text-[var(--muted)]">
-                        {selected ? (selected.isOwner ? "Owner" : "Member") : "Account"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="py-1">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={profileMenuItem}
-                      disabled={!selected}
-                      onClick={() => {
-                        setStep(0);
-                        setProfileMenuOpen(false);
-                        setModal("tour");
-                      }}
-                    >
-                      <HelpCircle size={17} /> Help & tour
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={profileMenuItem}
-                      onClick={openProfile}
-                    >
-                      <Settings2 size={17} /> Profile & appearance
-                    </button>
-                    <Link
-                      role="menuitem"
-                      href={
-                        selected
-                          ? `/workspace?bucket=${selected.id}&view=account-settings`
-                          : "/workspace?view=account-settings"
-                      }
-                      onClick={(event) => {
-                        navigateWithinWorkspace(event);
-                        setProfileMenuOpen(false);
-                      }}
-                      className={profileMenuItem}
-                    >
-                      <ShieldCheck size={17} /> Account settings
-                    </Link>
-                  </div>
-                  <div className="border-t border-[var(--line)] pt-1">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={profileMenuItem}
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        void auth.logout();
-                      }}
-                    >
-                      <LogOut size={17} /> Sign out
-                    </button>
-                  </div>
+        <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-6 text-xs min-[768px]:max-[1199px]:px-[18px] max-[767px]:gap-2 max-[767px]:px-4 max-[400px]:gap-1 max-[400px]:px-2 sticky top-0 z-20">
+          {!sidebarExpanded && (
+            <button
+              type="button"
+              className="fixed left-[67px] top-[14px] z-40 hidden size-9 place-items-center rounded-lg rounded-bl-none rounded-tl-none border border-[var(--line)] border-l-0 bg-[var(--surface)] text-[var(--ink)] min-[768px]:grid"
+              onClick={() => {
+                setSidebarTooltip(null);
+                setSidebarExpanded(true);
+              }}
+              aria-label="Open sidebar"
+              title="Open sidebar"
+            >
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          )}
+          <div className="mx-auto flex w-full max-w-[1112px] min-w-0 items-center justify-between gap-3 max-[767px]:gap-2">
+            <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-9">
+              <Brand compact />
+            </span>
+            <nav
+              aria-label="Breadcrumb"
+              className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium max-[767px]:flex-1 min-[480px]:max-[767px]:max-w-[220px]"
+            >
+              <label className="sr-only" htmlFor="bucket-picker">
+                Current bucket
+              </label>
+              <BucketSelector
+                buckets={buckets}
+                selected={selected}
+                disabled={busy || loading}
+                onValueChange={selectBucket}
+                onCreateBucket={() => router.push("/buckets/new")}
+                hasMore={!!cursor}
+                onLoadMore={() => void moreBuckets()}
+              />
+              {phaseView && (
+                <>
+                  <span
+                    className={`text-[var(--line)] ${sidebarExpanded ? "max-[1000px]:hidden" : "max-[640px]:hidden"}`}
+                    aria-hidden="true"
+                  >
+                    /
+                  </span>
+                  <span
+                    className={`shrink-0 font-semibold text-[var(--ink)] ${sidebarExpanded ? "max-[1000px]:hidden" : "max-[640px]:hidden"}`}
+                    aria-current="page"
+                  >
+                    {phaseView === "references"
+                      ? "Reference settings"
+                      : phaseView === "members"
+                        ? "Members & invitations"
+                        : phaseView === "reports"
+                          ? "Reports"
+                          : ["budgets", "budget", "budget-form"].includes(phaseView)
+                            ? "Budgets"
+                            : ["emis", "emi-plan"].includes(phaseView)
+                              ? "EMIs"
+                              : phaseView === "scheduled"
+                                ? "Scheduled expenses"
+                                : phaseView === "notifications"
+                                  ? "Notifications & channels"
+                                  : phaseView === "reminders"
+                                    ? "Reminders & cadence"
+                                    : phaseView === "contacts"
+                                      ? "Contacts & directory"
+                                      : phaseView === "csv-import"
+                                        ? "Import CSV"
+                                        : phaseView === "csv-export"
+                                          ? "Export CSV"
+                                          : phaseView === "bucket-settings"
+                                            ? "Bucket settings"
+                                            : phaseView === "account-settings"
+                                              ? "Account settings"
+                                              : "Expenses"}
+                  </span>
+                </>
+              )}
+            </nav>
+            <div className="workspace-header-actions flex shrink-0 items-center justify-between gap-3 max-sm:!gap-1">
+              {phaseView === "expenses" && (
+                <div className="max-[899px]:hidden">
+                  <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
                 </div>
               )}
+              <ThemeToggle />
+              <div ref={profileMenuRef} className="relative shrink-0">
+                <button
+                  ref={profileButtonRef}
+                  type="button"
+                  className="profile-chip flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)] max-[767px]:min-h-11"
+                  aria-label={`Account menu for ${profile.displayName}`}
+                  aria-haspopup="menu"
+                  aria-expanded={profileMenuOpen}
+                  onClick={() => setProfileMenuOpen((open) => !open)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setProfileMenuOpen(true);
+                      requestAnimationFrame(() => focusMenuItem(0));
+                    }
+                  }}
+                >
+                  <ProfileAvatar profile={profile} size={34} />
+                  <ChevronDown size={12} className="text-[var(--muted)] max-[400px]:hidden" />
+                </button>
+                {profileMenuOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Account"
+                    className="absolute right-0 top-[calc(100%+10px)] z-50 w-60 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_14px_38px_rgba(0,0,0,.15)]"
+                    onKeyDown={(event) => {
+                      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                      event.preventDefault();
+                      const items = Array.from(
+                        profileMenuRef.current?.querySelectorAll<HTMLElement>(
+                          "[role='menuitem']",
+                        ) ?? [],
+                      );
+                      const index = items.indexOf(document.activeElement as HTMLElement);
+                      focusMenuItem(index + (event.key === "ArrowDown" ? 1 : -1));
+                    }}
+                  >
+                    <div className="flex items-center gap-3 border-b border-[var(--line)] px-2 py-2.5">
+                      <ProfileAvatar profile={profile} size={38} />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-semibold text-[var(--ink)]">
+                          {profile.displayName}
+                        </div>
+                        <div className="text-[11px] text-[var(--muted)]">
+                          {selected ? (selected.isOwner ? "Owner" : "Member") : "Account"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={profileMenuItem}
+                        disabled={!selected}
+                        onClick={() => {
+                          setStep(0);
+                          setProfileMenuOpen(false);
+                          setModal("tour");
+                        }}
+                      >
+                        <HelpCircle size={17} /> Help & tour
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={profileMenuItem}
+                        onClick={openProfile}
+                      >
+                        <Settings2 size={17} /> Profile & appearance
+                      </button>
+                      <Link
+                        role="menuitem"
+                        href={
+                          selected
+                            ? `/workspace?bucket=${selected.id}&view=account-settings`
+                            : "/workspace?view=account-settings"
+                        }
+                        onClick={(event) => {
+                          navigateWithinWorkspace(event);
+                          setProfileMenuOpen(false);
+                        }}
+                        className={profileMenuItem}
+                      >
+                        <ShieldCheck size={17} /> Account settings
+                      </Link>
+                    </div>
+                    <div className="border-t border-[var(--line)] pt-1">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={profileMenuItem}
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          void auth.logout();
+                        }}
+                      >
+                        <LogOut size={17} /> Sign out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
         <main
           id="main"
-          className="workspace-content [max-width:1160px] m-auto [padding:24px] max-[1000px]:[padding:24px] max-[767px]:[padding:16px_16px_calc(94px+env(safe-area-inset-bottom))]"
+          className="workspace-content [max-width:1160px] m-auto [padding:24px] min-[768px]:max-[1199px]:[padding:18px] min-[768px]:max-[1024px]:[&_h1]:!text-[25px] min-[768px]:max-[1024px]:[&_h2]:!text-[17px] min-[768px]:max-[1024px]:[&_h3]:!text-[14px] max-[767px]:[padding:16px_16px_calc(94px+env(safe-area-inset-bottom))]"
         >
           {!profile.emailVerified && (
             <Notice kind="info">
@@ -870,8 +933,14 @@ function Workspace() {
           {mobileBack && selected && !loading && (
             <Link
               href={`/workspace?bucket=${selected.id}${mobileBack.view ? `&view=${mobileBack.view}` : ""}`}
-              onClick={navigateWithinWorkspace}
-              className="mb-4 inline-flex h-9 items-center gap-1.5 text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+              onClick={(event) => {
+                if (mobileBack.fromHistory) {
+                  event.preventDefault();
+                  setPreviousWorkspaceUrl(null);
+                  window.history.back();
+                } else navigateWithinWorkspace(event);
+              }}
+              className="mb-2 inline-flex h-7 items-center gap-1 text-[11px] font-semibold text-[var(--green)] min-[768px]:hidden"
             >
               <ArrowLeft size={15} aria-hidden="true" /> Back to {mobileBack.label}
             </Link>
@@ -957,9 +1026,6 @@ function Workspace() {
             <>
               <div className="workspace-title flex justify-between items-center [gap:20px] [margin-bottom:32px] [&_h1]:[font-size:31px] [&_h1]:[margin:11px_0_10px] [&_p]:text-xs max-[1000px]:items-start max-[1000px]:[&_h1]:[font-size:26px] max-[1000px]:[&_>_.button]:[padding:10px_14px] max-[1000px]:[&_>_.button]:text-xs max-[767px]:flex-col max-[767px]:[gap:20px]">
                 <div>
-                  <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
-                    A LITTLE MORE CLARITY
-                  </span>
                   <h1>Welcome, {profile.displayName.split(" ")[0]}.</h1>
                   <p>
                     {selected

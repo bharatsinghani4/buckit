@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export default function HomePage() {
   return (
     <GuestHome>
-      <header className="site-header flex justify-between items-center [max-width:1280px] [padding:26px_48px] m-auto [gap:24px] [&_nav]:flex [&_nav]:[gap:32px] [&_nav]:text-[var(--muted)] [&_nav]:text-xs max-[767px]:[padding:16px] max-[767px]:[gap:8px] max-[767px]:[&_nav]:hidden sticky top-0 z-20 bg-[var(--canvas)]">
+      <header className="site-header flex justify-between items-center [max-width:1280px] [padding:26px_48px] m-auto [gap:24px] [&_nav]:flex [&_nav]:[gap:32px] [&_nav]:text-[var(--muted)] [&_nav]:text-xs min-[768px]:max-[1199px]:[padding:20px_32px] min-[768px]:max-[1199px]:[gap:16px] max-[767px]:[padding:16px] max-[767px]:[gap:8px] max-[767px]:[&_nav]:hidden sticky top-0 z-20 bg-[var(--canvas)]">
         <Brand />
         <nav aria-label="Main navigation">
           <a href="#philosophy">Philosophy</a>
@@ -25,7 +25,7 @@ export default function HomePage() {
         </div>
       </header>
       <main id="main">
-        <section className="hero text-center [padding:72px_24px_76px] [max-width:1220px] m-auto [&_>_.eyebrow]:[padding:6px_12px] [&_>_.eyebrow]:[border-radius:20px] [&_>_.eyebrow]:bg-[var(--sage)] [&_>_.eyebrow]:text-xs [&_h1]:[font-size:clamp(38px,_4.8vw,_64px)] [&_h1]:[font-weight:650] [&_h1]:[line-height:1.13] [&_h1]:[letter-spacing:-.055em] [&_h1]:[margin:24px_0_20px] [&_>_p]:[font-size:15px] [&_>_p]:[line-height:1.8] [&_>_.example-caption]:text-xs [&_>_.example-caption]:text-[var(--muted)] [&_>_.example-caption]:[margin-top:18px] max-[767px]:[padding:48px_20px] max-[767px]:[&_h1]:[font-size:32px] max-[767px]:[&_>_p]:text-xs">
+        <section className="hero text-center [padding:72px_24px_76px] [max-width:1220px] m-auto [&_>_.eyebrow]:[padding:6px_12px] [&_>_.eyebrow]:[border-radius:20px] [&_>_.eyebrow]:bg-[var(--sage)] [&_>_.eyebrow]:text-xs [&_h1]:[font-size:clamp(38px,_4.8vw,_64px)] [&_h1]:[font-weight:650] [&_h1]:[line-height:1.13] [&_h1]:[letter-spacing:-.055em] [&_h1]:[margin:24px_0_20px] [&_>_p]:[font-size:15px] [&_>_p]:[line-height:1.8] [&_>_.example-caption]:text-xs [&_>_.example-caption]:text-[var(--muted)] [&_>_.example-caption]:[margin-top:18px] min-[768px]:max-[1199px]:[padding:54px_24px_58px] max-[767px]:[padding:48px_20px] max-[767px]:[&_h1]:[font-size:32px] max-[767px]:[&_>_p]:text-xs">
           <div className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
             <span className="status-dot [display:inline-block] [height:6px] [width:6px] [background:var(--green)] rounded-full" />{" "}
             PRIVATE SPACES. SHARED CLARITY.
@@ -60,7 +60,7 @@ export default function HomePage() {
             </Link>
           </p>
           <div
-            className="bucket-showcase grid [grid-template-columns:repeat(3,_1fr)] [gap:22px] text-left [margin:70px_auto_14px] [max-width:980px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[margin-top:45px] max-[767px]:[max-width:380px] max-[767px]:[gap:14px]"
+            className="bucket-showcase grid [grid-template-columns:repeat(3,_1fr)] [gap:22px] text-left [margin:70px_auto_14px] [max-width:980px] min-[768px]:max-[1199px]:[gap:16px] min-[768px]:max-[1199px]:[margin-top:50px] min-[768px]:max-[1199px]:[&_.sample-bucket]:[padding:20px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[margin-top:45px] max-[767px]:[max-width:380px] max-[767px]:[gap:14px]"
             aria-label="Illustrative bucket examples"
           >
             <article className="sample-bucket [padding:26px] [border:1px_solid_var(--line)] [border-radius:13px] bg-[var(--surface)] [box-shadow:var(--shadow)] [&.featured]:bg-[var(--sage)] [&.featured]:[transform:translateY(-12px)] [&.featured]:[border-color:#cbdccf] [&_h2]:[font-size:17px] [&_h2]:[letter-spacing:-.03em] [&_h2]:[margin-bottom:3px] [&_p]:text-xs [&_strong]:[display:block] [&_strong]:[font-size:30px] [&_strong]:[letter-spacing:-.04em] [&_strong]:[font-weight:650] [&_strong]:[font-variant-numeric:tabular-nums] [&_strong]:[margin-top:20px] [&_strong_span]:[display:block] [&_strong_span]:text-xs [&_strong_span]:text-[var(--muted)] [&_strong_span]:[font-weight:400] [&_strong_span]:[letter-spacing:0] max-[767px]:[padding:23px] max-[767px]:[&.featured]:[transform:none] max-[767px]:[&_strong]:[margin-top:14px]">
@@ -131,13 +131,13 @@ export default function HomePage() {
         </section>
         <section
           id="philosophy"
-          className="principles [border-top:1px_solid_var(--line)] text-center section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] max-[767px]:[padding:48px_24px] max-[767px]:[&_h2]:[font-size:22px]"
+          className="principles [border-top:1px_solid_var(--line)] text-center section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] min-[768px]:max-[1199px]:[padding:54px_32px] max-[767px]:[padding:48px_24px] max-[767px]:[&_h2]:[font-size:22px]"
         >
           <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
             FOUNDATIONAL PRINCIPLES
           </span>
           <h2>Finance without the sensory overload.</h2>
-          <div className="three-columns grid [grid-template-columns:repeat(3,_1fr)] text-left [gap:44px] [margin-top:46px] [&_h3]:[margin:18px_0_12px] [&_p]:text-xs [&_p]:[line-height:1.9] max-[767px]:[grid-template-columns:1fr] max-[767px]:[gap:30px] max-[767px]:[margin-top:32px] max-[767px]:[&_article]:[max-width:440px] max-[767px]:[&_article]:m-auto">
+          <div className="three-columns grid [grid-template-columns:repeat(3,_1fr)] text-left [gap:44px] [margin-top:46px] [&_h3]:[margin:18px_0_12px] [&_p]:text-xs [&_p]:[line-height:1.9] min-[768px]:max-[1199px]:[gap:24px] min-[768px]:max-[1199px]:[margin-top:34px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[gap:30px] max-[767px]:[margin-top:32px] max-[767px]:[&_article]:[max-width:440px] max-[767px]:[&_article]:m-auto">
             {[
               {
                 icon: FolderOpen,
@@ -167,7 +167,7 @@ export default function HomePage() {
         </section>
         <section
           id="how-it-works"
-          className="how-section grid [grid-template-columns:1.1fr_1fr] [gap:85px] items-center [padding-top:48px] [padding-bottom:85px] [&_p]:text-xs [&_p]:[line-height:1.9] [&_p]:[margin-top:20px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[gap:32px] section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] max-[767px]:[padding:48px_24px] max-[767px]:[&_h2]:[font-size:22px]"
+          className="how-section grid [grid-template-columns:1.1fr_1fr] [gap:85px] items-center [padding-top:48px] [padding-bottom:85px] [&_p]:text-xs [&_p]:[line-height:1.9] [&_p]:[margin-top:20px] min-[768px]:max-[1199px]:[gap:36px] min-[768px]:max-[1199px]:[padding:54px_32px] max-[767px]:[grid-template-columns:1fr] max-[767px]:[gap:32px] section-wrap [max-width:1100px] m-auto [padding:70px_40px] [&_h2]:[font-size:clamp(25px,_3vw,_35px)] [&_h2]:[margin-top:14px] [&_h2]:[font-weight:650] max-[767px]:[padding:48px_24px] max-[767px]:[&_h2]:[font-size:22px]"
         >
           <div>
             <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
@@ -236,7 +236,7 @@ export default function HomePage() {
           </Link>
         </section>
       </main>
-      <footer className="site-footer [max-width:1280px] m-auto flex items-center justify-between [padding:32px_48px] text-[var(--muted)] text-xs [&_.wordmark]:[font-size:23px] max-[767px]:[padding:28px_24px] max-[767px]:[&_>_span:nth-child(2)]:hidden">
+      <footer className="site-footer [max-width:1280px] m-auto flex items-center justify-between [padding:32px_48px] text-[var(--muted)] text-xs [&_.wordmark]:[font-size:23px] min-[768px]:max-[1199px]:[padding:24px_32px] max-[767px]:[padding:28px_24px] max-[767px]:[&_>_span:nth-child(2)]:hidden">
         <Wordmark />
         <span>Made for everyday life.</span>
         <span>© {new Date().getFullYear()} Buckit</span>

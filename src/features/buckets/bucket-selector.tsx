@@ -76,20 +76,20 @@ export function BucketSelector({
     >
       <Select.Trigger
         id="bucket-picker"
-        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)] max-[767px]:!w-full max-[767px]:!px-2 max-[767px]:gap-1 max-[400px]:!px-1`}
+        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)] max-[767px]:!h-[42px] max-[767px]:!w-full max-[767px]:!px-2 max-[767px]:gap-1 max-[400px]:!px-1`}
       >
         <span className="flex min-w-0 items-center gap-1.5">
           {selected && (
             <span className="shrink-0 text-[var(--green)]">
-              <BucketGlyph bucket={selected} size={16} />
+              <BucketGlyph bucket={selected} size={18} />
             </span>
           )}
           <span className="flex min-w-0 flex-col leading-none">
-            <span className="truncate text-xs font-semibold text-[var(--ink)] max-[767px]:text-[11px]">
+            <span className="truncate text-xs font-semibold text-[var(--ink)] max-[767px]:text-[13px]">
               <Select.Value placeholder="Choose bucket" />
             </span>
             {selected && (
-              <span className="mt-0.5 truncate text-[10px] text-[var(--muted)] max-[767px]:text-[9px]">
+              <span className="mt-0.5 truncate text-[10px] text-[var(--muted)] max-[767px]:text-[10px]">
                 {bucketCaption(selected)}
               </span>
             )}

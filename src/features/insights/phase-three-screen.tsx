@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import {
   ArrowLeft,
   ArrowRight,
-  CalendarDays,
   ChevronRight,
   CircleAlert,
   Pencil,
@@ -23,6 +22,7 @@ import {
 import { Dropdown } from "@/components/dropdown";
 import { controls } from "@/components/control-styles";
 import { Dialog, Notice, Pending } from "@/components/ui";
+import { CalendarField } from "@/components/calendar-field";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
 import type { Bucket } from "@/features/identity/contracts";
 import type { Member, Option } from "@/features/expenses/contracts";
@@ -56,7 +56,7 @@ type Dashboard = SpendingReport & {
 };
 
 const card =
-  "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
+  "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] min-[768px]:max-[1199px]:p-4";
 const secondary = controls.secondary;
 const primary = controls.primary;
 const field = controls.input;
@@ -80,6 +80,44 @@ function shiftDay(date: string, days: number) {
   const value = new Date(`${date}T00:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+function PeriodAnchorField({
+  period,
+  anchor,
+  onChange,
+  className,
+}: {
+  period: string;
+  anchor: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const mode = period as "month" | "quarter" | "year";
+  const month = Number(anchor.slice(5, 7)) || 1;
+  const value =
+    mode === "year"
+      ? anchor.slice(0, 4)
+      : mode === "quarter"
+        ? `${anchor.slice(0, 4)}-Q${Math.ceil(month / 3)}`
+        : anchor.slice(0, 7);
+  return (
+    <CalendarField
+      mode={mode}
+      value={value}
+      containerClassName={className}
+      aria-label={`${mode} period`}
+      onValueChange={(selected) =>
+        onChange(
+          mode === "year"
+            ? `${selected}-01-01`
+            : mode === "quarter"
+              ? `${selected.slice(0, 4)}-${String((Number(selected.slice(-1)) - 1) * 3 + 1).padStart(2, "0")}-01`
+              : `${selected}-01`,
+        )
+      }
+    />
+  );
 }
 
 function progress(value: number, warning = false) {
@@ -397,7 +435,7 @@ export function PhaseThreeScreen({
   const change = previous ? ((actual - previous) / Math.abs(previous)) * 100 : null;
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-5">
+    <div className="mx-auto max-w-[1440px] space-y-5 min-[768px]:max-[1199px]:space-y-4">
       {error && <Notice>{error}</Notice>}
       {!error &&
       ((view === "dashboard" && !dashboard) ||
@@ -416,15 +454,12 @@ export function PhaseThreeScreen({
         <>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
-                Bucket overview
-              </span>
               <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Overview</h1>
               <p className="mt-1 text-xs text-[var(--muted)]">
                 Spending and plans for this bucket.
               </p>
             </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>*]:min-w-0 [&>*]:flex-1">
+            <div className="flex w-full flex-wrap gap-2 min-[1200px]:w-auto [&>*]:min-w-0 [&>*]:flex-1 min-[768px]:[&>*]:min-w-[160px]">
               <Dropdown
                 value={period}
                 onValueChange={setPeriod}
@@ -437,29 +472,19 @@ export function PhaseThreeScreen({
               />
               {period === "custom" ? (
                 <>
-                  <input
-                    className={field}
-                    type="date"
+                  <CalendarField
                     aria-label="From date"
                     value={customFrom}
-                    onChange={(event) => setCustomFrom(event.target.value)}
+                    onValueChange={setCustomFrom}
                   />
-                  <input
-                    className={field}
-                    type="date"
+                  <CalendarField
                     aria-label="Through date"
                     value={customTo}
-                    onChange={(event) => setCustomTo(event.target.value)}
+                    onValueChange={setCustomTo}
                   />
                 </>
               ) : (
-                <input
-                  className={field}
-                  type="date"
-                  aria-label="Anchor date"
-                  value={anchor}
-                  onChange={(event) => setAnchor(event.target.value)}
-                />
+                <PeriodAnchorField period={period} anchor={anchor} onChange={setAnchor} />
               )}
             </div>
           </div>
@@ -474,7 +499,7 @@ export function PhaseThreeScreen({
               conversion and {dashboard.pendingCount} await processing.
             </Notice>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-[1024px]:!grid-cols-1">
             <div className={card}>
               <p className="text-xs text-[var(--muted)]">Actual spending</p>
               <p className="mt-2 text-2xl font-bold text-[var(--ink)]">
@@ -705,7 +730,7 @@ export function PhaseThreeScreen({
                 </p>
               )}
             </section>
-            <section className={`${card} md:col-span-2`}>
+            <section className={`${card} xl:col-span-2`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="rounded-lg bg-[var(--soft)] p-2.5 text-[var(--green)]">
@@ -725,7 +750,7 @@ export function PhaseThreeScreen({
                   View plans <ArrowRight size={14} />
                 </Link>
               </div>
-              <div className="mt-4 grid gap-3 border-t border-[var(--line)] pt-4 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 border-t border-[var(--line)] pt-4 sm:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
                 <div>
                   <p className="text-[11px] text-[var(--muted)]">Active plans</p>
                   <strong className="mt-1 block text-lg">{dashboard.emi.activePlans}</strong>
@@ -747,20 +772,13 @@ export function PhaseThreeScreen({
       )}
       {view === "reports" && report && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
-                Spending insights
-              </span>
-              <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Reports</h1>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                Explore finalized spending without double-counting overlapping budgets.
-              </p>
-            </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>*]:min-w-0 [&>*]:flex-1">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
+            <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Reports</h1>
+            <div className="flex flex-wrap items-center justify-end gap-2 max-[767px]:col-span-2">
               <Dropdown
                 value={period}
                 onValueChange={setPeriod}
+                className="!w-[136px]"
                 options={[
                   { value: "month", label: "Month" },
                   { value: "quarter", label: "Quarter" },
@@ -770,33 +788,33 @@ export function PhaseThreeScreen({
               />
               {period === "custom" ? (
                 <>
-                  <input
-                    className={field}
-                    type="date"
+                  <CalendarField
                     aria-label="From date"
                     value={customFrom}
-                    onChange={(event) => setCustomFrom(event.target.value)}
+                    onValueChange={setCustomFrom}
+                    containerClassName="w-[142px]"
                   />
-                  <input
-                    className={field}
-                    type="date"
+                  <CalendarField
                     aria-label="Through date"
                     value={customTo}
-                    onChange={(event) => setCustomTo(event.target.value)}
+                    onValueChange={setCustomTo}
+                    containerClassName="w-[142px]"
                   />
                 </>
               ) : (
-                <input
-                  className={field}
-                  type="date"
-                  aria-label="Anchor date"
-                  value={anchor}
-                  onChange={(event) => setAnchor(event.target.value)}
+                <PeriodAnchorField
+                  period={period}
+                  anchor={anchor}
+                  onChange={setAnchor}
+                  className="w-[168px]"
                 />
               )}
             </div>
+            <p className="col-span-2 mt-1 text-xs text-[var(--muted)]">
+              Explore finalized spending without double-counting overlapping budgets.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               className={secondary}
@@ -816,7 +834,9 @@ export function PhaseThreeScreen({
             )}
           </div>
           {filterOpen && (
-            <div className={`${card} grid gap-3 sm:grid-cols-2 xl:grid-cols-5`}>
+            <div
+              className={`${card} grid gap-3 sm:grid-cols-2 xl:grid-cols-5 min-[768px]:max-[1024px]:!grid-cols-1`}
+            >
               {(
                 [
                   ["categoryId", "Category", reportOptions.categories],
@@ -889,8 +909,8 @@ export function PhaseThreeScreen({
               {report.pendingCount} pending entries.
             </Notice>
           )}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className={`${card} col-span-2 sm:col-span-1`}>
+          <div className="grid grid-cols-2 gap-3 min-[1100px]:grid-cols-3">
+            <div className={`${card} col-span-2 min-[1100px]:col-span-1`}>
               <p className="text-xs text-[var(--muted)]">Actual spending</p>
               <p className="mt-2 text-2xl font-bold">{money(report.totalAmount, currency)}</p>
             </div>
@@ -948,27 +968,19 @@ export function PhaseThreeScreen({
       )}
       {view === "budgets" && budgetLoaded && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
-                Money planning · budgets
-              </span>
-              <h1 className="mt-1 text-2xl font-bold">Budgets</h1>
-              <p className="mt-1 max-w-2xl text-xs text-[var(--muted)]">
-                Track shared or personal spending limits across categories.
-              </p>
-            </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
+            <h1 className="mt-1 text-2xl font-bold">Budgets</h1>
             {bucket.status === "active" && (
-              <Link
-                className={`${primary} ${!visibleBudgets.length ? "max-[767px]:hidden" : ""}`}
-                href={url(bucket.id, "budget-form")}
-              >
+              <Link className={primary} href={url(bucket.id, "budget-form")}>
                 <Plus size={15} /> Create budget
               </Link>
             )}
+            <p className="col-span-2 mt-1 max-w-2xl text-xs text-[var(--muted)]">
+              Track shared or personal spending limits across categories.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <div className="flex gap-2 border-b border-[var(--line)] max-[767px]:grid max-[767px]:w-full max-[767px]:grid-cols-3 max-[767px]:gap-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm max-[1024px]:flex-col max-[1024px]:items-end">
+            <div className="flex gap-2 border-b border-[var(--line)] max-[1024px]:grid max-[1024px]:w-full max-[1024px]:grid-cols-3 max-[1024px]:gap-0">
               {[
                 ["all", "All budgets"],
                 ["shared", "Shared budgets"],
@@ -977,30 +989,30 @@ export function PhaseThreeScreen({
                 <button
                   key={value}
                   type="button"
-                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none !font-semibold max-[767px]:justify-center max-[767px]:px-1 max-[767px]:text-xs ${budgetTab === value ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent !text-[var(--muted)]"}`}
+                  className={`flex items-center gap-2 border-b-2 p-3 !rounded-none !font-semibold max-[1024px]:justify-center max-[1024px]:px-1 max-[1024px]:text-xs ${budgetTab === value ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent !text-[var(--muted)]"}`}
                   aria-label={label}
                   onClick={() => setBudgetTab(value)}
                 >
-                  <BookOpen size={16} className="max-[767px]:hidden" />
-                  <span className="max-[767px]:hidden">{label}</span>
-                  <span className="min-[768px]:hidden">
+                  <BookOpen size={16} className="max-[1024px]:hidden" />
+                  <span className="max-[1024px]:hidden">{label}</span>
+                  <span className="min-[1025px]:hidden">
                     {value === "all" ? "All" : value === "shared" ? "Shared" : "Member"}
                   </span>
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-              <CalendarDays size={14} /> Month{" "}
-              <input
-                className={field}
-                type="month"
+            <label className="ml-auto flex w-[176px] items-center gap-2 text-xs text-[var(--muted)]">
+              <span className="sr-only">Budget month</span>
+              <CalendarField
+                mode="month"
                 value={month}
-                onChange={(event) => setAnchor(`${event.target.value}-01`)}
+                onValueChange={(value) => setAnchor(`${value}-01`)}
+                containerClassName="w-full"
               />
             </label>
           </div>
           {visibleBudgets.length ? (
-            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
               {visibleBudgets.map((entry) => (
                 <BudgetCard
                   key={entry.budget.id}
@@ -1018,11 +1030,6 @@ export function PhaseThreeScreen({
                 Set a limit for one or more categories. Actual spending will update it
                 automatically.
               </p>
-              {bucket.status === "active" && (
-                <Link href={url(bucket.id, "budget-form")} className={`${primary} mt-4`}>
-                  <Plus size={14} /> Create budget
-                </Link>
-              )}
             </section>
           )}
           <div
@@ -1058,9 +1065,6 @@ export function PhaseThreeScreen({
           </Link>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
-                {selected.budget.scope === "shared" ? "Shared budget" : "Member budget"}
-              </span>
               <h1 className="mt-1 text-2xl font-bold">{selected.budget.name}</h1>
               <p className="mt-1 text-xs text-[var(--muted)]">
                 {selected.budget.categoryNames.join(", ")} ·{" "}
@@ -1087,7 +1091,7 @@ export function PhaseThreeScreen({
               incomplete until they are resolved.
             </Notice>
           )}
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 min-[1100px]:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
             <div className={card}>
               <p className="text-xs text-[var(--muted)]">Allocated limit</p>
               <p className="mt-2 text-2xl font-bold">
@@ -1100,7 +1104,7 @@ export function PhaseThreeScreen({
                 {money(selected.usage.usedAmount, currency)}
               </p>
             </div>
-            <div className={card}>
+            <div className={`${card} min-[768px]:max-[1099px]:col-span-2`}>
               <p className="text-xs text-[var(--muted)]">
                 {Number(selected.usage.exceededAmount) > 0 ? "Exceeded" : "Remaining"}
               </p>
@@ -1122,7 +1126,7 @@ export function PhaseThreeScreen({
               <strong>{percent(selected.usage.usagePercent)} used</strong>
             </div>
             {progress(selected.usage.usagePercent, selected.usage.usagePercent >= 100)}
-            <div className="mt-5 grid gap-4 text-xs sm:grid-cols-2">
+            <div className="mt-5 grid gap-4 text-xs sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
               <p>
                 <span className="text-[var(--muted)]">Managed by</span>
                 <br />
@@ -1166,9 +1170,6 @@ export function PhaseThreeScreen({
             <ArrowLeft size={15} /> All budgets
           </Link>
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
-              Money planning
-            </span>
             <h1 className="mt-1 text-2xl font-bold">
               {editing ? "Edit budget" : "Create a budget"}
             </h1>
@@ -1195,7 +1196,7 @@ export function PhaseThreeScreen({
                   placeholder="e.g. Groceries & Pantry"
                 />
               </label>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
                 <label className="block text-xs font-semibold">
                   Limit ({currency})
                   <input
@@ -1240,23 +1241,21 @@ export function PhaseThreeScreen({
                 </div>
               </label>
               {periodType === "custom" && (
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
                   <label className="block text-xs font-semibold">
                     Start date
-                    <input
-                      className={`${field} mt-2`}
+                    <CalendarField
+                      className="mt-2"
                       name="from"
-                      type="date"
                       required
                       defaultValue={selected?.budget.from ?? ""}
                     />
                   </label>
                   <label className="block text-xs font-semibold">
                     End date
-                    <input
-                      className={`${field} mt-2`}
+                    <CalendarField
+                      className="mt-2"
                       name="to"
-                      type="date"
                       required
                       defaultValue={
                         selected?.budget.toExclusive
@@ -1284,7 +1283,7 @@ export function PhaseThreeScreen({
                         onChange={(event) => setCategoryQuery(event.target.value)}
                       />
                     )}
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-2 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
                       {categories
                         .filter((category) =>
                           category.name.toLowerCase().includes(categoryQuery.trim().toLowerCase()),

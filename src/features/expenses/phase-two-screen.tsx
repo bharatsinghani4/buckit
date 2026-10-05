@@ -25,6 +25,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Dropdown } from "@/components/dropdown";
 import { controls } from "@/components/control-styles";
 import { Dialog, Notice, Pending, SearchField } from "@/components/ui";
+import { CalendarField } from "@/components/calendar-field";
 import type { Bucket, Invitation, Profile } from "@/features/identity/contracts";
 import { currencies } from "@/features/identity/contracts";
 import { api, friendlyError } from "@/lib/api/client";
@@ -56,7 +57,7 @@ const paymentModes = [
   { value: "credit_card", label: "Credit card" },
 ];
 const card =
-  "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
+  "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] min-[768px]:max-[1199px]:p-4";
 const field = controls.input;
 const muted = "text-xs text-[var(--muted)]";
 const action = controls.action;
@@ -737,7 +738,7 @@ export function PhaseTwoScreen({
 
   return (
     <div
-      className={`mx-auto flex w-full flex-col gap-5 ${view === "add-expense" ? "max-w-[940px]" : view === "expense" ? "max-w-[1120px]" : "max-w-[1280px]"}`}
+      className={`mx-auto flex w-full flex-col gap-5 min-[768px]:max-[1199px]:gap-4 ${view === "add-expense" ? "max-w-[940px]" : view === "expense" ? "max-w-[1120px]" : "max-w-[1280px]"}`}
     >
       {error && <Notice>{error}</Notice>}
       {loading ? (
@@ -762,24 +763,24 @@ export function PhaseTwoScreen({
                   />
                 )}
               </div>
-              <div className="flex gap-6 border-b border-[var(--line)] text-sm max-[767px]:gap-1">
+              <div className="flex gap-6 border-b border-[var(--line)] text-sm max-[1024px]:gap-1">
                 <button
-                  className={`flex h-9 items-center gap-2 border-b-2 px-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "expenses" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
+                  className={`flex h-9 items-center gap-2 border-b-2 px-3 !rounded-none max-[1024px]:flex-1 max-[1024px]:justify-center max-[1024px]:whitespace-nowrap max-[1024px]:px-1 max-[1024px]:text-xs ${view === "expenses" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
                   onClick={() => navigate("expenses")}
                 >
                   <Wallet size={16} /> Active expenses
                 </button>
                 <button
-                  className={`flex h-9 items-center gap-2 border-b-2 px-3 !rounded-none max-[767px]:flex-1 max-[767px]:justify-center max-[767px]:whitespace-nowrap max-[767px]:px-1 max-[767px]:text-xs ${view === "deleted" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
+                  className={`flex h-9 items-center gap-2 border-b-2 px-3 !rounded-none max-[1024px]:flex-1 max-[1024px]:justify-center max-[1024px]:whitespace-nowrap max-[1024px]:px-1 max-[1024px]:text-xs ${view === "deleted" ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
                   onClick={() => navigate("deleted")}
                 >
                   <Trash2 size={16} /> Deleted expenses
                 </button>
               </div>
               {view === "expenses" && summary && (
-                <div className="grid gap-3 lg:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
                   <section
-                    className={`${card} flex min-h-36 flex-col justify-between max-[767px]:min-h-0`}
+                    className={`${card} flex min-h-36 flex-col justify-between md:col-span-2 lg:col-span-1 min-[768px]:max-[1024px]:!col-span-1 min-[768px]:max-[1199px]:min-h-32 max-[1024px]:min-h-0`}
                   >
                     <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                       Actual spending{" "}
@@ -787,7 +788,7 @@ export function PhaseTwoScreen({
                         Finalized
                       </span>
                     </div>
-                    <div className="mt-3 text-3xl font-bold tabular-nums">
+                    <div className="mt-3 text-3xl font-bold tabular-nums min-[768px]:max-[1199px]:text-2xl">
                       {money(summary.actualTotal, summary.currency)}
                     </div>
                     <div className="mt-3 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
@@ -802,12 +803,12 @@ export function PhaseTwoScreen({
                     </div>
                   </section>
                   <section
-                    className={`${card} flex min-h-36 flex-col justify-between border-amber-300 bg-amber-50/60 max-[767px]:hidden dark:border-amber-800 dark:bg-amber-950/20`}
+                    className={`${card} flex min-h-36 flex-col justify-between border-amber-300 bg-amber-50/60 min-[768px]:max-[1199px]:min-h-32 max-[1024px]:hidden dark:border-amber-800 dark:bg-amber-950/20`}
                   >
                     <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                       Needs conversion <span className="size-2 rounded-full bg-amber-500" />
                     </div>
-                    <div className="mt-3 break-words text-3xl font-bold tabular-nums text-amber-900 max-[767px]:text-xl dark:text-amber-200">
+                    <div className="mt-3 break-words text-3xl font-bold tabular-nums text-amber-900 min-[768px]:max-[1199px]:text-2xl max-[767px]:text-xl dark:text-amber-200">
                       {expenses.find((item) => item.displayStatus === "conversion_needed")
                         ? money(
                             expenses.find((item) => item.displayStatus === "conversion_needed")!
@@ -841,7 +842,7 @@ export function PhaseTwoScreen({
                     </div>
                   </section>
                   <section
-                    className={`${card} flex min-h-36 flex-col justify-between max-[767px]:hidden`}
+                    className={`${card} flex min-h-36 flex-col justify-between min-[768px]:max-[1199px]:min-h-32 max-[1024px]:hidden`}
                   >
                     <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                       Scheduled commitments{" "}
@@ -849,7 +850,7 @@ export function PhaseTwoScreen({
                         Upcoming
                       </span>
                     </div>
-                    <div className="mt-3 break-words text-3xl font-bold tabular-nums max-[767px]:text-xl">
+                    <div className="mt-3 break-words text-3xl font-bold tabular-nums min-[768px]:max-[1199px]:text-2xl max-[767px]:text-xl">
                       {money(summary.scheduledTotal, summary.currency)}
                     </div>
                     <div className="mt-3 flex justify-between gap-2 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
@@ -858,7 +859,7 @@ export function PhaseTwoScreen({
                     </div>
                   </section>
                   <section
-                    className={`${card} divide-y divide-[var(--line)] !p-0 min-[768px]:hidden`}
+                    className={`${card} divide-y divide-[var(--line)] !p-0 min-[1025px]:hidden`}
                   >
                     <div className="flex items-center justify-between gap-3 p-4">
                       <div className="min-w-0">
@@ -889,20 +890,21 @@ export function PhaseTwoScreen({
               )}
               {view === "expenses" && (
                 <form className="flex flex-col gap-3" onSubmit={applyFilters}>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3 max-[899px]:grid max-[899px]:grid-cols-[minmax(0,1fr)_auto_auto] max-[899px]:gap-2">
                     <SearchField
                       name="q"
-                      placeholder="Search description, merchant, or notes..."
+                      containerClassName="max-[899px]:col-span-3 max-[899px]:w-full"
+                      placeholder="Search expenses"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
-                    <div className="min-[768px]:hidden">
-                      <LedgerMonthPicker value={month} onChange={onMonthChange} />
+                    <div className="min-w-0 min-[900px]:hidden">
+                      <LedgerMonthPicker value={month} onChange={onMonthChange} fullWidth />
                     </div>
                     <button
                       ref={filterButtonRef}
                       type="button"
-                      className={action}
+                      className={`${action} max-[767px]:[&>svg]:hidden`}
                       onClick={() => setFiltersOpen((open) => !open)}
                       aria-expanded={filtersOpen}
                     >
@@ -915,7 +917,7 @@ export function PhaseTwoScreen({
                     </button>
                     <button
                       type="button"
-                      className={action}
+                      className={`${action} max-[767px]:[&>svg]:hidden`}
                       onClick={() => {
                         const current = new URLSearchParams(appliedFilters);
                         if (month && !current.has("from") && !current.has("toExclusive")) {
@@ -940,7 +942,7 @@ export function PhaseTwoScreen({
                   {filtersOpen && (
                     <div className="max-[767px]:fixed max-[767px]:inset-0 max-[767px]:z-40 max-[767px]:overflow-y-auto max-[767px]:bg-[var(--canvas)] max-[767px]:p-4 max-[767px]:pb-[calc(24px+env(safe-area-inset-bottom))]">
                       <div
-                        className={`${card} grid gap-3 sm:grid-cols-2 lg:grid-cols-4 max-[767px]:mx-auto max-[767px]:max-w-[640px]`}
+                        className={`${card} grid gap-3 sm:grid-cols-2 lg:grid-cols-4 min-[768px]:max-[1024px]:!grid-cols-1 max-[767px]:mx-auto max-[767px]:max-w-[640px]`}
                       >
                         <div className="flex items-center justify-between sm:col-span-2 lg:col-span-4 max-[767px]:flex-col max-[767px]:items-start">
                           <button
@@ -972,11 +974,11 @@ export function PhaseTwoScreen({
                         </label>
                         <label className="text-xs">
                           From
-                          <input className={field} type="date" name="from" />
+                          <CalendarField name="from" />
                         </label>
                         <label className="text-xs">
                           To
-                          <input className={field} type="date" name="to" />
+                          <CalendarField name="to" />
                         </label>
                         <label className="text-xs">
                           Category
@@ -1116,13 +1118,10 @@ export function PhaseTwoScreen({
                       Clear all
                     </button>
                   )}
-                  <span className="ml-auto">
-                    Showing {filtered.length} ledger {filtered.length === 1 ? "item" : "items"}
-                  </span>
                 </div>
               )}
               {view === "deleted" && (
-                <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[767px]:hidden">
+                <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[1024px]:hidden">
                   <ShieldCheck size={19} className="text-[var(--green)]" />
                   <div>
                     <strong>30-day recovery</strong>
@@ -1134,7 +1133,7 @@ export function PhaseTwoScreen({
                 </div>
               )}
               {view === "deleted" && (
-                <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+                <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[1025px]:hidden">
                   <summary className="cursor-pointer font-semibold text-[var(--green)]">
                     How recovery works
                   </summary>
@@ -1442,7 +1441,7 @@ export function PhaseTwoScreen({
           {view === "add-expense" && (
             <>
               <button
-                className="text-link [background:none] border-0 [padding:0] inline-flex h-9 items-center [gap:8px] text-[var(--green)] font-semibold text-xs [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] self-start"
+                className="text-link [background:none] border-0 [padding:0] inline-flex h-7 items-center gap-1 text-[var(--green)] font-semibold text-[11px] [&:hover]:[text-decoration:underline] [&:hover]:[text-underline-offset:4px] self-start min-[768px]:h-9 min-[768px]:text-xs"
                 onClick={() => navigate("expenses")}
               >
                 <ArrowLeft size={15} /> Back to expenses
@@ -1498,7 +1497,7 @@ export function PhaseTwoScreen({
                       <CheckCircle2 size={15} /> Non-zero entry required
                     </span>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1 min-[768px]:max-[1024px]:[&>*]:!col-span-1">
                     <label className="flex flex-col gap-1 text-xs font-semibold">
                       Currency *
                       {foreignOpen ? (
@@ -1579,7 +1578,7 @@ export function PhaseTwoScreen({
                         We look up the rate for the expense date. If no rate is available, enter
                         either a converted amount or a rate to finalize the record.
                       </p>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div className="mt-3 grid gap-3 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
                         <label className="flex flex-col gap-1 font-semibold">
                           Manual {bucket.primaryCurrency} amount
                           <input
@@ -1619,12 +1618,10 @@ export function PhaseTwoScreen({
                 </section>
                 <section className="border-b border-[var(--line)] p-4 sm:p-6">
                   <h2 className="!mb-5 text-lg">2. Date and details</h2>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1 min-[768px]:max-[1024px]:[&>*]:!col-span-1">
                     <label className="flex flex-col gap-1 text-xs font-semibold">
                       Date ({bucket.timezone}) *
-                      <input
-                        className={field}
-                        type="date"
+                      <CalendarField
                         name="expenseDate"
                         defaultValue={today(bucket.timezone)}
                         required
@@ -1665,7 +1662,7 @@ export function PhaseTwoScreen({
                 </section>
                 <section className="border-b border-[var(--line)] p-4 sm:p-6">
                   <h2 className="!mb-5 text-lg">3. Payment</h2>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1 min-[768px]:max-[1024px]:[&>*]:!col-span-1">
                     <label className="flex flex-col gap-1 text-xs font-semibold">
                       Platform / merchant
                       <Dropdown
@@ -1708,7 +1705,7 @@ export function PhaseTwoScreen({
                 </section>
                 <section className="p-4 sm:p-6">
                   <h2 className="!mb-5 text-lg">4. Payer and notes</h2>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1 min-[768px]:max-[1024px]:[&>*]:!col-span-1">
                     <label className="flex flex-col gap-1 text-xs font-semibold">
                       Paid by *
                       <Dropdown
@@ -1843,11 +1840,6 @@ export function PhaseTwoScreen({
               </button>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
-                    {expense.displayStatus === "actual"
-                      ? "RECORDED ON LEDGER"
-                      : expense.displayStatus.replaceAll("_", " ").toUpperCase()}
-                  </span>
                   <h1 className="mt-2">Expense details</h1>
                 </div>
                 <div className="flex gap-2">
@@ -1886,7 +1878,7 @@ export function PhaseTwoScreen({
                   )}
                 </div>
               </div>
-              <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
+              <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)] min-[768px]:max-[1024px]:!grid-cols-1">
                 <section className={`${card} lg:col-start-1 ${editing ? "hidden" : ""}`}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
@@ -1949,7 +1941,9 @@ export function PhaseTwoScreen({
                     }}
                   />
                 ) : (
-                  <section className={`${card} grid gap-3 sm:grid-cols-2 lg:col-start-1`}>
+                  <section
+                    className={`${card} grid gap-3 sm:grid-cols-2 lg:col-start-1 min-[768px]:max-[1024px]:!grid-cols-1`}
+                  >
                     <h2 className="border-b border-[var(--line)] pb-3 text-lg sm:col-span-2">
                       Key specifications
                     </h2>
@@ -2156,9 +2150,6 @@ export function PhaseTwoScreen({
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
-                    ACCESS & GOVERNANCE
-                  </span>
                   <h1 className="mt-2">Reference settings</h1>
                   <p className="!mt-1 max-w-2xl text-sm">
                     Manage your bucket’s payment accounts, categories, and merchants.
@@ -2168,7 +2159,7 @@ export function PhaseTwoScreen({
                   <ShieldCheck size={15} /> Owner controlled
                 </span>
               </div>
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[767px]:hidden">
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[1024px]:hidden">
                 <CheckCircle2 size={20} className="text-[var(--green)]" />
                 <div>
                   <strong>Case-insensitive uniqueness & archival rule</strong>
@@ -2178,7 +2169,7 @@ export function PhaseTwoScreen({
                   </p>
                 </div>
               </div>
-              <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+              <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[1025px]:hidden">
                 <summary className="cursor-pointer font-semibold text-[var(--green)]">
                   How reference names work
                 </summary>
@@ -2189,51 +2180,51 @@ export function PhaseTwoScreen({
               </details>
               {groups.map((group) => (
                 <section className={card} key={group.key}>
-                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
-                    <div>
-                      <h2 className="flex items-center gap-2">
-                        <span>
-                          {group.key === "accounts"
-                            ? "Payment accounts"
-                            : group.key === "categories"
-                              ? "Expense categories"
-                              : "Platforms & merchants"}{" "}
-                        </span>
-                        <span className="rounded-full bg-[var(--soft)] px-2 py-1 text-xs text-[var(--muted)]">
-                          {options[group.key].filter((item) => item.state === "active").length}{" "}
-                          active
-                        </span>
-                      </h2>
-                      <p className="!mt-1 text-xs max-[767px]:hidden">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 pb-4">
+                    <h2 className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span>
                         {group.key === "accounts"
-                          ? "User-governed names for payment sources. There are no bank connections or live balances."
+                          ? "Payment accounts"
                           : group.key === "categories"
-                            ? "Categories group expenses for reporting and budgets."
-                            : "Named merchants and venues. An unselected platform defaults to Other."}
-                      </p>
-                    </div>
+                            ? "Expense categories"
+                            : "Platforms & merchants"}{" "}
+                      </span>
+                      <span className="rounded-full bg-[var(--soft)] px-2 py-1 text-xs text-[var(--muted)]">
+                        {options[group.key].filter((item) => item.state === "active").length} active
+                      </span>
+                    </h2>
                     {bucket.isOwner && bucket.status === "active" && (
                       <button
                         type="button"
-                        className={referencePrimaryAction}
+                        className={`${referencePrimaryAction} justify-self-end whitespace-nowrap`}
                         aria-label={`Add ${group.key === "accounts" ? "payment account" : group.key === "categories" ? "category" : "platform"}`}
                         onClick={() =>
                           setAddingOption(addingOption === group.key ? null : group.key)
                         }
                         aria-expanded={addingOption === group.key}
                       >
-                        <Plus size={15} aria-hidden="true" /> Add
-                        <span className="max-[767px]:hidden">
-                          {group.key === "accounts"
-                            ? "payment account"
-                            : group.key === "categories"
-                              ? " category"
-                              : " platform"}
+                        <Plus size={15} aria-hidden="true" />
+                        <span>
+                          Add
+                          <span className="max-[767px]:hidden">
+                            {group.key === "accounts"
+                              ? " payment account"
+                              : group.key === "categories"
+                                ? " category"
+                                : " platform"}
+                          </span>
                         </span>
                       </button>
                     )}
+                    <p className="col-span-2 text-xs">
+                      {group.key === "accounts"
+                        ? "User-governed names for payment sources. There are no bank connections or live balances."
+                        : group.key === "categories"
+                          ? "Categories group expenses for reporting and budgets."
+                          : "Named merchants and venues. An unselected platform defaults to Other."}
+                    </p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
                     {options[group.key].length > 0 ? (
                       options[group.key].map((item) => (
                         <div
@@ -2404,9 +2395,6 @@ export function PhaseTwoScreen({
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
-                    ACCESS & GOVERNANCE
-                  </span>
                   <h1 className="mt-2">Members & invitations</h1>
                   <p className="!mt-1 max-w-2xl text-sm">
                     Manage this bucket’s members and invitation links.
@@ -2417,7 +2405,7 @@ export function PhaseTwoScreen({
                   {invitations.filter((item) => item.status === "active").length} active links
                 </span>
               </div>
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[767px]:hidden">
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[1024px]:hidden">
                 <ShieldCheck size={20} className="text-[var(--green)]" />
                 <div>
                   <strong>Pseudonymous ledger security</strong>
@@ -2427,7 +2415,7 @@ export function PhaseTwoScreen({
                   </p>
                 </div>
               </div>
-              <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+              <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[1025px]:hidden">
                 <summary className="cursor-pointer font-semibold text-[var(--green)]">
                   How member privacy works
                 </summary>
@@ -2443,7 +2431,7 @@ export function PhaseTwoScreen({
                     {members.length}
                   </span>
                 </h2>
-                <p className="text-xs max-[767px]:hidden">
+                <p className="text-xs">
                   Members can record expenses, view the ledger, and participate in comments. Only
                   the owner can remove members or manage invitations.
                 </p>
@@ -2567,7 +2555,7 @@ export function PhaseTwoScreen({
                       refresh this page.
                     </p>
                   )}
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,270px),1fr))] gap-3 min-[768px]:max-[1024px]:!grid-cols-1">
                     {invitations.map((invitation) => {
                       if (invitation.status !== "revoked")
                         return (
@@ -2585,7 +2573,7 @@ export function PhaseTwoScreen({
                                 {invitation.status === "active" ? "Active" : "Expired"}
                               </span>
                             </div>
-                            <dl className="mt-3 grid grid-cols-2 gap-3">
+                            <dl className="mt-3 grid grid-cols-2 gap-3 min-[768px]:max-[1024px]:grid-cols-3">
                               <div className="min-w-0">
                                 <dt className="text-[10px] text-[var(--muted)]">Created by</dt>
                                 <dd className="mt-0.5 break-words font-medium">
@@ -2596,7 +2584,7 @@ export function PhaseTwoScreen({
                                 <dt className="text-[10px] text-[var(--muted)]">Type</dt>
                                 <dd className="mt-0.5 font-medium">7-day multi-use</dd>
                               </div>
-                              <div className="col-span-2">
+                              <div className="col-span-2 min-[768px]:max-[1024px]:col-span-1">
                                 <dt className="text-[10px] text-[var(--muted)]">Expires on</dt>
                                 <dd className="mt-0.5 font-medium">
                                   {new Date(invitation.expiresAt).toLocaleDateString()}
@@ -2605,7 +2593,7 @@ export function PhaseTwoScreen({
                             </dl>
                             {invitation.status === "active" && (
                               <button
-                                className={`${action} mt-3 max-[767px]:w-full`}
+                                className={`${action} mt-3 max-[1024px]:w-full`}
                                 disabled={busy}
                                 onClick={async () => {
                                   if (
@@ -2864,19 +2852,13 @@ function ExpenseEditor({
           <Notice>{error}</Notice>
         </div>
       )}
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
         <h3 className="border-b border-[var(--line)] pb-2 text-sm sm:col-span-2">
           1. Date and details
         </h3>
         <label className="text-sm font-semibold">
           Date
-          <input
-            className={field}
-            type="date"
-            name="expenseDate"
-            defaultValue={expense.expenseDate}
-            required
-          />
+          <CalendarField name="expenseDate" defaultValue={expense.expenseDate} required />
         </label>
         <label className="text-sm font-semibold">
           Description
