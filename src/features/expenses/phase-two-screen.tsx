@@ -56,7 +56,7 @@ const paymentModes = [
   { value: "credit_card", label: "Credit card" },
 ];
 const card =
-  "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
+  "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] min-[768px]:max-[1199px]:p-4";
 const field = controls.input;
 const muted = "text-xs text-[var(--muted)]";
 const action = controls.action;
@@ -737,7 +737,7 @@ export function PhaseTwoScreen({
 
   return (
     <div
-      className={`mx-auto flex w-full flex-col gap-5 ${view === "add-expense" ? "max-w-[940px]" : view === "expense" ? "max-w-[1120px]" : "max-w-[1280px]"}`}
+      className={`mx-auto flex w-full flex-col gap-5 min-[768px]:max-[1199px]:gap-4 ${view === "add-expense" ? "max-w-[940px]" : view === "expense" ? "max-w-[1120px]" : "max-w-[1280px]"}`}
     >
       {error && <Notice>{error}</Notice>}
       {loading ? (
@@ -777,9 +777,9 @@ export function PhaseTwoScreen({
                 </button>
               </div>
               {view === "expenses" && summary && (
-                <div className="grid gap-3 lg:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   <section
-                    className={`${card} flex min-h-36 flex-col justify-between max-[767px]:min-h-0`}
+                    className={`${card} flex min-h-36 flex-col justify-between md:col-span-2 lg:col-span-1 min-[768px]:max-[1199px]:min-h-32 max-[767px]:min-h-0`}
                   >
                     <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                       Actual spending{" "}
@@ -787,7 +787,7 @@ export function PhaseTwoScreen({
                         Finalized
                       </span>
                     </div>
-                    <div className="mt-3 text-3xl font-bold tabular-nums">
+                    <div className="mt-3 text-3xl font-bold tabular-nums min-[768px]:max-[1199px]:text-2xl">
                       {money(summary.actualTotal, summary.currency)}
                     </div>
                     <div className="mt-3 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
@@ -802,12 +802,12 @@ export function PhaseTwoScreen({
                     </div>
                   </section>
                   <section
-                    className={`${card} flex min-h-36 flex-col justify-between border-amber-300 bg-amber-50/60 max-[767px]:hidden dark:border-amber-800 dark:bg-amber-950/20`}
+                    className={`${card} flex min-h-36 flex-col justify-between border-amber-300 bg-amber-50/60 min-[768px]:max-[1199px]:min-h-32 max-[767px]:hidden dark:border-amber-800 dark:bg-amber-950/20`}
                   >
                     <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                       Needs conversion <span className="size-2 rounded-full bg-amber-500" />
                     </div>
-                    <div className="mt-3 break-words text-3xl font-bold tabular-nums text-amber-900 max-[767px]:text-xl dark:text-amber-200">
+                    <div className="mt-3 break-words text-3xl font-bold tabular-nums text-amber-900 min-[768px]:max-[1199px]:text-2xl max-[767px]:text-xl dark:text-amber-200">
                       {expenses.find((item) => item.displayStatus === "conversion_needed")
                         ? money(
                             expenses.find((item) => item.displayStatus === "conversion_needed")!
@@ -841,7 +841,7 @@ export function PhaseTwoScreen({
                     </div>
                   </section>
                   <section
-                    className={`${card} flex min-h-36 flex-col justify-between max-[767px]:hidden`}
+                    className={`${card} flex min-h-36 flex-col justify-between min-[768px]:max-[1199px]:min-h-32 max-[767px]:hidden`}
                   >
                     <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                       Scheduled commitments{" "}
@@ -849,7 +849,7 @@ export function PhaseTwoScreen({
                         Upcoming
                       </span>
                     </div>
-                    <div className="mt-3 break-words text-3xl font-bold tabular-nums max-[767px]:text-xl">
+                    <div className="mt-3 break-words text-3xl font-bold tabular-nums min-[768px]:max-[1199px]:text-2xl max-[767px]:text-xl">
                       {money(summary.scheduledTotal, summary.currency)}
                     </div>
                     <div className="mt-3 flex justify-between gap-2 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
@@ -889,14 +889,15 @@ export function PhaseTwoScreen({
               )}
               {view === "expenses" && (
                 <form className="flex flex-col gap-3" onSubmit={applyFilters}>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3 min-[768px]:max-[899px]:gap-2">
                     <SearchField
                       name="q"
-                      placeholder="Search description, merchant, or notes..."
+                      containerClassName="min-[768px]:max-[799px]:basis-full"
+                      placeholder="Search expenses"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
-                    <div className="min-[768px]:hidden">
+                    <div className="min-[900px]:hidden">
                       <LedgerMonthPicker value={month} onChange={onMonthChange} />
                     </div>
                     <button
@@ -2567,7 +2568,7 @@ export function PhaseTwoScreen({
                       refresh this page.
                     </p>
                   )}
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,270px),1fr))] gap-3">
                     {invitations.map((invitation) => {
                       if (invitation.status !== "revoked")
                         return (

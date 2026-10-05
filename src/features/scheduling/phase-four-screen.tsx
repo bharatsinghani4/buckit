@@ -40,7 +40,7 @@ type Scheduled = {
   revision: number;
 };
 const card =
-  "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
+  "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] min-[768px]:max-[1199px]:p-4";
 const secondary = controls.secondary;
 const primary = controls.primary;
 const field = controls.input;
@@ -431,7 +431,7 @@ export function PhaseFourScreen({
   const dueCount = plans.reduce((sum, item) => sum + item.unpaidCount, 0);
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 pb-12">
+    <div className="mx-auto w-full max-w-6xl space-y-5 pb-12 min-[768px]:max-[1199px]:space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           {view === "emi-plan" && (
@@ -477,8 +477,8 @@ export function PhaseFourScreen({
         <Pending label="Loading scheduled spending…" layout="workspace" />
       ) : view === "scheduled" ? (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="col-span-2 sm:col-span-1">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <div className="col-span-2 lg:col-span-1">
               <Summary
                 icon={<CalendarDays size={18} />}
                 label="Upcoming entries"

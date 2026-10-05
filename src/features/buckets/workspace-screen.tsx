@@ -734,7 +734,7 @@ function Workspace() {
           </nav>
           <div className="workspace-header-actions flex shrink-0 items-center justify-between gap-3 max-sm:!gap-1">
             {phaseView === "expenses" && (
-              <div className="max-[767px]:hidden">
+              <div className="max-[899px]:hidden">
                 <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
               </div>
             )}
@@ -844,7 +844,7 @@ function Workspace() {
         </header>
         <main
           id="main"
-          className="workspace-content [max-width:1160px] m-auto [padding:24px] max-[1000px]:[padding:24px] max-[767px]:[padding:16px_16px_calc(94px+env(safe-area-inset-bottom))]"
+          className="workspace-content [max-width:1160px] m-auto [padding:24px] min-[768px]:max-[1199px]:[padding:18px] max-[767px]:[padding:16px_16px_calc(94px+env(safe-area-inset-bottom))]"
         >
           {!profile.emailVerified && (
             <Notice kind="info">

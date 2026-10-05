@@ -56,7 +56,7 @@ type Dashboard = SpendingReport & {
 };
 
 const card =
-  "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
+  "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] min-[768px]:max-[1199px]:p-4";
 const secondary = controls.secondary;
 const primary = controls.primary;
 const field = controls.input;
@@ -397,7 +397,7 @@ export function PhaseThreeScreen({
   const change = previous ? ((actual - previous) / Math.abs(previous)) * 100 : null;
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-5">
+    <div className="mx-auto max-w-[1440px] space-y-5 min-[768px]:max-[1199px]:space-y-4">
       {error && <Notice>{error}</Notice>}
       {!error &&
       ((view === "dashboard" && !dashboard) ||
@@ -424,7 +424,7 @@ export function PhaseThreeScreen({
                 Spending and plans for this bucket.
               </p>
             </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>*]:min-w-0 [&>*]:flex-1">
+            <div className="flex w-full flex-wrap gap-2 min-[1200px]:w-auto [&>*]:min-w-0 [&>*]:flex-1 min-[768px]:[&>*]:min-w-[160px]">
               <Dropdown
                 value={period}
                 onValueChange={setPeriod}
@@ -757,7 +757,7 @@ export function PhaseThreeScreen({
                 Explore finalized spending without double-counting overlapping budgets.
               </p>
             </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>*]:min-w-0 [&>*]:flex-1">
+            <div className="flex w-full flex-wrap gap-2 min-[1200px]:w-auto [&>*]:min-w-0 [&>*]:flex-1 min-[768px]:[&>*]:min-w-[160px]">
               <Dropdown
                 value={period}
                 onValueChange={setPeriod}
@@ -889,8 +889,8 @@ export function PhaseThreeScreen({
               {report.pendingCount} pending entries.
             </Notice>
           )}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className={`${card} col-span-2 sm:col-span-1`}>
+          <div className="grid grid-cols-2 gap-3 min-[1100px]:grid-cols-3">
+            <div className={`${card} col-span-2 min-[1100px]:col-span-1`}>
               <p className="text-xs text-[var(--muted)]">Actual spending</p>
               <p className="mt-2 text-2xl font-bold">{money(report.totalAmount, currency)}</p>
             </div>
@@ -1087,7 +1087,7 @@ export function PhaseThreeScreen({
               incomplete until they are resolved.
             </Notice>
           )}
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 min-[1100px]:grid-cols-3">
             <div className={card}>
               <p className="text-xs text-[var(--muted)]">Allocated limit</p>
               <p className="mt-2 text-2xl font-bold">
@@ -1100,7 +1100,7 @@ export function PhaseThreeScreen({
                 {money(selected.usage.usedAmount, currency)}
               </p>
             </div>
-            <div className={card}>
+            <div className={`${card} min-[768px]:max-[1099px]:col-span-2`}>
               <p className="text-xs text-[var(--muted)]">
                 {Number(selected.usage.exceededAmount) > 0 ? "Exceeded" : "Remaining"}
               </p>

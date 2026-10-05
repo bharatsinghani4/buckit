@@ -63,10 +63,12 @@ export function Pending({
     </div>
   );
 }
-export function SearchField(props: InputHTMLAttributes<HTMLInputElement>) {
-  const { className, ...inputProps } = props;
+export function SearchField(
+  props: InputHTMLAttributes<HTMLInputElement> & { containerClassName?: string },
+) {
+  const { className, containerClassName, ...inputProps } = props;
   return (
-    <label className="relative block min-w-48 flex-1">
+    <label className={`relative block min-w-48 flex-1 ${containerClassName ?? ""}`}>
       <Search
         size={16}
         aria-hidden="true"

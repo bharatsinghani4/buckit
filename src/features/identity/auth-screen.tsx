@@ -224,7 +224,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
       className="auth-page [min-height:100svh] flex items-center justify-center flex-col [padding:20px_24px] max-[767px]:[padding:24px_16px] max-[767px]:[padding:10px]"
     >
       <div className="auth-card w-full [max-width:1024px] bg-[var(--surface)] [border-radius:12px] grid [grid-template-columns:7fr_5fr] overflow-hidden [box-shadow:var(--shadow)] [border:1px_solid_#172f2805] max-[767px]:[display:block] max-[767px]:[max-width:500px] [max-height:calc(100svh_-_96px)] max-[767px]:[max-height:calc(100svh_-_64px)] max-[767px]:overflow-y-auto">
-        <section className="auth-form-panel [padding:34px] overflow-y-auto [&_>_.brand]:[margin-bottom:22px] [&_input]:bg-[var(--surface)] [&_input]:[border-color:var(--line)] max-[1000px]:[padding:32px] max-[767px]:[padding:30px_24px] max-[767px]:[&_>_.brand]:[margin-bottom:30px] max-[767px]:[padding:14px_20px] max-[767px]:[&_.auth-top]:[margin-bottom:12px] max-[767px]:[&_.form-stack]:[gap:12px] max-[767px]:[&_.divider]:[margin:8px_0] max-[767px]:[&_.form-switch]:[margin-top:10px] max-[767px]:[&_.form-heading]:[margin-bottom:18px] max-[767px]:[&_.trust-note]:[margin-top:20px]">
+        <section className="auth-form-panel [padding:34px] overflow-y-auto [&_>_.brand]:[margin-bottom:22px] [&_input]:bg-[var(--surface)] [&_input]:[border-color:var(--line)] min-[768px]:max-[1199px]:[padding:28px] max-[767px]:[padding:30px_24px] max-[767px]:[&_>_.brand]:[margin-bottom:30px] max-[767px]:[padding:14px_20px] max-[767px]:[&_.auth-top]:[margin-bottom:12px] max-[767px]:[&_.form-stack]:[gap:12px] max-[767px]:[&_.divider]:[margin:8px_0] max-[767px]:[&_.form-switch]:[margin-top:10px] max-[767px]:[&_.form-heading]:[margin-bottom:18px] max-[767px]:[&_.trust-note]:[margin-top:20px]">
           <div className="auth-top flex items-center justify-between [gap:14px] [margin-bottom:16px] [&_.brand]:[margin-bottom:0]">
             <Brand />
             <ThemeToggle />
@@ -398,7 +398,7 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
             <LockKeyhole size={13} /> Your sign-in is secured by Firebase.
           </p>
         </section>
-        <aside className="auth-art [background:radial-gradient(at_top_right,_#c6f1df42,_transparent_55%),_var(--soft)] [padding:30px] flex flex-col justify-between [min-height:0] max-[1000px]:[padding:26px] max-[767px]:hidden">
+        <aside className="auth-art [background:radial-gradient(at_top_right,_#c6f1df42,_transparent_55%),_var(--soft)] [padding:30px] flex flex-col justify-between [min-height:0] min-[768px]:max-[1199px]:[padding:22px] max-[767px]:hidden">
           <div className="art-heading flex items-center justify-between [gap:12px] [&_.eyebrow]:text-xs [&_.pill]:bg-[var(--surface)] [&_.pill]:text-xs max-[1000px]:[&_.pill]:hidden">
             <span className="eyebrow inline-flex items-center [gap:8px] text-[var(--muted)] text-xs [font-weight:650] [letter-spacing:.13em]">
               A SPACE FOR EVERYDAY LIFE
