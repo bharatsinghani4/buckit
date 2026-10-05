@@ -11,6 +11,7 @@ import {
   Inbox,
   LockKeyhole,
   Plus,
+  Settings2,
   ShieldCheck,
   Smartphone,
   Trash2,
@@ -263,7 +264,6 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
       });
       setPreferences(result.data);
       invalidate("me/notification-preferences");
-      await refreshInbox(filter);
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
@@ -332,39 +332,41 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
         "Control which updates appear in your inbox and which reach this device.",
       )}
       {error && <Notice>{error}</Notice>}
-      <div className="mb-4 grid grid-cols-2 border-b border-[var(--line)] min-[768px]:hidden">
+      <div className="mb-4 flex gap-1 border-b border-[var(--line)] min-[768px]:hidden">
         {(["inbox", "settings"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
-            className={`h-9 border-b-2 text-xs font-semibold ${mobileTab === tab ? "border-[var(--green)] text-[var(--green)]" : "border-transparent text-[var(--muted)]"}`}
+            className={`flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-none border-b-2 px-1 text-xs ${mobileTab === tab ? "border-[var(--ink)] font-semibold text-[var(--ink)]" : "border-transparent text-[var(--muted)]"}`}
             aria-pressed={mobileTab === tab}
             onClick={() => setMobileTab(tab)}
           >
-            {tab === "inbox" ? `Inbox · ${unread}` : "Preferences"}
+            {tab === "inbox" ? (
+              <>
+                <Inbox size={16} aria-hidden="true" /> Inbox
+              </>
+            ) : (
+              <>
+                <Settings2 size={16} aria-hidden="true" /> Preferences
+              </>
+            )}
           </button>
         ))}
       </div>
       <section
-        className={`${card} mb-5 flex flex-wrap items-center gap-4 p-5 ${mobileTab === "inbox" ? "max-[767px]:hidden" : ""}`}
+        className={`${card} mb-5 flex flex-wrap items-start gap-4 p-5 max-[767px]:gap-3 max-[767px]:p-4 ${mobileTab === "inbox" ? "max-[767px]:hidden" : ""}`}
       >
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--sage)] text-[var(--green)]">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--sage)] text-[var(--green)] max-[767px]:hidden">
           <Bell size={19} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold text-[var(--ink)]">
-            Push notifications:{" "}
-            {pushStatus === "enabled"
-              ? "active"
-              : pushStatus === "checking"
-                ? "checking this browser"
-                : "disabled on this browser"}
-          </h2>
+          <h2 className="text-sm font-semibold text-[var(--ink)]">Push notifications</h2>
           <p className={`${small} mt-1`}>
-            Your inbox works without push. Enable this device to receive generic lock-screen
-            updates.
+            {pushStatus === "unconfigured"
+              ? "Push is not configured yet. Your inbox still works."
+              : "Your inbox works without push. Enable this device for private lock-screen alerts."}
           </p>
-          <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--muted)]">
+          <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--muted)] max-[767px]:hidden">
             <span>
               <Check size={12} className="mr-1 inline" /> Private lock-screen copy
             </span>
@@ -375,7 +377,10 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
         </div>
         <button
           type="button"
-          className={controls.primary}
+          className={`${controls.primary} max-[767px]:w-full`}
+          aria-label={
+            pushStatus === "enabled" ? "Disable push notifications" : "Enable push notifications"
+          }
           disabled={!!busy || pushStatus === "checking" || pushStatus === "unconfigured"}
           title={
             pushStatus === "unconfigured"
@@ -384,21 +389,16 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
           }
           onClick={() => void changePushDevice()}
         >
-          <Smartphone size={15} />{" "}
-          {pushStatus === "enabled" ? "Disable push on this device" : "Enable push on this device"}
+          <Smartphone size={15} /> {pushStatus === "enabled" ? "Disable" : "Enable"}
         </button>
       </section>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,.85fr)]">
         <div className={`space-y-5 ${mobileTab === "inbox" ? "max-[767px]:hidden" : ""}`}>
-          <section className={`${card} p-5`}>
+          <section className={`${card} p-5 max-[767px]:p-4`}>
             <div className="mb-4 flex items-end justify-between gap-4 border-b border-[var(--line)] pb-4">
               <div>
-                <h2 className="text-sm font-semibold text-[var(--ink)]">
-                  Notification channel preferences
-                </h2>
-                <p className={`${small} mt-1`}>
-                  Choose in-app and push independently for each update.
-                </p>
+                <h2 className="text-sm font-semibold text-[var(--ink)]">Channel preferences</h2>
+                <p className={`${small} mt-1`}>Choose where each update appears.</p>
               </div>
               <div className="flex shrink-0 gap-4 text-[10px] font-bold tracking-wide text-[var(--muted)] uppercase max-[767px]:hidden">
                 <span>In-app</span>
@@ -412,7 +412,7 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
                 <div key={group.title} className="border-b border-[var(--line)] py-3 last:border-0">
                   <button
                     type="button"
-                    className="flex h-9 w-full items-center justify-between text-left text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+                    className={`flex min-h-10 w-full items-center justify-between gap-2 text-left text-xs font-semibold min-[768px]:hidden ${openGroups[group.title] ? "text-[var(--green)]" : "text-[var(--ink)]"}`}
                     aria-expanded={!!openGroups[group.title]}
                     onClick={() =>
                       setOpenGroups((current) => ({
@@ -431,19 +431,24 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
                     {group.title}
                   </p>
                   <div className={openGroups[group.title] ? "" : "max-[767px]:hidden"}>
-                    <p className="mb-1 text-[11px] text-[var(--muted)]">{group.description}</p>
+                    <p className="mb-2 text-[11px] text-[var(--muted)]">{group.description}</p>
+                    <div className="grid grid-cols-[minmax(0,1fr)_40px_40px] gap-x-2 border-b border-[var(--line)] pb-2 text-[10px] font-semibold text-[var(--muted)] min-[768px]:hidden">
+                      <span>Update</span>
+                      <span className="text-center">In-app</span>
+                      <span className="text-center">Push</span>
+                    </div>
                     {group.triggers.map((trigger) => (
                       <div
                         key={trigger}
-                        className="grid grid-cols-[minmax(0,1fr)_36px_36px] items-center gap-x-4 gap-y-1 py-2.5 max-[767px]:grid-cols-2 max-[767px]:gap-3"
+                        className="grid grid-cols-[minmax(0,1fr)_36px_36px] items-center gap-x-4 gap-y-1 py-2.5 max-[767px]:grid-cols-[minmax(0,1fr)_40px_40px] max-[767px]:gap-x-2 max-[767px]:border-b max-[767px]:border-[var(--line)] max-[767px]:py-3 max-[767px]:last:border-0"
                       >
-                        <div className="min-w-0 max-[767px]:col-span-2">
-                          <p className="text-xs font-semibold text-[var(--ink)]">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold leading-snug text-[var(--ink)]">
                             {triggerLabels[trigger]}
                           </p>
                         </div>
-                        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
-                          <span className="min-[768px]:sr-only">In-app</span>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:justify-center">
+                          <span className="sr-only">In-app</span>
                           <Switch
                             checked={preferences?.triggers[trigger]?.inApp ?? true}
                             disabled={!preferences || !!busy}
@@ -451,8 +456,8 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
                             label={`${triggerLabels[trigger]} in-app`}
                           />
                         </div>
-                        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
-                          <span className="min-[768px]:sr-only">Push</span>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:justify-center">
+                          <span className="sr-only">Push</span>
                           <Switch
                             checked={preferences?.triggers[trigger]?.push ?? false}
                             disabled={!preferences || !!busy || pushStatus !== "enabled"}
@@ -483,25 +488,25 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
         </div>
         <aside className={`space-y-4 ${mobileTab === "settings" ? "max-[767px]:hidden" : ""}`}>
           <section className={`${card} p-5`}>
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--line)] pb-3">
               <h2 className="flex items-center gap-2 text-sm font-semibold">
                 <Inbox size={17} /> Inbox{" "}
                 <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 text-[10px] text-[var(--green)]">
                   {unread} new
                 </span>
               </h2>
-            </div>
-            <div className="mb-3 flex gap-2 border-b border-[var(--line)] pb-3">
-              {(["all", "unread"] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${filter === value ? "bg-[var(--sage)] text-[var(--green)]" : "text-[var(--muted)] hover:bg-[var(--soft)]"}`}
-                  onClick={() => setFilter(value)}
-                >
-                  {value === "all" ? "All" : "Unread"}
-                </button>
-              ))}
+              <div className="ml-auto flex shrink-0 gap-1">
+                {(["all", "unread"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`rounded-md px-2 py-1.5 text-[11px] font-semibold ${filter === value ? "bg-[var(--sage)] text-[var(--green)]" : "text-[var(--muted)] hover:bg-[var(--soft)]"}`}
+                    onClick={() => setFilter(value)}
+                  >
+                    {value === "all" ? "All" : "Unread"}
+                  </button>
+                ))}
+              </div>
             </div>
             {items.length ? (
               <div className="divide-y divide-[var(--line)]">
@@ -913,7 +918,7 @@ function ReminderSettings({
             </div>
           </aside>
         </div>
-        <div className="sticky bottom-[calc(78px+env(safe-area-inset-bottom))] z-10 -mx-5 mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-3 min-[768px]:static min-[768px]:mx-0 min-[768px]:bg-transparent min-[768px]:px-0 min-[768px]:pb-0">
+        <div className="sticky bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 -mx-5 mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-3 min-[768px]:static min-[768px]:mx-0 min-[768px]:bg-transparent min-[768px]:px-0 min-[768px]:pb-0">
           <p className={`${small} max-[767px]:hidden`}>
             {selectedId
               ? "Editing an existing reminder"

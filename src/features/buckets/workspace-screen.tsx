@@ -667,7 +667,7 @@ function Workspace() {
         </nav>
       </aside>
       <div
-        className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px]" : "ml-[68px]"}`}
+        className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px] [--workspace-sidebar-width:248px]" : "ml-[68px] [--workspace-sidebar-width:68px]"} ${mobileForm ? "[--workspace-bottom-bar:0px]" : "[--workspace-bottom-bar:calc(66px+env(safe-area-inset-bottom))]"}`}
       >
         <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-8 text-xs max-[767px]:gap-2 max-[767px]:px-4 max-[400px]:gap-1 max-[400px]:px-2 sticky top-0 z-20">
           <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-9">
@@ -1059,7 +1059,7 @@ function Workspace() {
       {!mobileForm && (
         <nav
           aria-label="Mobile workspace navigation"
-          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--line)] bg-[var(--surface)] px-2 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,.08)] min-[768px]:hidden"
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--line)] bg-[var(--surface)] px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_28px_rgba(0,0,0,.08)] min-[768px]:hidden"
         >
           {mobileNavItems.map(({ label, view, icon: Icon, active }) => (
             <Link
@@ -1156,12 +1156,6 @@ function Workspace() {
               </div>
             </section>
           ))}
-          <Link
-            href="/buckets/new"
-            className="flex min-h-12 items-center gap-3 rounded-xl border border-[var(--line)] px-3 text-sm font-semibold text-[var(--green)]"
-          >
-            <Plus size={19} aria-hidden="true" /> Create a bucket
-          </Link>
         </dialog>
       )}
       {modal && (

@@ -464,7 +464,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
                   maxLength={2000}
                 />
               </label>
-              <div className="sticky bottom-[calc(78px+env(safe-area-inset-bottom))] z-10 -mx-5 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-3 min-[768px]:static min-[768px]:mx-0 min-[768px]:border-0 min-[768px]:bg-transparent min-[768px]:p-0">
+              <div className="sticky bottom-[calc(68px+env(safe-area-inset-bottom))] z-10 -mx-5 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-3 min-[768px]:static min-[768px]:mx-0 min-[768px]:border-0 min-[768px]:bg-transparent min-[768px]:p-0">
                 <button disabled={busy} className={`${controls.primary} max-[767px]:w-full`}>
                   <Check size={16} /> {mode === "new" ? "Save contact" : "Save changes"}
                 </button>
