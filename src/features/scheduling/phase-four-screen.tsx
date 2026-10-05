@@ -443,14 +443,14 @@ export function PhaseFourScreen({
             </Link>
           )}
           <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--green)]">
-            Scheduled spending · {bucket.name}
+            Scheduled spending<span className="max-[767px]:hidden"> · {bucket.name}</span>
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--ink)]">
             {view === "scheduled"
               ? "Scheduled expenses"
               : view === "emi-plan"
                 ? (selected?.title ?? "EMI plan")
-                : "EMI Plans & Commitments"}
+                : "EMI plans"}
           </h1>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--muted)]">
             {view === "scheduled"
@@ -478,12 +478,14 @@ export function PhaseFourScreen({
       ) : view === "scheduled" ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Summary
-              icon={<CalendarDays size={18} />}
-              label="Upcoming entries"
-              value={String(scheduled.filter((item) => item.status === "scheduled").length)}
-              detail="Not yet actual spending"
-            />
+            <div className="col-span-2 sm:col-span-1">
+              <Summary
+                icon={<CalendarDays size={18} />}
+                label="Upcoming entries"
+                value={String(scheduled.filter((item) => item.status === "scheduled").length)}
+                detail="Not yet spending"
+              />
+            </div>
             <Summary
               icon={<Clock3 size={18} />}
               label="Pending processing"
@@ -561,31 +563,31 @@ export function PhaseFourScreen({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Summary
               icon={<Layers3 size={18} />}
-              label="Active EMI plans"
+              label="EMI plans"
               value={String(active.length)}
-              detail="Across this bucket"
+              detail="Active plans"
             />
             <Summary
               icon={<Wallet size={18} />}
-              label={`Remaining in ${bucket.primaryCurrency}`}
+              label={`Remaining · ${bucket.primaryCurrency}`}
               value={money(String(totalPlanned), bucket.primaryCurrency)}
               detail={
                 foreignPlans
                   ? `${foreignPlans} foreign-currency plan${foreignPlans === 1 ? "" : "s"} shown separately`
-                  : "Unposted installments only"
+                  : "Unposted only"
               }
             />
             <Summary
               icon={<CalendarDays size={18} />}
-              label="Upcoming installments"
+              label="Upcoming"
               value={String(plans.reduce((sum, item) => sum + item.upcomingCount, 0))}
-              detail="Scheduled, not recorded"
+              detail="Scheduled"
             />
             <Summary
               icon={<Clock3 size={18} />}
-              label="Unpaid obligations"
+              label="Unpaid"
               value={String(dueCount)}
-              detail="Skipped or deleted payments"
+              detail="Skipped or deleted"
             />
           </div>
           <section className={card}>
@@ -820,7 +822,7 @@ export function PhaseFourScreen({
         >
           <form
             onSubmit={savePlan}
-            className="max-h-[70vh] space-y-4 overflow-y-auto px-1 pb-1 text-xs"
+            className="space-y-4 px-1 pb-1 text-xs min-[768px]:max-h-[70vh] min-[768px]:overflow-y-auto"
           >
             <Field label="Plan title">
               <input
@@ -955,7 +957,7 @@ export function PhaseFourScreen({
                       {dateLabel(preview.at(-1)!.date)}. The monthly anchor returns after shorter
                       months.
                     </p>
-                    <ol className="mt-2 max-h-32 overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--surface)] p-2">
+                    <ol className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 min-[768px]:max-h-32 min-[768px]:overflow-y-auto">
                       {preview.map((item) => (
                         <li key={item.number} className="flex justify-between gap-3 py-0.5">
                           <span>Installment #{item.number}</span>
@@ -974,7 +976,7 @@ export function PhaseFourScreen({
                       {" Recorded and unpaid history will stay unchanged."}
                     </p>
                     {correctionPreview.affected.length > 0 && (
-                      <ol className="mt-2 max-h-32 overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--surface)] p-2">
+                      <ol className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 min-[768px]:max-h-32 min-[768px]:overflow-y-auto">
                         {correctionPreview.affected.map((item) => (
                           <li key={item.id} className="flex justify-between gap-3 py-0.5">
                             <span>Installment #{item.number}</span>
@@ -988,7 +990,7 @@ export function PhaseFourScreen({
               </div>
             )}
             {error && <Notice>{error}</Notice>}
-            <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+            <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4 max-[767px]:sticky max-[767px]:bottom-0 max-[767px]:z-10 max-[767px]:bg-[var(--surface)] max-[767px]:pb-[calc(8px+env(safe-area-inset-bottom))]">
               <button type="button" className={secondary} onClick={() => setDialog(null)}>
                 Cancel
               </button>

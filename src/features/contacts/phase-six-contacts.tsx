@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
+  ArrowLeft,
   Check,
   ContactRound,
   LockKeyhole,
@@ -239,8 +241,16 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
 
   return (
     <div className="mx-auto max-w-[1400px] pb-12">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div
+        className={`mb-6 flex flex-wrap items-end justify-between gap-4 ${mode !== "read" || selectedId ? "max-[767px]:hidden" : ""}`}
+      >
         <div>
+          <Link
+            href="/workspace"
+            className="mb-3 inline-flex h-9 items-center gap-1.5 text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+          >
+            <ArrowLeft size={15} aria-hidden="true" /> Back to Overview
+          </Link>
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--green)]">
             Your directory
           </p>
@@ -261,13 +271,26 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
           <Plus size={16} /> Add contact
         </button>
       </div>
-      <div className={`${card} mb-5 flex items-start gap-3 bg-[var(--sage)] p-4`}>
+      <div
+        className={`${card} mb-5 flex items-start gap-3 bg-[var(--sage)] p-4 max-[767px]:hidden`}
+      >
         <LockKeyhole size={18} className="mt-0.5 shrink-0 text-[var(--green)]" />
         <p className="text-xs leading-relaxed text-[var(--ink)]">
           <strong>Private by default.</strong> A contact is visible only to you until you explicitly
           share it. People can view a shared contact, but cannot edit or share it again.
         </p>
       </div>
+      {mode === "read" && !selectedId && (
+        <details className="mb-4 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+          <summary className="cursor-pointer font-semibold text-[var(--green)]">
+            Private by default
+          </summary>
+          <p className="mt-2">
+            Only you see a contact until you share it. Recipients can view it but cannot edit or
+            reshare it.
+          </p>
+        </details>
+      )}
       {error && <Notice kind="error">{error}</Notice>}
       {notice && <Notice kind="success">{notice}</Notice>}
       <div className="grid gap-5 lg:grid-cols-[minmax(300px,410px)_minmax(0,1fr)]">
@@ -441,9 +464,11 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
                   maxLength={2000}
                 />
               </label>
-              <button disabled={busy} className={controls.primary}>
-                <Check size={16} /> {mode === "new" ? "Save contact" : "Save changes"}
-              </button>
+              <div className="sticky bottom-[calc(78px+env(safe-area-inset-bottom))] z-10 -mx-5 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-3 min-[768px]:static min-[768px]:mx-0 min-[768px]:border-0 min-[768px]:bg-transparent min-[768px]:p-0">
+                <button disabled={busy} className={`${controls.primary} max-[767px]:w-full`}>
+                  <Check size={16} /> {mode === "new" ? "Save contact" : "Save changes"}
+                </button>
+              </div>
             </form>
           ) : selected ? (
             <div>

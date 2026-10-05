@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   ArrowRight,
+  ArrowLeft,
   BookOpen,
   FolderOpen,
   Home,
@@ -513,6 +514,21 @@ function Workspace() {
   ];
   const currentStep = Math.min(step, steps.length - 1);
   const mobileForm = ["add-expense", "budget-form"].includes(phaseView ?? "");
+  const mobileBack = (() => {
+    if (
+      !phaseView ||
+      ["add-expense", "expense", "budget", "budget-form", "emi-plan", "contacts"].includes(
+        phaseView,
+      )
+    )
+      return null;
+    if (phaseView === "deleted") return { label: "Expenses", view: "expenses" };
+    if (phaseView === "scheduled") return { label: "EMI plans", view: "emis" };
+    if (phaseView === "reminders") return { label: "Notifications", view: "notifications" };
+    if (["csv-import", "csv-export"].includes(phaseView))
+      return { label: "Expenses", view: "expenses" };
+    return { label: "Overview", view: "" };
+  })();
   const mobileNavItems = [
     { label: "Overview", view: "", icon: LayoutDashboard, active: !phaseView },
     {
@@ -653,10 +669,13 @@ function Workspace() {
       <div
         className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px]" : "ml-[68px]"}`}
       >
-        <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-8 text-xs max-[767px]:gap-2 max-[767px]:px-4 sticky top-0 z-20">
+        <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-8 text-xs max-[767px]:gap-2 max-[767px]:px-4 max-[400px]:gap-1 max-[400px]:px-2 sticky top-0 z-20">
+          <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-9">
+            <Brand compact />
+          </span>
           <nav
             aria-label="Breadcrumb"
-            className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium max-[767px]:flex-1"
+            className="flex min-w-0 items-center gap-2 whitespace-nowrap text-xs font-medium max-[767px]:flex-1 min-[480px]:max-[767px]:max-w-[220px]"
           >
             <label className="sr-only" htmlFor="bucket-picker">
               Current bucket
@@ -738,7 +757,7 @@ function Workspace() {
                 }}
               >
                 <ProfileAvatar profile={profile} size={34} />
-                <ChevronDown size={12} className="text-[var(--muted)]" />
+                <ChevronDown size={12} className="text-[var(--muted)] max-[400px]:hidden" />
               </button>
               {profileMenuOpen && (
                 <div
@@ -847,6 +866,15 @@ function Workspace() {
                 Refresh workspace
               </button>
             </>
+          )}
+          {mobileBack && selected && !loading && (
+            <Link
+              href={`/workspace?bucket=${selected.id}${mobileBack.view ? `&view=${mobileBack.view}` : ""}`}
+              onClick={navigateWithinWorkspace}
+              className="mb-4 inline-flex h-9 items-center gap-1.5 text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+            >
+              <ArrowLeft size={15} aria-hidden="true" /> Back to {mobileBack.label}
+            </Link>
           )}
           {loading ? (
             <Pending layout="workspace" />
@@ -1031,7 +1059,7 @@ function Workspace() {
       {!mobileForm && (
         <nav
           aria-label="Mobile workspace navigation"
-          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--line)] bg-[var(--surface)] px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_28px_rgba(0,0,0,.08)] min-[768px]:hidden"
+          className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--line)] bg-[var(--surface)] px-2 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,.08)] min-[768px]:hidden"
         >
           {mobileNavItems.map(({ label, view, icon: Icon, active }) => (
             <Link
@@ -1043,7 +1071,7 @@ function Workspace() {
               }
               onClick={navigateWithinWorkspace}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-xs font-medium ${active ? "text-[var(--green)]" : "text-[var(--muted)]"} ${label === "Add" ? "font-semibold" : ""}`}
+              className={`flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-xs font-medium max-[400px]:text-[10px] ${active ? "text-[var(--green)]" : "text-[var(--muted)]"} ${label === "Add" ? "font-semibold" : ""}`}
             >
               <span
                 className={`grid size-9 place-items-center rounded-xl ${label === "Add" ? "bg-[var(--button-primary)] text-[var(--button-primary-text)]" : active ? "bg-[var(--sage)]" : ""}`}
@@ -1058,7 +1086,7 @@ function Workspace() {
             onClick={() => setMobileMoreOpen(true)}
             aria-haspopup="dialog"
             aria-expanded={mobileMoreOpen}
-            className={`flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-xs font-medium ${sidebarGroups.some((group) => group.items.some((item) => item.activeViews.includes(phaseView ?? ""))) && !mobileNavItems.some((item) => item.active) ? "text-[var(--green)]" : "text-[var(--muted)]"}`}
+            className={`flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg text-xs font-medium max-[400px]:text-[10px] ${sidebarGroups.some((group) => group.items.some((item) => item.activeViews.includes(phaseView ?? ""))) && !mobileNavItems.some((item) => item.active) ? "text-[var(--green)]" : "text-[var(--muted)]"}`}
           >
             <span className="grid size-9 place-items-center rounded-xl">
               <MoreHorizontal size={21} aria-hidden="true" />

@@ -557,10 +557,10 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     <div className="mx-auto max-w-[1400px] pb-12">
       {heading(
         "Bring your history together",
-        "CSV Import & Column Mapping",
-        "Map a CSV to Buckit’s expense fields, resolve issues, and review exactly what will post.",
+        "Import CSV",
+        "Map columns and review expenses before posting.",
       )}
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap gap-2 max-[767px]:hidden">
         {steps.map((name, index) => (
           <div
             key={name}
@@ -572,6 +572,22 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
             {name}
           </div>
         ))}
+      </div>
+      <div className="mb-4 min-[768px]:hidden">
+        <p className="mb-2 text-xs font-semibold text-[var(--green)]">
+          Step {step + 1} of {steps.length} · {steps[step]}
+        </p>
+        <div
+          className="grid grid-cols-3 gap-1"
+          aria-label={`Import step ${step + 1} of ${steps.length}`}
+        >
+          {steps.map((name, index) => (
+            <span
+              key={name}
+              className={`h-1 rounded-full ${index <= step ? "bg-[var(--green)]" : "bg-[var(--line)]"}`}
+            />
+          ))}
+        </div>
       </div>
       {error && <Notice kind="error">{error}</Notice>}
       {notice && <Notice kind="success">{notice}</Notice>}
@@ -1048,7 +1064,7 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
     <div className="mx-auto max-w-[1200px] pb-12">
       {heading(
         "Your data, ready to go",
-        "Export Expenses & Data",
+        "Export CSV",
         "Choose a scope, preview the count, and download a clean expense CSV.",
       )}
       {error && <Notice kind="error">{error}</Notice>}
@@ -1059,7 +1075,7 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
               <Filter size={18} className="text-[var(--green)]" />
               <h2 className="text-lg font-bold text-[var(--ink)]">Export scope</h2>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {[
                 {
                   value: "filtered",
@@ -1070,19 +1086,21 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
               ].map((option) => (
                 <button
                   key={option.value}
-                  className={`rounded-lg border p-4 text-left ${scope === option.value ? "border-[var(--green)] bg-[var(--sage)]" : "border-[var(--line)] bg-[var(--surface)]"}`}
+                  className={`rounded-lg border p-3 text-left sm:p-4 ${scope === option.value ? "border-[var(--green)] bg-[var(--sage)]" : "border-[var(--line)] bg-[var(--surface)]"}`}
                   onClick={() => {
                     setScope(option.value as "filtered" | "all");
                     setPreview(null);
                   }}
                 >
                   <strong className="block text-sm text-[var(--ink)]">{option.title}</strong>
-                  <span className="text-xs text-[var(--muted)]">{option.text}</span>
+                  <span className="text-xs text-[var(--muted)] max-[767px]:hidden">
+                    {option.text}
+                  </span>
                 </button>
               ))}
             </div>
             {scope === "filtered" && (
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4">
                 {Object.keys(otherFilters).length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
                     <span className="text-xs text-[var(--muted)]">
@@ -1127,6 +1145,27 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
               </div>
             )}
           </section>
+          <section className={`${card} p-4 min-[768px]:hidden`}>
+            <h2 className="text-sm font-semibold">Ready to export?</h2>
+            {preview && (
+              <p className="mt-2 text-xs">
+                <strong>{preview.count}</strong> expense rows · {preview.scheduledCount} scheduled ·{" "}
+                {preview.conversionNeededCount} need conversion
+              </p>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button className={controls.secondary} disabled={busy} onClick={() => void inspect()}>
+                <Info size={15} /> Preview
+              </button>
+              <button
+                className={controls.primary}
+                disabled={busy || !preview}
+                onClick={() => void download()}
+              >
+                <Download size={15} /> Download
+              </button>
+            </div>
+          </section>
           <section className={`${card} p-5 sm:p-6`}>
             <h2 className="mb-3 text-lg font-bold text-[var(--ink)]">What to include</h2>
             <label className="flex items-center gap-3 text-xs text-[var(--ink)]">
@@ -1146,7 +1185,7 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
               original values.
             </p>
           </section>
-          <section className={`${card} overflow-hidden`}>
+          <section className={`${card} overflow-hidden max-[767px]:hidden`}>
             <div className="border-b border-[var(--line)] p-5">
               <h2 className="text-lg font-bold text-[var(--ink)]">CSV column preview</h2>
               <p className="text-xs text-[var(--muted)]">
@@ -1164,8 +1203,23 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
               ))}
             </div>
           </section>
+          <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-xs min-[768px]:hidden">
+            <summary className="cursor-pointer font-semibold text-[var(--green)]">
+              CSV columns · {columns.length}
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {columns.map((column) => (
+                <span
+                  key={column}
+                  className="rounded-md bg-[var(--soft)] px-2 py-1 text-[var(--ink)]"
+                >
+                  {column}
+                </span>
+              ))}
+            </div>
+          </details>
         </div>
-        <aside className={`${card} h-fit p-5 sm:p-6 lg:sticky lg:top-24`}>
+        <aside className={`${card} h-fit p-5 sm:p-6 lg:sticky lg:top-24 max-[767px]:hidden`}>
           <ShieldCheck size={25} className="mb-4 text-[var(--green)]" />
           <h2 className="text-lg font-bold text-[var(--ink)]">Ready to export?</h2>
           <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">

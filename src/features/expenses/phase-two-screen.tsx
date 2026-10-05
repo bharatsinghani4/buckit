@@ -491,6 +491,29 @@ export function PhaseTwoScreen({
     };
   }, [filtersOpen]);
 
+  useEffect(() => {
+    if (view !== "references") return;
+    const closeMenus = (target?: EventTarget | null) => {
+      document
+        .querySelectorAll<HTMLDetailsElement>("details[data-reference-menu][open]")
+        .forEach((menu) => {
+          if (target && menu.contains(target as Node)) return;
+          menu.open = false;
+          if (target === undefined) menu.querySelector("summary")?.focus();
+        });
+    };
+    const closeOutside = (event: PointerEvent) => closeMenus(event.target);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenus();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [view]);
+
   const navigatePath = (url: string) => window.history.pushState(null, "", url);
   const navigate = (next: View, id?: string) => navigatePath(path(bucket.id, next, id));
 
@@ -728,7 +751,7 @@ export function PhaseTwoScreen({
                   <h1>{view === "deleted" ? "Deleted expenses" : "Expenses"}</h1>
                   <p className="text-sm text-[var(--muted)] max-[767px]:text-xs">
                     {view === "deleted"
-                      ? `Expenses you deleted from ${bucket.name} remain recoverable for 30 days.`
+                      ? "Restore eligible expenses within 30 days."
                       : "Track shared spending."}
                   </p>
                 </div>
@@ -915,113 +938,125 @@ export function PhaseTwoScreen({
                     </button>
                   </div>
                   {filtersOpen && (
-                    <div
-                      className={`${card} grid gap-3 sm:grid-cols-2 lg:grid-cols-4 max-[767px]:fixed max-[767px]:inset-0 max-[767px]:z-40 max-[767px]:max-h-[100dvh] max-[767px]:content-start max-[767px]:overflow-y-auto max-[767px]:rounded-none max-[767px]:border-0 max-[767px]:p-4 max-[767px]:pb-[calc(24px+env(safe-area-inset-bottom))]`}
-                    >
-                      <div className="flex items-center justify-between sm:col-span-2 lg:col-span-4">
-                        <h2 className="text-base">Filter ledger items</h2>
+                    <div className="max-[767px]:fixed max-[767px]:inset-0 max-[767px]:z-40 max-[767px]:overflow-y-auto max-[767px]:bg-[var(--canvas)] max-[767px]:p-4 max-[767px]:pb-[calc(24px+env(safe-area-inset-bottom))]">
+                      <div
+                        className={`${card} grid gap-3 sm:grid-cols-2 lg:grid-cols-4 max-[767px]:mx-auto max-[767px]:max-w-[640px]`}
+                      >
+                        <div className="flex items-center justify-between sm:col-span-2 lg:col-span-4 max-[767px]:flex-col max-[767px]:items-start">
+                          <button
+                            id="mobile-filter-close"
+                            type="button"
+                            className={`${action} min-[768px]:order-2 max-[767px]:!border-0 max-[767px]:!bg-transparent max-[767px]:!px-0 max-[767px]:!text-[var(--green)]`}
+                            onClick={() => setFiltersOpen(false)}
+                            aria-label="Back to Expenses"
+                          >
+                            <ArrowLeft size={15} className="min-[768px]:hidden" />
+                            <span className="min-[768px]:hidden">Back to Expenses</span>
+                            <X size={15} className="max-[767px]:hidden" />
+                          </button>
+                          <h2 className="text-base min-[768px]:order-1">Filter ledger items</h2>
+                        </div>
+                        <label className="text-xs">
+                          <span className="text-xs font-semibold">Status</span>
+                          <Dropdown
+                            value={status}
+                            onValueChange={setStatus}
+                            options={[
+                              { value: "all", label: "All statuses" },
+                              { value: "actual", label: "Actual" },
+                              { value: "scheduled", label: "Scheduled" },
+                              { value: "pending_processing", label: "Pending processing" },
+                              { value: "conversion_needed", label: "Conversion needed" },
+                            ]}
+                          />
+                        </label>
+                        <label className="text-xs">
+                          From
+                          <input className={field} type="date" name="from" />
+                        </label>
+                        <label className="text-xs">
+                          To
+                          <input className={field} type="date" name="to" />
+                        </label>
+                        <label className="text-xs">
+                          Category
+                          <Dropdown
+                            name="categoryId"
+                            defaultValue="all"
+                            options={[
+                              { value: "all", label: "All categories" },
+                              ...options.categories.map((item) => ({
+                                value: item.id,
+                                label: item.name,
+                              })),
+                            ]}
+                          />
+                        </label>
+                        <label className="text-xs">
+                          Account
+                          <Dropdown
+                            name="accountId"
+                            defaultValue="all"
+                            options={[
+                              { value: "all", label: "All accounts" },
+                              ...options.accounts.map((item) => ({
+                                value: item.id,
+                                label: item.name,
+                              })),
+                            ]}
+                          />
+                        </label>
+                        <label className="text-xs">
+                          Platform
+                          <Dropdown
+                            name="platformId"
+                            defaultValue="all"
+                            options={[
+                              { value: "all", label: "All platforms" },
+                              ...options.platforms.map((item) => ({
+                                value: item.id,
+                                label: item.name,
+                              })),
+                            ]}
+                          />
+                        </label>
+                        <label className="text-xs">
+                          Payment mode
+                          <Dropdown
+                            name="paymentMode"
+                            defaultValue="all"
+                            options={[{ value: "all", label: "All modes" }, ...paymentModes]}
+                          />
+                        </label>
+                        <label className="text-xs">
+                          Paid by
+                          <Dropdown
+                            name="paidByUserId"
+                            defaultValue="all"
+                            options={[
+                              { value: "all", label: "All members" },
+                              ...members.map((item) => ({
+                                value: item.id,
+                                label: item.displayName,
+                              })),
+                            ]}
+                          />
+                        </label>
                         <button
-                          id="mobile-filter-close"
-                          type="button"
-                          className={action}
-                          onClick={() => setFiltersOpen(false)}
-                          aria-label="Close filters"
+                          className={`${controls.primary} button self-end max-[767px]:sticky max-[767px]:bottom-0 max-[767px]:z-10 max-[767px]:w-full`}
+                          type="submit"
                         >
-                          <X size={15} />
+                          Apply filters
                         </button>
                       </div>
-                      <label className="text-xs">
-                        <span className="text-xs font-semibold">Status</span>
-                        <Dropdown
-                          value={status}
-                          onValueChange={setStatus}
-                          options={[
-                            { value: "all", label: "All statuses" },
-                            { value: "actual", label: "Actual" },
-                            { value: "scheduled", label: "Scheduled" },
-                            { value: "pending_processing", label: "Pending processing" },
-                            { value: "conversion_needed", label: "Conversion needed" },
-                          ]}
-                        />
-                      </label>
-                      <label className="text-xs">
-                        From
-                        <input className={field} type="date" name="from" />
-                      </label>
-                      <label className="text-xs">
-                        To
-                        <input className={field} type="date" name="to" />
-                      </label>
-                      <label className="text-xs">
-                        Category
-                        <Dropdown
-                          name="categoryId"
-                          defaultValue="all"
-                          options={[
-                            { value: "all", label: "All categories" },
-                            ...options.categories.map((item) => ({
-                              value: item.id,
-                              label: item.name,
-                            })),
-                          ]}
-                        />
-                      </label>
-                      <label className="text-xs">
-                        Account
-                        <Dropdown
-                          name="accountId"
-                          defaultValue="all"
-                          options={[
-                            { value: "all", label: "All accounts" },
-                            ...options.accounts.map((item) => ({
-                              value: item.id,
-                              label: item.name,
-                            })),
-                          ]}
-                        />
-                      </label>
-                      <label className="text-xs">
-                        Platform
-                        <Dropdown
-                          name="platformId"
-                          defaultValue="all"
-                          options={[
-                            { value: "all", label: "All platforms" },
-                            ...options.platforms.map((item) => ({
-                              value: item.id,
-                              label: item.name,
-                            })),
-                          ]}
-                        />
-                      </label>
-                      <label className="text-xs">
-                        Payment mode
-                        <Dropdown
-                          name="paymentMode"
-                          defaultValue="all"
-                          options={[{ value: "all", label: "All modes" }, ...paymentModes]}
-                        />
-                      </label>
-                      <label className="text-xs">
-                        Paid by
-                        <Dropdown
-                          name="paidByUserId"
-                          defaultValue="all"
-                          options={[
-                            { value: "all", label: "All members" },
-                            ...members.map((item) => ({ value: item.id, label: item.displayName })),
-                          ]}
-                        />
-                      </label>
-                      <button className={`${controls.primary} button self-end`} type="submit">
-                        Apply filters
-                      </button>
                     </div>
                   )}
                 </form>
               )}
               {view === "expenses" && (
-                <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                <div
+                  className={`flex flex-wrap items-center gap-2 text-xs text-[var(--muted)] ${!appliedFilters ? "max-[767px]:hidden" : ""}`}
+                >
                   {(appliedFilters || month) && (
                     <span className="mr-1 font-semibold uppercase tracking-wide">Active:</span>
                   )}
@@ -1060,7 +1095,7 @@ export function PhaseTwoScreen({
                       );
                     })}
                   {month && (
-                    <span className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[var(--ink)]">
+                    <span className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[var(--ink)] max-[767px]:hidden">
                       Month:{" "}
                       {new Date(`${month}-01T12:00:00`).toLocaleDateString(undefined, {
                         month: "short",
@@ -1087,7 +1122,7 @@ export function PhaseTwoScreen({
                 </div>
               )}
               {view === "deleted" && (
-                <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm">
+                <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[767px]:hidden">
                   <ShieldCheck size={19} className="text-[var(--green)]" />
                   <div>
                     <strong>30-day recovery</strong>
@@ -1099,6 +1134,17 @@ export function PhaseTwoScreen({
                 </div>
               )}
               {view === "deleted" && (
+                <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+                  <summary className="cursor-pointer font-semibold text-[var(--green)]">
+                    How recovery works
+                  </summary>
+                  <p className="mt-2">
+                    Only the creator can restore an expense. Restoring returns its original
+                    financial effect; deleted entries are purged after 30 days.
+                  </p>
+                </details>
+              )}
+              {view === "deleted" && (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg">
@@ -1107,7 +1153,7 @@ export function PhaseTwoScreen({
                         {expenses.length}
                       </span>
                     </h2>
-                    <p className="!mt-1 text-xs">
+                    <p className="!mt-1 text-xs max-[767px]:hidden">
                       Deleted items are excluded from active spending and are purged after 30 days.
                     </p>
                   </div>
@@ -2122,7 +2168,7 @@ export function PhaseTwoScreen({
                   <ShieldCheck size={15} /> Owner controlled
                 </span>
               </div>
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm">
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[767px]:hidden">
                 <CheckCircle2 size={20} className="text-[var(--green)]" />
                 <div>
                   <strong>Case-insensitive uniqueness & archival rule</strong>
@@ -2132,6 +2178,15 @@ export function PhaseTwoScreen({
                   </p>
                 </div>
               </div>
+              <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+                <summary className="cursor-pointer font-semibold text-[var(--green)]">
+                  How reference names work
+                </summary>
+                <p className="mt-2">
+                  Names are unique regardless of letter case. Used references are archived to
+                  preserve historical expenses.
+                </p>
+              </details>
               {groups.map((group) => (
                 <section className={card} key={group.key}>
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
@@ -2149,7 +2204,7 @@ export function PhaseTwoScreen({
                           active
                         </span>
                       </h2>
-                      <p className="!mt-1 text-xs">
+                      <p className="!mt-1 text-xs max-[767px]:hidden">
                         {group.key === "accounts"
                           ? "User-governed names for payment sources. There are no bank connections or live balances."
                           : group.key === "categories"
@@ -2161,34 +2216,31 @@ export function PhaseTwoScreen({
                       <button
                         type="button"
                         className={referencePrimaryAction}
+                        aria-label={`Add ${group.key === "accounts" ? "payment account" : group.key === "categories" ? "category" : "platform"}`}
                         onClick={() =>
                           setAddingOption(addingOption === group.key ? null : group.key)
                         }
                         aria-expanded={addingOption === group.key}
                       >
-                        <Plus size={15} aria-hidden="true" /> Add{" "}
-                        {group.key === "accounts"
-                          ? "payment account"
-                          : group.key === "categories"
-                            ? "category"
-                            : "platform"}
+                        <Plus size={15} aria-hidden="true" /> Add
+                        <span className="max-[767px]:hidden">
+                          {group.key === "accounts"
+                            ? " payment account"
+                            : group.key === "categories"
+                              ? " category"
+                              : " platform"}
+                        </span>
                       </button>
                     )}
                   </div>
-                  <div
-                    className={
-                      group.key === "categories"
-                        ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-                        : "grid gap-1"
-                    }
-                  >
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {options[group.key].length > 0 ? (
                       options[group.key].map((item) => (
                         <div
                           key={item.id}
-                          className={`relative flex min-w-0 items-center justify-between gap-3 rounded-lg ${group.key === "categories" ? "border border-[var(--line)] bg-[var(--soft)] p-3" : "border-b border-[var(--line)] px-1 py-3 last:border-0"}`}
+                          className="relative flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--line)] bg-[var(--soft)] p-3"
                         >
-                          <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex min-w-0 items-center gap-3 max-[767px]:w-full">
                             <span className="grid size-10 shrink-0 place-items-center rounded-xl text-[var(--sage)] bg-[var(--green)]">
                               <ReferenceGlyph
                                 kind={group.key}
@@ -2232,9 +2284,8 @@ export function PhaseTwoScreen({
                           </div>
                           {bucket.isOwner &&
                             bucket.status === "active" &&
-                            group.key === "categories" &&
                             editingOptionId !== item.id && (
-                              <details className="group shrink-0">
+                              <details data-reference-menu className="group shrink-0">
                                 <summary
                                   className="grid size-9 cursor-pointer list-none place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--sage)] hover:text-[var(--ink)]"
                                   aria-label={`Actions for ${item.name}`}
@@ -2254,14 +2305,17 @@ export function PhaseTwoScreen({
                                   </button>
                                   <button
                                     className={`${referenceMutedAction} justify-start`}
-                                    disabled={busy}
-                                    onClick={() =>
-                                      optionAction(
+                                    disabled={busy || item.systemKey === "other"}
+                                    onClick={(event) => {
+                                      event.currentTarget
+                                        .closest("details")
+                                        ?.removeAttribute("open");
+                                      void optionAction(
                                         item,
                                         group.key,
                                         item.state === "active" ? "archive" : "restore",
-                                      )
-                                    }
+                                      );
+                                    }}
                                   >
                                     {item.state === "active" ? (
                                       <Archive size={14} aria-hidden="true" />
@@ -2276,9 +2330,12 @@ export function PhaseTwoScreen({
                                       <button
                                         className={`${referenceDeleteAction} justify-start`}
                                         disabled={busy}
-                                        onClick={() =>
-                                          setDeleteOptionTarget({ option: item, kind: group.key })
-                                        }
+                                        onClick={(event) => {
+                                          event.currentTarget
+                                            .closest("details")
+                                            ?.removeAttribute("open");
+                                          setDeleteOptionTarget({ option: item, kind: group.key });
+                                        }}
                                       >
                                         <Trash2 size={14} aria-hidden="true" />
                                         Delete unused
@@ -2289,74 +2346,23 @@ export function PhaseTwoScreen({
                             )}
                           {bucket.isOwner &&
                             bucket.status === "active" &&
-                            (group.key !== "categories" || editingOptionId === item.id) && (
+                            editingOptionId === item.id && (
                               <div className="flex flex-wrap justify-end gap-1">
-                                {editingOptionId === item.id ? (
-                                  <>
-                                    <button
-                                      className={referencePrimaryAction}
-                                      disabled={busy || !editingOptionName.trim()}
-                                      onClick={() =>
-                                        void renameOption(item, group.key, editingOptionName)
-                                      }
-                                    >
-                                      Save
-                                    </button>
-                                    <button
-                                      className={referenceMutedAction}
-                                      onClick={() => setEditingOptionId(null)}
-                                    >
-                                      Cancel
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button
-                                    className={referenceRowAction}
-                                    disabled={busy}
-                                    onClick={() => {
-                                      setEditingOptionId(item.id);
-                                      setEditingOptionName(item.name);
-                                    }}
-                                  >
-                                    <Pencil size={14} aria-hidden="true" />
-                                    Edit
-                                  </button>
-                                )}
-                                {group.key !== "categories" && (
-                                  <button
-                                    className={referenceMutedAction}
-                                    disabled={busy || item.systemKey === "other"}
-                                    onClick={() =>
-                                      optionAction(
-                                        item,
-                                        group.key,
-                                        item.state === "active" ? "archive" : "restore",
-                                      )
-                                    }
-                                  >
-                                    {item.state === "active" ? (
-                                      <Archive size={14} aria-hidden="true" />
-                                    ) : (
-                                      <RotateCcw size={14} aria-hidden="true" />
-                                    )}
-                                    {item.state === "active" ? "Archive" : "Restore"}
-                                  </button>
-                                )}
-                                {group.key !== "categories" &&
-                                  item.usageCount === 0 &&
-                                  !item.budgetCount &&
-                                  !item.systemKey && (
-                                    <button
-                                      className={referenceDeleteAction}
-                                      disabled={busy}
-                                      onClick={() =>
-                                        setDeleteOptionTarget({ option: item, kind: group.key })
-                                      }
-                                    >
-                                      <Trash2 size={14} aria-hidden="true" />
-                                      Delete unused
-                                    </button>
-                                  )}
+                                <button
+                                  className={referencePrimaryAction}
+                                  disabled={busy || !editingOptionName.trim()}
+                                  onClick={() =>
+                                    void renameOption(item, group.key, editingOptionName)
+                                  }
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  className={referenceMutedAction}
+                                  onClick={() => setEditingOptionId(null)}
+                                >
+                                  Cancel
+                                </button>
                               </div>
                             )}
                         </div>
@@ -2411,7 +2417,7 @@ export function PhaseTwoScreen({
                   {invitations.filter((item) => item.status === "active").length} active links
                 </span>
               </div>
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm">
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--sage)] p-5 text-sm max-[767px]:hidden">
                 <ShieldCheck size={20} className="text-[var(--green)]" />
                 <div>
                   <strong>Pseudonymous ledger security</strong>
@@ -2421,6 +2427,15 @@ export function PhaseTwoScreen({
                   </p>
                 </div>
               </div>
+              <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+                <summary className="cursor-pointer font-semibold text-[var(--green)]">
+                  How member privacy works
+                </summary>
+                <p className="mt-2">
+                  Members appear by display name. Their private email and phone directories stay
+                  private.
+                </p>
+              </details>
               <section className={card}>
                 <h2 className="pb-2 flex items-center gap-2 !leading-1">
                   <span className="leading-1">Bucket members</span>
@@ -2428,7 +2443,7 @@ export function PhaseTwoScreen({
                     {members.length}
                   </span>
                 </h2>
-                <p className="text-xs">
+                <p className="text-xs max-[767px]:hidden">
                   Members can record expenses, view the ledger, and participate in comments. Only
                   the owner can remove members or manage invitations.
                 </p>
@@ -2438,15 +2453,15 @@ export function PhaseTwoScreen({
                       key={member.id}
                       className="flex items-center justify-between gap-3 border-b border-[var(--line)] py-3 last:border-0"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="grid size-10 place-items-center rounded-full bg-[var(--sage)] text-xs font-semibold">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--sage)] text-xs font-semibold">
                           {member.displayName
                             .split(" ")
                             .map((part) => part.charAt(0))
                             .slice(0, 2)
                             .join("")}
                         </span>
-                        <div>
+                        <div className="min-w-0">
                           <strong className="text-sm">
                             {member.displayName}
                             {member.id === profile.id ? " (You)" : ""}
@@ -2458,7 +2473,7 @@ export function PhaseTwoScreen({
                         </div>
                       </div>
                       {member.isOwner && (
-                        <span className="rounded-full bg-[var(--sage)] px-2 py-1 text-xs text-[var(--green)] flex items-center gap-1">
+                        <span className="flex items-center gap-1 rounded-full bg-[var(--sage)] px-2 py-1 text-xs text-[var(--green)] max-[767px]:hidden">
                           <LockKeyhole size={12} /> Owner
                         </span>
                       )}

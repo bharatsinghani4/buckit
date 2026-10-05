@@ -1,7 +1,14 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
-import { Eye, EyeOff, Search, X } from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
+import { ArrowLeft, Eye, EyeOff, Search, X } from "lucide-react";
 import { controls } from "./control-styles";
 export function Notice({
   children,
@@ -103,14 +110,21 @@ export function Dialog({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [backLabel] = useState(() => {
+    if (typeof document === "undefined") return "workspace";
+    return document.querySelector("main h1")?.textContent?.trim() || "workspace";
+  });
   useEffect(() => {
     const dialog = ref.current;
     const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
     document.body.style.overflow = "hidden";
     dialog?.showModal();
     return () => {
       dialog?.close();
       document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
     };
   }, []);
   return (
@@ -120,23 +134,35 @@ export function Dialog({
         event.preventDefault();
         onClose();
       }}
-      aria-labelledby="dialog-title"
-      className="dialog fixed inset-0 m-auto h-fit overflow-y-auto text-[var(--ink)] bg-[var(--surface)] [border:1px_solid_var(--line)] [border-radius:14px] [padding:30px] [width:min(600px,_calc(100%_-_32px))] [max-height:calc(100svh_-_48px)] [box-shadow:0_20px_48px_#172f2825] [&::backdrop]:[background:#172f2860] [&::backdrop]:[backdrop-filter:blur(4px)] [&_>_header]:flex [&_>_header]:[align-items:start] [&_>_header]:justify-between [&_>_header]:[gap:14px] [&_>_header]:[margin-bottom:22px] [&_>_header_h2]:[font-size:21px] [&_p]:text-xs max-[767px]:!m-0 max-[767px]:!h-[100dvh] max-[767px]:!max-h-[100dvh] max-[767px]:!w-full max-[767px]:!max-w-none max-[767px]:!rounded-none max-[767px]:!border-0 max-[767px]:!p-4 max-[767px]:[&_>_header]:sticky max-[767px]:[&_>_header]:top-0 max-[767px]:[&_>_header]:z-10 max-[767px]:[&_>_header]:bg-[var(--surface)]"
+      aria-labelledby={titleId}
+      className="dialog fixed inset-0 m-auto h-fit overflow-y-auto text-[var(--ink)] bg-[var(--surface)] [border:1px_solid_var(--line)] [border-radius:14px] [padding:30px] [width:min(600px,_calc(100%_-_32px))] [max-height:calc(100svh_-_48px)] [box-shadow:0_20px_48px_#172f2825] [&::backdrop]:[background:#172f2860] [&::backdrop]:[backdrop-filter:blur(4px)] [&_.dialog-header]:flex [&_.dialog-header]:[align-items:start] [&_.dialog-header]:justify-between [&_.dialog-header]:[gap:14px] [&_.dialog-header]:[margin-bottom:22px] [&_.dialog-header_h2]:[font-size:21px] [&_p]:text-xs max-[767px]:!m-0 max-[767px]:!h-[100dvh] max-[767px]:!max-h-[100dvh] max-[767px]:!w-full max-[767px]:!max-w-none max-[767px]:!rounded-none max-[767px]:!border-0 max-[767px]:!bg-[var(--canvas)] max-[767px]:!p-4 max-[767px]:!pt-[calc(16px+env(safe-area-inset-top))] max-[767px]:!pb-[calc(24px+env(safe-area-inset-bottom))] max-[767px]:[&::backdrop]:!bg-transparent"
     >
-      <header>
-        <div>
-          <h2 id="dialog-title">{title}</h2>
-          {subtitle && <p className="text-[var(--muted)]">{subtitle}</p>}
-        </div>
-        <button
-          className="icon-button inline-flex items-center justify-center [width:44px] [height:44px] border-0 bg-transparent text-[var(--muted)] [&:hover]:bg-[var(--soft)]"
-          onClick={onClose}
-          aria-label="Close dialog"
-        >
-          <X size={20} />
-        </button>
-      </header>
-      {children}
+      <div className="mx-auto max-w-[640px] max-[767px]:rounded-2xl max-[767px]:border max-[767px]:border-[var(--line)] max-[767px]:bg-[var(--surface)] max-[767px]:p-5 max-[767px]:shadow-[var(--shadow)]">
+        <header className="dialog-header max-[767px]:!mb-5 max-[767px]:!flex-col">
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+            onClick={onClose}
+          >
+            <ArrowLeft size={15} aria-hidden="true" /> Back to {backLabel}
+          </button>
+          <div>
+            <h2 id={titleId} className="max-[767px]:!text-lg">
+              {title}
+            </h2>
+            {subtitle && <p className="text-[var(--muted)]">{subtitle}</p>}
+          </div>
+          <button
+            type="button"
+            className="icon-button inline-flex items-center justify-center [width:44px] [height:44px] border-0 bg-transparent text-[var(--muted)] [&:hover]:bg-[var(--soft)] max-[767px]:hidden"
+            onClick={onClose}
+            aria-label="Close dialog"
+          >
+            <X size={20} />
+          </button>
+        </header>
+        {children}
+      </div>
     </dialog>
   );
 }

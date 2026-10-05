@@ -203,6 +203,7 @@ export function PhaseThreeScreen({
   const [scope, setScope] = useState<"shared" | "member">(bucket.isOwner ? "shared" : "member");
   const [periodType, setPeriodType] = useState<"monthly" | "custom">("monthly");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoryQuery, setCategoryQuery] = useState("");
   const [selectedThresholds, setSelectedThresholds] = useState<string[]>([]);
   const [customThreshold, setCustomThreshold] = useState("");
   const requestToken = useRef(0);
@@ -418,13 +419,12 @@ export function PhaseThreeScreen({
               <span className="text-[10px] font-bold uppercase tracking-[.18em] text-[var(--green)]">
                 Bucket overview
               </span>
-              <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">{bucket.name}</h1>
+              <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Overview</h1>
               <p className="mt-1 text-xs text-[var(--muted)]">
-                {currency} · {bucket.timezone} · {bucket.memberCount}{" "}
-                {bucket.memberCount === 1 ? "member" : "members"}
+                Spending and plans for this bucket.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>*]:min-w-0 [&>*]:flex-1">
               <Dropdown
                 value={period}
                 onValueChange={setPeriod}
@@ -757,7 +757,7 @@ export function PhaseThreeScreen({
                 Explore finalized spending without double-counting overlapping budgets.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>*]:min-w-0 [&>*]:flex-1">
               <Dropdown
                 value={period}
                 onValueChange={setPeriod}
@@ -889,8 +889,8 @@ export function PhaseThreeScreen({
               {report.pendingCount} pending entries.
             </Notice>
           )}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className={card}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className={`${card} col-span-2 sm:col-span-1`}>
               <p className="text-xs text-[var(--muted)]">Actual spending</p>
               <p className="mt-2 text-2xl font-bold">{money(report.totalAmount, currency)}</p>
             </div>
@@ -959,7 +959,10 @@ export function PhaseThreeScreen({
               </p>
             </div>
             {bucket.status === "active" && (
-              <Link className={primary} href={url(bucket.id, "budget-form")}>
+              <Link
+                className={`${primary} ${!visibleBudgets.length ? "max-[767px]:hidden" : ""}`}
+                href={url(bucket.id, "budget-form")}
+              >
                 <Plus size={15} /> Create budget
               </Link>
             )}
@@ -1023,7 +1026,7 @@ export function PhaseThreeScreen({
             </section>
           )}
           <div
-            className={`${card} flex flex-wrap items-center justify-between gap-3 bg-[var(--soft)]`}
+            className={`${card} flex flex-wrap items-center justify-between gap-3 bg-[var(--soft)] max-[767px]:hidden`}
           >
             <div className="flex items-start gap-3">
               <ShieldCheck size={20} className="shrink-0 text-[var(--green)]" />
@@ -1034,6 +1037,15 @@ export function PhaseThreeScreen({
               </p>
             </div>
           </div>
+          <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs min-[768px]:hidden">
+            <summary className="cursor-pointer font-semibold text-[var(--green)]">
+              How budget overlaps work
+            </summary>
+            <p className="mt-2">
+              Refunds reduce usage. One expense can affect multiple budgets, but bucket spending
+              counts it once. Monthly limits reset without rollover.
+            </p>
+          </details>
         </>
       )}
       {view === "budget" && selected && (
@@ -1261,27 +1273,43 @@ export function PhaseThreeScreen({
                   <span className="font-normal text-[var(--muted)]">· select one or more</span>
                 </p>
                 {categories.length ? (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {categories.map((category) => (
-                      <label
-                        key={category.id}
-                        className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${selectedCategories.includes(category.id) ? "border-[var(--green)] bg-[var(--soft)]" : "border-[var(--line)]"}`}
-                      >
-                        <input
-                          className={controls.checkbox}
-                          type="checkbox"
-                          checked={selectedCategories.includes(category.id)}
-                          onChange={(event) =>
-                            setSelectedCategories((ids) =>
-                              event.target.checked
-                                ? [...ids, category.id]
-                                : ids.filter((id) => id !== category.id),
-                            )
-                          }
-                        />
-                        {category.name}
-                      </label>
-                    ))}
+                  <div>
+                    {categories.length > 8 && (
+                      <input
+                        className={`${field} mb-2`}
+                        type="search"
+                        aria-label="Find a category"
+                        placeholder="Find a category"
+                        value={categoryQuery}
+                        onChange={(event) => setCategoryQuery(event.target.value)}
+                      />
+                    )}
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {categories
+                        .filter((category) =>
+                          category.name.toLowerCase().includes(categoryQuery.trim().toLowerCase()),
+                        )
+                        .map((category) => (
+                          <label
+                            key={category.id}
+                            className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${selectedCategories.includes(category.id) ? "border-[var(--green)] bg-[var(--soft)]" : "border-[var(--line)]"}`}
+                          >
+                            <input
+                              className={controls.checkbox}
+                              type="checkbox"
+                              checked={selectedCategories.includes(category.id)}
+                              onChange={(event) =>
+                                setSelectedCategories((ids) =>
+                                  event.target.checked
+                                    ? [...ids, category.id]
+                                    : ids.filter((id) => id !== category.id),
+                                )
+                              }
+                            />
+                            {category.name}
+                          </label>
+                        ))}
+                    </div>
                   </div>
                 ) : !categoryFetched ? (
                   <p className="text-xs text-[var(--muted)]">Loading categories…</p>
@@ -1296,8 +1324,8 @@ export function PhaseThreeScreen({
               <div>
                 <h2 className="font-bold">Usage thresholds</h2>
                 <p className="mt-1 text-xs text-[var(--muted)]">
-                  Crossings are tracked once per period. Notifications for them are not available
-                  yet. None are selected by default.
+                  Choose the thresholds that should notify you. Each crossing is tracked once per
+                  period.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2">

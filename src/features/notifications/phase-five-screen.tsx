@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Bell,
   CalendarClock,
   Check,
+  ChevronDown,
   Clock3,
   Globe2,
   Inbox,
@@ -152,6 +153,8 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [mobileTab, setMobileTab] = useState<"inbox" | "settings">("inbox");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [cursor, setCursor] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -329,7 +332,22 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
         "Control which updates appear in your inbox and which reach this device.",
       )}
       {error && <Notice>{error}</Notice>}
-      <section className={`${card} mb-5 flex flex-wrap items-center gap-4 p-5`}>
+      <div className="mb-4 grid grid-cols-2 border-b border-[var(--line)] min-[768px]:hidden">
+        {(["inbox", "settings"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            className={`h-9 border-b-2 text-xs font-semibold ${mobileTab === tab ? "border-[var(--green)] text-[var(--green)]" : "border-transparent text-[var(--muted)]"}`}
+            aria-pressed={mobileTab === tab}
+            onClick={() => setMobileTab(tab)}
+          >
+            {tab === "inbox" ? `Inbox · ${unread}` : "Preferences"}
+          </button>
+        ))}
+      </div>
+      <section
+        className={`${card} mb-5 flex flex-wrap items-center gap-4 p-5 ${mobileTab === "inbox" ? "max-[767px]:hidden" : ""}`}
+      >
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--sage)] text-[var(--green)]">
           <Bell size={19} />
         </span>
@@ -371,7 +389,7 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
         </button>
       </section>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,.85fr)]">
-        <div className="space-y-5">
+        <div className={`space-y-5 ${mobileTab === "inbox" ? "max-[767px]:hidden" : ""}`}>
           <section className={`${card} p-5`}>
             <div className="mb-4 flex items-end justify-between gap-4 border-b border-[var(--line)] pb-4">
               <div>
@@ -392,40 +410,59 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
             ) : (
               notificationGroups.map((group) => (
                 <div key={group.title} className="border-b border-[var(--line)] py-3 last:border-0">
-                  <p className="mb-2 text-[10px] font-bold tracking-[.12em] text-[var(--green)] uppercase">
+                  <button
+                    type="button"
+                    className="flex h-9 w-full items-center justify-between text-left text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+                    aria-expanded={!!openGroups[group.title]}
+                    onClick={() =>
+                      setOpenGroups((current) => ({
+                        ...current,
+                        [group.title]: !current[group.title],
+                      }))
+                    }
+                  >
+                    {group.title}{" "}
+                    <ChevronDown
+                      size={15}
+                      className={openGroups[group.title] ? "rotate-180" : ""}
+                    />
+                  </button>
+                  <p className="mb-2 text-[10px] font-bold tracking-[.12em] text-[var(--green)] uppercase max-[767px]:hidden">
                     {group.title}
                   </p>
-                  <p className="mb-1 text-[11px] text-[var(--muted)]">{group.description}</p>
-                  {group.triggers.map((trigger) => (
-                    <div
-                      key={trigger}
-                      className="grid grid-cols-[minmax(0,1fr)_36px_36px] items-center gap-x-4 gap-y-1 py-2.5 max-[767px]:grid-cols-2 max-[767px]:gap-3"
-                    >
-                      <div className="min-w-0 max-[767px]:col-span-2">
-                        <p className="text-xs font-semibold text-[var(--ink)]">
-                          {triggerLabels[trigger]}
-                        </p>
+                  <div className={openGroups[group.title] ? "" : "max-[767px]:hidden"}>
+                    <p className="mb-1 text-[11px] text-[var(--muted)]">{group.description}</p>
+                    {group.triggers.map((trigger) => (
+                      <div
+                        key={trigger}
+                        className="grid grid-cols-[minmax(0,1fr)_36px_36px] items-center gap-x-4 gap-y-1 py-2.5 max-[767px]:grid-cols-2 max-[767px]:gap-3"
+                      >
+                        <div className="min-w-0 max-[767px]:col-span-2">
+                          <p className="text-xs font-semibold text-[var(--ink)]">
+                            {triggerLabels[trigger]}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
+                          <span className="min-[768px]:sr-only">In-app</span>
+                          <Switch
+                            checked={preferences?.triggers[trigger]?.inApp ?? true}
+                            disabled={!preferences || !!busy}
+                            onChange={() => void toggle(trigger, "inApp")}
+                            label={`${triggerLabels[trigger]} in-app`}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
+                          <span className="min-[768px]:sr-only">Push</span>
+                          <Switch
+                            checked={preferences?.triggers[trigger]?.push ?? false}
+                            disabled={!preferences || !!busy || pushStatus !== "enabled"}
+                            onChange={() => void toggle(trigger, "push")}
+                            label={`${triggerLabels[trigger]} push`}
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
-                        <span className="min-[768px]:sr-only">In-app</span>
-                        <Switch
-                          checked={preferences?.triggers[trigger]?.inApp ?? true}
-                          disabled={!preferences || !!busy}
-                          onChange={() => void toggle(trigger, "inApp")}
-                          label={`${triggerLabels[trigger]} in-app`}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)] max-[767px]:rounded-lg max-[767px]:bg-[var(--soft)] max-[767px]:p-2">
-                        <span className="min-[768px]:sr-only">Push</span>
-                        <Switch
-                          checked={preferences?.triggers[trigger]?.push ?? false}
-                          disabled={!preferences || !!busy || pushStatus !== "enabled"}
-                          onChange={() => void toggle(trigger, "push")}
-                          label={`${triggerLabels[trigger]} push`}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ))
             )}
@@ -444,7 +481,7 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
             </p>
           </section>
         </div>
-        <aside className="space-y-4">
+        <aside className={`space-y-4 ${mobileTab === "settings" ? "max-[767px]:hidden" : ""}`}>
           <section className={`${card} p-5`}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -571,6 +608,8 @@ function ReminderSettings({
   const { read, invalidate } = useWorkspaceData();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileEditing, setMobileEditing] = useState(false);
+  const reminderEditorRef = useRef<HTMLElement>(null);
   const [form, setForm] = useState<ReminderForm>(() => emptyForm(profile, bucket.id));
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -595,6 +634,11 @@ function ReminderSettings({
   }, [read]);
 
   function edit(item: Reminder) {
+    setMobileEditing(true);
+    if (window.matchMedia("(max-width: 767px)").matches)
+      requestAnimationFrame(() =>
+        reminderEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
     setSelectedId(item.id);
     setForm({
       bucketId: item.bucketId ?? "",
@@ -640,6 +684,7 @@ function ReminderSettings({
           : [result.data, ...items],
       );
       setSelectedId(result.data.id);
+      setMobileEditing(false);
       invalidate("me/reminders");
       setMessage("Reminder schedule saved.");
     } catch (cause) {
@@ -661,6 +706,7 @@ function ReminderSettings({
       });
       setReminders((items) => items.filter((row) => row.id !== item.id));
       setSelectedId(null);
+      setMobileEditing(false);
       setForm(emptyForm(profile, bucket.id));
       invalidate("me/reminders");
       setMessage("Reminder removed.");
@@ -675,15 +721,44 @@ function ReminderSettings({
     new Set([profile.timezone, bucket.timezone, "UTC", ...Intl.supportedValuesOf("timeZone")]),
   ).map((zone) => ({ value: zone, label: zone.replaceAll("_", " ") }));
   return (
-    <div>
+    <div className="flex flex-col">
       {heading(
         "Communication · Calendar logic",
-        "Reminders & Processing Schedule",
+        "Reminders",
         "Manage personal reminders and Buckit’s daily processing.",
       )}
       {error && <Notice>{error}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
-      <section className={`${card} mb-6 p-5`}>
+      <div
+        className={`mb-4 flex items-center justify-between gap-3 max-[767px]:order-1 min-[768px]:hidden ${mobileEditing ? "max-[767px]:hidden" : ""}`}
+      >
+        <h2 className="text-sm font-semibold">Your reminders</h2>
+        <button
+          type="button"
+          className={controls.primary}
+          onClick={() => {
+            setSelectedId(null);
+            setForm(emptyForm(profile, bucket.id));
+            setMobileEditing(true);
+            requestAnimationFrame(() =>
+              reminderEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+            );
+          }}
+        >
+          <Plus size={15} /> Add reminder
+        </button>
+      </div>
+      <section
+        ref={reminderEditorRef}
+        className={`${card} mb-6 scroll-mt-20 p-5 max-[767px]:order-2 ${mobileEditing ? "" : "max-[767px]:hidden"}`}
+      >
+        <button
+          type="button"
+          className="mb-4 text-xs font-semibold text-[var(--green)] min-[768px]:hidden"
+          onClick={() => setMobileEditing(false)}
+        >
+          ← Back to reminders
+        </button>
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] pb-4">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -821,7 +896,7 @@ function ReminderSettings({
               </div>
             </div>
           </form>
-          <aside className="rounded-lg border border-[var(--line)] bg-[var(--soft)] p-4">
+          <aside className="rounded-lg border border-[var(--line)] bg-[var(--soft)] p-4 max-[767px]:hidden">
             <p className="mb-3 flex items-center gap-2 text-xs font-semibold">
               <Clock3 size={16} className="text-[var(--green)]" /> Delivery rhythm
             </p>
@@ -838,13 +913,13 @@ function ReminderSettings({
             </div>
           </aside>
         </div>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-4">
-          <p className={small}>
+        <div className="sticky bottom-[calc(78px+env(safe-area-inset-bottom))] z-10 -mx-5 mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-3 min-[768px]:static min-[768px]:mx-0 min-[768px]:bg-transparent min-[768px]:px-0 min-[768px]:pb-0">
+          <p className={`${small} max-[767px]:hidden`}>
             {selectedId
               ? "Editing an existing reminder"
               : "Create as many personal schedules as you need."}
           </p>
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2 min-[768px]:w-auto">
             {selectedId && (
               <button
                 type="button"
@@ -857,18 +932,27 @@ function ReminderSettings({
                 <Plus size={15} /> New reminder
               </button>
             )}
-            <button type="submit" form="reminder-form" disabled={busy} className={controls.primary}>
+            <button
+              type="submit"
+              form="reminder-form"
+              disabled={busy}
+              className={`${controls.primary} max-[767px]:flex-1`}
+            >
               {busy ? "Saving…" : selectedId ? "Save reminder" : "Add reminder"}
             </button>
           </div>
         </div>
       </section>
       {loading ? (
-        <Pending label="Loading reminders…" layout="workspace" />
+        <div className="max-[767px]:order-1">
+          <Pending label="Loading reminders…" layout="workspace" />
+        </div>
       ) : (
         reminders.length > 0 && (
-          <section className={`${card} mb-6 p-5`}>
-            <h2 className="mb-3 text-sm font-semibold">Your reminders</h2>
+          <section
+            className={`${card} mb-6 p-5 max-[767px]:order-1 ${mobileEditing ? "max-[767px]:hidden" : ""}`}
+          >
+            <h2 className="mb-3 text-sm font-semibold max-[767px]:hidden">Your reminders</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {reminders.map((item) => (
                 <div
@@ -904,7 +988,14 @@ function ReminderSettings({
           </section>
         )
       )}
-      <section>
+      {!loading && reminders.length === 0 && (
+        <p
+          className={`mb-6 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-5 text-xs text-[var(--muted)] max-[767px]:order-1 min-[768px]:hidden ${mobileEditing ? "max-[767px]:hidden" : ""}`}
+        >
+          No reminders yet. Add one when you’re ready.
+        </p>
+      )}
+      <section className="max-[767px]:hidden">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <Globe2 size={17} className="text-[var(--green)]" /> System processing architecture &
           cadence
@@ -938,6 +1029,19 @@ function ReminderSettings({
           ))}
         </div>
       </section>
+      <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-xs max-[767px]:order-3 min-[768px]:hidden">
+        <summary className="cursor-pointer font-semibold text-[var(--green)]">
+          How daily processing works
+        </summary>
+        <p className="mt-3">
+          Scheduled expenses and reminders are checked once a day. A missed run resumes eligible
+          work later; an exact notification hour is not promised.
+        </p>
+        <p className="mt-2">
+          EMI installments enter spending when due. Deleted expenses remain recoverable for their
+          retention period. Buckit does not read your bank account.
+        </p>
+      </details>
     </div>
   );
 }
