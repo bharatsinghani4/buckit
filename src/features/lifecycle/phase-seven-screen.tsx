@@ -307,7 +307,7 @@ export function PhaseSevenScreen({
                     id="bucket-general-title"
                     className="text-base font-semibold text-[var(--ink)]"
                   >
-                    General Workspace Information
+                    Bucket details
                   </h2>
                   <p className={muted}>The name and timezone shown to everyone in this bucket.</p>
                 </div>
@@ -365,7 +365,7 @@ export function PhaseSevenScreen({
             </section>
             <section className={section} aria-labelledby="currency-title">
               <h2 id="currency-title" className="text-base font-semibold text-[var(--ink)]">
-                Primary Ledger Currency
+                Primary currency
               </h2>
               <p className={`mt-2 ${muted}`}>The base currency for reports and budgets.</p>
               <div className="mt-4 flex items-center justify-between rounded-lg bg-[var(--soft)] p-4 text-sm font-semibold text-[var(--ink)]">
@@ -406,7 +406,7 @@ export function PhaseSevenScreen({
                 <Archive size={19} className="mt-0.5 shrink-0 text-[var(--green)]" />
                 <div>
                   <h2 id="archive-title" className="text-base font-semibold text-[var(--ink)]">
-                    Archive & Lifecycle State
+                    Archive status
                   </h2>
                   <p className={`mt-1 ${muted}`}>
                     Archived buckets stay readable for reports and export. Posting and bucket
@@ -448,7 +448,7 @@ export function PhaseSevenScreen({
               <div className="mb-4 flex items-center gap-2">
                 <Users size={18} className="text-[var(--green)]" />
                 <h2 id="participants-title" className="text-base font-semibold text-[var(--ink)]">
-                  Bucket Participants
+                  Members
                 </h2>
               </div>
               <ul className="divide-y divide-[var(--line)]">
@@ -507,7 +507,7 @@ export function PhaseSevenScreen({
                 <div className="flex items-center gap-2">
                   <ShieldAlert size={18} className="text-[var(--error)]" />
                   <h2 id="danger-title" className="text-base font-semibold text-[var(--ink)]">
-                    Danger Zone
+                    Delete bucket
                   </h2>
                 </div>
                 <p className={`mt-2 ${muted}`}>

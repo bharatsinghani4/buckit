@@ -1,13 +1,47 @@
 "use client";
 
 import * as Select from "@radix-ui/react-select";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CarFront,
+  Check,
+  ChevronDown,
+  GraduationCap,
+  HeartPulse,
+  House,
+  PiggyBank,
+  Plane,
+  Plus,
+  ShoppingBasket,
+  UserRound,
+  UsersRound,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import type { Bucket } from "@/features/identity/contracts";
 import { controls } from "@/components/control-styles";
 
 function bucketCaption(bucket: Bucket) {
   const kind = bucket.status === "archived" ? "Archived" : "Shared";
   return `${kind} · ${bucket.memberCount} ${bucket.memberCount === 1 ? "member" : "members"} · ${bucket.primaryCurrency}`;
+}
+
+const bucketIcons: [RegExp, LucideIcon][] = [
+  [/home|house|rent|apartment/i, House],
+  [/family|shared|couple|roommate/i, UsersRound],
+  [/personal|my |mine|self/i, UserRound],
+  [/travel|trip|holiday|vacation/i, Plane],
+  [/work|business|office/i, BriefcaseBusiness],
+  [/grocer|food|market|shopping/i, ShoppingBasket],
+  [/car|vehicle|transport/i, CarFront],
+  [/health|medical|wellness/i, HeartPulse],
+  [/school|college|education/i, GraduationCap],
+  [/sav|goal|emergency fund/i, PiggyBank],
+];
+
+function BucketGlyph({ bucket, size = 18 }: { bucket: Bucket; size?: number }) {
+  const Icon = bucketIcons.find(([pattern]) => pattern.test(bucket.name))?.[1] ?? Wallet;
+  return <Icon size={size} aria-hidden="true" />;
 }
 
 const createBucketValue = "create-bucket";
@@ -42,23 +76,26 @@ export function BucketSelector({
     >
       <Select.Trigger
         id="bucket-picker"
-        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)] max-[767px]:!w-full max-[767px]:!px-2 max-[767px]:gap-1`}
+        className={`${controls.dropdownTrigger} !h-9 w-[clamp(96px,30vw,210px)] min-w-0 !px-2.5 shadow-sm hover:border-[var(--muted)] max-[767px]:!w-full max-[767px]:!px-2 max-[767px]:gap-1 max-[400px]:!px-1`}
       >
-        <span className="flex min-w-0 flex-col leading-none">
-          <span className="truncate text-xs font-semibold text-[var(--ink)] max-[767px]:text-[11px]">
-            <Select.Value placeholder="Choose bucket" />
-          </span>
+        <span className="flex min-w-0 items-center gap-1.5">
           {selected && (
-            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-[var(--muted)] max-[767px]:text-[9px]">
-              <span
-                className={`size-1.5 shrink-0 rounded-full ${selected.status === "archived" ? "bg-[var(--muted)]" : "bg-[var(--mint)]"}`}
-                aria-hidden="true"
-              />
-              <span className="truncate">{bucketCaption(selected)}</span>
+            <span className="shrink-0 text-[var(--green)]">
+              <BucketGlyph bucket={selected} size={16} />
             </span>
           )}
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="truncate text-xs font-semibold text-[var(--ink)] max-[767px]:text-[11px]">
+              <Select.Value placeholder="Choose bucket" />
+            </span>
+            {selected && (
+              <span className="mt-0.5 truncate text-[10px] text-[var(--muted)] max-[767px]:text-[9px]">
+                {bucketCaption(selected)}
+              </span>
+            )}
+          </span>
         </span>
-        <Select.Icon className="shrink-0 text-[var(--muted)]">
+        <Select.Icon className="shrink-0 text-[var(--muted)] max-[400px]:[&_svg]:size-3">
           <ChevronDown size={16} aria-hidden="true" />
         </Select.Icon>
       </Select.Trigger>
@@ -72,10 +109,9 @@ export function BucketSelector({
                 value={bucket.id}
                 className={`${controls.dropdownOption} gap-3`}
               >
-                <span
-                  className={`mt-1 size-2 shrink-0 rounded-full ${bucket.status === "archived" ? "bg-[var(--muted)]" : "bg-[var(--mint)]"}`}
-                  aria-hidden="true"
-                />
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--sage)] text-[var(--green)]">
+                  <BucketGlyph bucket={bucket} />
+                </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <Select.ItemText>{bucket.name}</Select.ItemText>
                   <span className="truncate text-[10px] text-[var(--muted)]">
