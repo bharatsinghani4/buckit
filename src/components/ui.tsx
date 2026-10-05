@@ -33,15 +33,15 @@ export function Pending({
   label?: string;
   layout?: "page" | "workspace" | "inline";
 }) {
-  const height =
+  const position =
     layout === "page"
       ? "min-h-[100dvh]"
       : layout === "workspace"
-        ? "min-h-[calc(100dvh-64px)] max-[767px]:min-h-[calc(100dvh-130px)]"
+        ? "fixed inset-x-0 top-16 bottom-[var(--workspace-bottom-bar,0px)] z-10 overflow-hidden bg-[var(--canvas)] min-[768px]:bottom-0 min-[768px]:left-[var(--workspace-sidebar-width,0px)]"
         : "min-h-48";
   return (
     <div
-      className={`pending grid w-full place-items-center px-6 py-8 text-center ${height}`}
+      className={`pending grid place-items-center px-6 py-8 text-center ${layout === "workspace" ? "w-auto" : "w-full"} ${position}`}
       role="status"
       aria-live="polite"
     >

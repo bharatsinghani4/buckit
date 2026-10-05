@@ -2225,7 +2225,7 @@ export function PhaseTwoScreen({
                         <Plus size={15} aria-hidden="true" /> Add
                         <span className="max-[767px]:hidden">
                           {group.key === "accounts"
-                            ? " payment account"
+                            ? "payment account"
                             : group.key === "categories"
                               ? " category"
                               : " platform"}
@@ -2492,17 +2492,12 @@ export function PhaseTwoScreen({
               </section>
               {bucket.isOwner && (
                 <section className={card}>
-                  <div className="flex items-center justify-between gap-3 pb-6">
-                    <div>
-                      <h2 className="text-lg">Active invitation links</h2>
-                      <p className="mb-4 !mt-1 text-xs">
-                        Invitation links are valid for seven days and can be used by multiple
-                        people. The full secret link is shown only when it is created.
-                      </p>
-                    </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 pb-5">
+                    <h2 className="min-w-0 text-lg">Invitation links</h2>
                     {bucket.status === "active" && (
                       <button
                         className={`${controls.primary} button`}
+                        aria-label="Create invitation link"
                         disabled={busy}
                         onClick={async () => {
                           const invitation = await mutation<Invitation>(
@@ -2516,9 +2511,15 @@ export function PhaseTwoScreen({
                           }
                         }}
                       >
-                        <Plus size={15} /> Create invitation link
+                        <Plus size={15} />
+                        <span className="min-[768px]:hidden">Create</span>
+                        <span className="max-[767px]:hidden">Create invitation link</span>
                       </button>
                     )}
+                    <p className="col-span-2 max-w-2xl text-xs text-[var(--muted)]">
+                      Invitation links are valid for seven days and can be used by multiple people.
+                      The full secret link is shown only when it is created.
+                    </p>
                   </div>
                   {newInvitation?.shareUrl && (
                     <div className="mb-5 flex flex-wrap items-center gap-5 rounded-xl border border-[var(--line)] bg-[var(--soft)] p-4">
@@ -2532,7 +2533,7 @@ export function PhaseTwoScreen({
                           value={newInvitation.shareUrl}
                           onFocus={(event) => event.target.select()}
                         />
-                        <div className="mt-2 flex gap-2">
+                        <div className="mt-2 flex flex-wrap gap-2">
                           <button
                             className={action}
                             onClick={async () => {
@@ -2566,38 +2567,45 @@ export function PhaseTwoScreen({
                       refresh this page.
                     </p>
                   )}
-                  <div className="flex flex-col gap-2">
-                    <div className="hidden grid-cols-[1.1fr_1fr_1fr_1fr_auto] gap-3 border-b border-[var(--line)] pb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)] sm:grid">
-                      <span>Invitation</span>
-                      <span>Created by</span>
-                      <span>Type</span>
-                      <span>Expires On</span>
-                      <span>Action</span>
-                    </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
                     {invitations.map((invitation) => {
                       if (invitation.status !== "revoked")
                         return (
                           <div
                             key={invitation.id}
-                            className="grid gap-2 border-b border-[var(--line)] py-3 text-xs last:border-0 sm:grid-cols-[1.1fr_1fr_1fr_1fr_auto] sm:items-center sm:gap-3"
+                            className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--soft)] p-4 text-xs"
                           >
-                            <strong>Link ••••{invitation.id.slice(-4)}</strong>
-                            <span>{invitation.createdByName}</span>
-                            <span>7-day multi-use</span>
-                            <span
-                              className={
-                                invitation.status === "active"
-                                  ? "text-[var(--green)]"
-                                  : "text-[var(--muted)]"
-                              }
-                            >
-                              {invitation.status === "active"
-                                ? `Expires ${new Date(invitation.expiresAt).toLocaleDateString()}`
-                                : invitation.status}
-                            </span>
+                            <div className="flex items-center justify-between gap-2">
+                              <strong className="text-[var(--ink)]">
+                                Link ••••{invitation.id.slice(-4)}
+                              </strong>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${invitation.status === "active" ? "bg-[var(--sage)] text-[var(--green)]" : "bg-[var(--surface)] text-[var(--muted)]"}`}
+                              >
+                                {invitation.status === "active" ? "Active" : "Expired"}
+                              </span>
+                            </div>
+                            <dl className="mt-3 grid grid-cols-2 gap-3">
+                              <div className="min-w-0">
+                                <dt className="text-[10px] text-[var(--muted)]">Created by</dt>
+                                <dd className="mt-0.5 break-words font-medium">
+                                  {invitation.createdByName}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-[10px] text-[var(--muted)]">Type</dt>
+                                <dd className="mt-0.5 font-medium">7-day multi-use</dd>
+                              </div>
+                              <div className="col-span-2">
+                                <dt className="text-[10px] text-[var(--muted)]">Expires on</dt>
+                                <dd className="mt-0.5 font-medium">
+                                  {new Date(invitation.expiresAt).toLocaleDateString()}
+                                </dd>
+                              </div>
+                            </dl>
                             {invitation.status === "active" && (
                               <button
-                                className={action}
+                                className={`${action} mt-3 max-[767px]:w-full`}
                                 disabled={busy}
                                 onClick={async () => {
                                   if (
