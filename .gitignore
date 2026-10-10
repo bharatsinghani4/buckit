@@ -9,3 +9,5 @@ coverage/
 *.log
 .DS_Store
 buckit-c9cd5-b8bca9b20b0c.json
+demo-video/node_modules/
+demo-video/temporary/

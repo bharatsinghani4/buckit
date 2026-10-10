@@ -13,3 +13,7 @@ next-env.d.ts
 
 # Recreated by Next.js development tooling
 AGENTS.md
+
+# Generated demo dependencies
+demo-video/node_modules/
+demo-video/temporary/
