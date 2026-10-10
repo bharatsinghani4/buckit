@@ -602,11 +602,9 @@ function Workspace() {
   return (
     <div className="workspace-layout min-h-svh">
       <aside
+        id="workspace-sidebar"
         className={`sidebar fixed inset-y-0 left-0 z-20 hidden flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--line)] bg-[var(--surface)] py-5 transition-[width,padding] duration-200 min-[768px]:flex ${sidebarExpanded ? "w-[248px] px-4 min-[768px]:max-[1024px]:w-[200px] min-[768px]:max-[1024px]:px-3" : "w-[68px] px-[9px] [&_.nav-item]:justify-center [&_.nav-item]:gap-0 [&_.nav-item]:px-0 [&_.nav-item]:text-[0px] [&_.nav-item_svg]:size-5"}`}
-        onMouseLeave={() => {
-          setSidebarTooltip(null);
-          if (!sidebarPinned) setSidebarExpanded(false);
-        }}
+        onMouseLeave={() => setSidebarTooltip(null)}
         onScroll={() => setSidebarTooltip(null)}
       >
         <div
@@ -718,37 +716,32 @@ function Workspace() {
         className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px] [--workspace-sidebar-width:248px] min-[768px]:max-[1024px]:ml-[200px] min-[768px]:max-[1024px]:[--workspace-sidebar-width:200px]" : "ml-[68px] [--workspace-sidebar-width:68px]"} ${mobileForm ? "[--workspace-bottom-bar:0px]" : "[--workspace-bottom-bar:calc(66px+env(safe-area-inset-bottom))]"}`}
       >
         <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-6 text-xs min-[768px]:max-[1199px]:px-[18px] max-[767px]:gap-2 max-[767px]:px-4 max-[400px]:gap-1 max-[400px]:px-2 sticky top-0 z-20">
-          {sidebarExpanded && (
-            <button
-              type="button"
-              className="fixed top-[14px] z-40 hidden size-9 place-items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] min-[768px]:grid"
-              style={{ left: "calc(var(--workspace-sidebar-width) - 18px)" }}
-              onClick={() => {
-                setSidebarPinned(false);
-                setSidebarExpanded(false);
-                setSidebarTooltip(null);
-                setPreference("buckit-sidebar-pinned", "false");
-              }}
-              aria-label="Close sidebar"
-              title="Close sidebar"
-            >
+          <button
+            type="button"
+            className={`fixed top-1/2 z-40 hidden size-9 -translate-y-1/2 place-items-center border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] transition-[left,background-color] duration-200 hover:bg-[var(--soft)] min-[768px]:grid ${sidebarExpanded ? "rounded-lg" : "rounded-r-lg border-l-0"}`}
+            style={{
+              left: sidebarExpanded
+                ? "calc(var(--workspace-sidebar-width) - 18px)"
+                : "calc(var(--workspace-sidebar-width) - 1px)",
+            }}
+            onClick={() => {
+              const expanded = !sidebarExpanded;
+              setSidebarExpanded(expanded);
+              setSidebarPinned(expanded);
+              setSidebarTooltip(null);
+              setPreference("buckit-sidebar-pinned", String(expanded));
+            }}
+            aria-label={sidebarExpanded ? "Minimize sidebar" : "Maximize sidebar"}
+            aria-controls="workspace-sidebar"
+            aria-expanded={sidebarExpanded}
+            title={sidebarExpanded ? "Minimize sidebar" : "Maximize sidebar"}
+          >
+            {sidebarExpanded ? (
               <ChevronLeft size={16} aria-hidden="true" />
-            </button>
-          )}
-          {!sidebarExpanded && (
-            <button
-              type="button"
-              className="fixed left-[67px] top-[14px] z-40 hidden size-9 place-items-center rounded-lg rounded-bl-none rounded-tl-none border border-[var(--line)] border-l-0 bg-[var(--surface)] text-[var(--ink)] min-[768px]:grid"
-              onClick={() => {
-                setSidebarTooltip(null);
-                setSidebarExpanded(true);
-              }}
-              aria-label="Open sidebar"
-              title="Open sidebar"
-            >
+            ) : (
               <ChevronRight size={16} aria-hidden="true" />
-            </button>
-          )}
+            )}
+          </button>
           <div className="mx-auto flex w-full max-w-[1112px] min-w-0 items-center justify-between gap-3 max-[767px]:gap-2">
             <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-[42px]">
               <Brand compact />
