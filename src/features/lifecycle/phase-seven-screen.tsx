@@ -346,7 +346,7 @@ export function PhaseSevenScreen({
                 </div>
                 {settings.isOwner && settings.status === "active" && (
                   <button
-                    className={controls.primary}
+                    className={`${controls.primary} max-[767px]:w-full`}
                     disabled={
                       busy ||
                       !name.trim() ||
@@ -374,8 +374,11 @@ export function PhaseSevenScreen({
                 </span>
               </div>
               {settings.isOwner && settings.status === "active" && !settings.currencyLocked && (
-                <div className="mt-4 space-y-2">
-                  <label htmlFor="bucket-currency" className={label}>
+                <div className="mt-4 space-y-2 min-[768px]:max-[1024px]:grid min-[768px]:max-[1024px]:grid-cols-[minmax(0,1fr)_auto] min-[768px]:max-[1024px]:items-end min-[768px]:max-[1024px]:gap-2 min-[768px]:max-[1024px]:space-y-0">
+                  <label
+                    htmlFor="bucket-currency"
+                    className={`${label} min-[768px]:max-[1024px]:col-span-2`}
+                  >
                     Choose primary currency before your first expense
                   </label>
                   <Dropdown
@@ -389,7 +392,7 @@ export function PhaseSevenScreen({
                     disabled={busy}
                   />
                   <button
-                    className={controls.secondary}
+                    className={`${controls.secondary} max-[767px]:w-full min-[768px]:max-[1024px]:col-start-2 min-[768px]:max-[1024px]:row-start-2`}
                     disabled={busy || currency === settings.primaryCurrency}
                     onClick={() => void update("settings")}
                   >

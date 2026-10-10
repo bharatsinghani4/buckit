@@ -27,7 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       className="scroll-smooth scroll-pt-[30px]"
       suppressHydrationWarning
     >
-      <body className="m-0 bg-[var(--canvas)] font-['Plus_Jakarta_Sans_Variable',Arial,sans-serif] text-base leading-[1.6] text-[var(--ink)] antialiased">
+      <body className="m-0 bg-[var(--canvas)] font-['Plus_Jakarta_Sans_Variable',Arial,sans-serif] text-base leading-[1.6] text-[var(--ink)] antialiased max-[767px]:[&_input]:!text-base max-[767px]:[&_select]:!text-base max-[767px]:[&_textarea]:!text-base">
         <Script src="/theme-init.js" strategy="beforeInteractive" />
         <SkipLink />
         <AuthProvider>

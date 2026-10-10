@@ -1106,6 +1106,24 @@ describe("Phase 5 notification preferences", () => {
     );
   });
 
+  it("explains when push registration lacks its server encryption key", async () => {
+    const actor = "phase5pushmissingkey";
+    await request("POST", "me/bootstrap", actor, {});
+    const configured = process.env.PUSH_TOKEN_ENCRYPTION_KEY;
+    delete process.env.PUSH_TOKEN_ENCRYPTION_KEY;
+    try {
+      const response = await request("PUT", `me/push-installations/${randomUUID()}`, actor, {
+        token: "test-only-fcm-token-that-must-not-be-returned",
+        permission: "granted",
+      });
+      expect(response.response.status).toBe(503);
+      expect(response.payload.error.code).toBe("PUSH_CONFIGURATION_MISSING");
+      expect(JSON.stringify(response.payload)).not.toContain("test-only-fcm-token");
+    } finally {
+      process.env.PUSH_TOKEN_ENCRYPTION_KEY = configured;
+    }
+  });
+
   it("notifies current members when someone joins or is removed", async () => {
     const owner = "phase5memberowner";
     const guest = "phase5memberguest";

@@ -75,48 +75,52 @@ export function InstallPrompt() {
   };
 
   return (
-    <aside
-      aria-label="Install Buckit"
-      className="fixed right-4 bottom-4 z-[90] w-[min(360px,calc(100vw-32px))] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-[var(--ink)] shadow-xl max-[767px]:bottom-[calc(78px+env(safe-area-inset-bottom))]"
-    >
-      <button
-        type="button"
-        aria-label="Dismiss install suggestion"
-        className="absolute right-3 top-3 grid size-7 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--soft)]"
-        onClick={dismiss}
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4">
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Install Buckit"
+        className="relative w-[min(360px,100%)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-[var(--ink)] shadow-xl"
       >
-        <X size={16} />
-      </button>
-      <div className="flex items-start gap-3 pr-7">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--sage)] text-[var(--green)]">
-          <Download size={18} />
-        </span>
-        <div>
-          <h2 className="text-sm font-semibold">Install Buckit</h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            Open your buckets from your device’s home screen.
-          </p>
-        </div>
-      </div>
-      {instructions && (
-        <p className="mt-3 rounded-lg bg-[var(--soft)] p-3 text-xs text-[var(--ink)]">
-          {ios
-            ? "Open your browser’s Share menu, then choose Add to Home Screen."
-            : "Use your browser’s menu or address-bar install icon, then choose Install app or Add to Home Screen."}
-        </p>
-      )}
-      <div className="mt-4 flex justify-end gap-2">
-        <button type="button" className={controls.quietAction} onClick={dismiss}>
-          Later
-        </button>
         <button
           type="button"
-          className={controls.primary}
-          onClick={() => (instructions ? dismiss() : void install())}
+          aria-label="Dismiss install suggestion"
+          className="absolute right-3 top-3 grid size-7 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--soft)]"
+          onClick={dismiss}
         >
-          {installEvent ? "Install" : instructions ? "Got it" : "How to install"}
+          <X size={16} />
         </button>
-      </div>
-    </aside>
+        <div className="flex items-start gap-3 pr-7">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--sage)] text-[var(--green)]">
+            <Download size={18} />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold">Install Buckit</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Open your buckets from your device’s home screen.
+            </p>
+          </div>
+        </div>
+        {instructions && (
+          <p className="mt-3 rounded-lg bg-[var(--soft)] p-3 text-xs text-[var(--ink)]">
+            {ios
+              ? "Open your browser’s Share menu, then choose Add to Home Screen."
+              : "Use your browser’s menu or address-bar install icon, then choose Install app or Add to Home Screen."}
+          </p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" className={controls.quietAction} onClick={dismiss}>
+            Later
+          </button>
+          <button
+            type="button"
+            className={controls.primary}
+            onClick={() => (instructions ? dismiss() : void install())}
+          >
+            {installEvent ? "Install" : instructions ? "Got it" : "How to install"}
+          </button>
+        </div>
+      </aside>
+    </div>
   );
 }

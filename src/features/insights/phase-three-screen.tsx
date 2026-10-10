@@ -499,7 +499,7 @@ export function PhaseThreeScreen({
               conversion and {dashboard.pendingCount} await processing.
             </Notice>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-[1024px]:!grid-cols-1">
+          <div className="grid gap-3 grid-cols-2 xl:grid-cols-4 max-[767px]:grid-cols-1">
             <div className={card}>
               <p className="text-xs text-[var(--muted)]">Actual spending</p>
               <p className="mt-2 text-2xl font-bold text-[var(--ink)]">
@@ -774,11 +774,11 @@ export function PhaseThreeScreen({
         <>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1">
             <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Reports</h1>
-            <div className="flex flex-wrap items-center justify-end gap-2 max-[767px]:col-span-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 max-[767px]:col-span-2 max-[767px]:grid max-[767px]:w-full max-[767px]:grid-cols-2">
               <Dropdown
                 value={period}
                 onValueChange={setPeriod}
-                className="!w-[136px]"
+                className={`!w-[136px] max-[767px]:!w-full ${period === "custom" ? "max-[767px]:col-span-2" : ""}`}
                 options={[
                   { value: "month", label: "Month" },
                   { value: "quarter", label: "Quarter" },
@@ -792,13 +792,13 @@ export function PhaseThreeScreen({
                     aria-label="From date"
                     value={customFrom}
                     onValueChange={setCustomFrom}
-                    containerClassName="w-[142px]"
+                    containerClassName="w-[142px] max-[767px]:w-full"
                   />
                   <CalendarField
                     aria-label="Through date"
                     value={customTo}
                     onValueChange={setCustomTo}
-                    containerClassName="w-[142px]"
+                    containerClassName="w-[142px] max-[767px]:w-full"
                   />
                 </>
               ) : (
@@ -806,7 +806,7 @@ export function PhaseThreeScreen({
                   period={period}
                   anchor={anchor}
                   onChange={setAnchor}
-                  className="w-[168px]"
+                  className="w-[168px] max-[767px]:w-full"
                 />
               )}
             </div>
@@ -909,8 +909,8 @@ export function PhaseThreeScreen({
               {report.pendingCount} pending entries.
             </Notice>
           )}
-          <div className="grid grid-cols-2 gap-3 min-[1100px]:grid-cols-3">
-            <div className={`${card} col-span-2 min-[1100px]:col-span-1`}>
+          <div className="grid grid-cols-2 gap-3 max-[767px]:grid-cols-1 min-[1100px]:grid-cols-3">
+            <div className={`${card} col-span-2 max-[767px]:col-span-1 min-[1100px]:col-span-1`}>
               <p className="text-xs text-[var(--muted)]">Actual spending</p>
               <p className="mt-2 text-2xl font-bold">{money(report.totalAmount, currency)}</p>
             </div>
@@ -924,16 +924,12 @@ export function PhaseThreeScreen({
             </div>
           </div>
           <section className={card}>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold">Breakdown</h2>
-                <p className="text-xs text-[var(--muted)]">
-                  {report.from} to {shiftDay(report.toExclusive, -1)} · {report.currency}
-                </p>
-              </div>
+            <div className="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1">
+              <h2 className="text-base font-bold">Breakdown</h2>
               <Dropdown
                 value={groupBy}
                 onValueChange={setGroupBy}
+                className="!w-[150px] max-[767px]:!w-[132px]"
                 options={[
                   { value: "category", label: "Category" },
                   { value: "account", label: "Account" },
@@ -944,6 +940,9 @@ export function PhaseThreeScreen({
                   { value: "month", label: "Month" },
                 ]}
               />
+              <p className="col-span-2 text-xs text-[var(--muted)]">
+                {report.from} to {shiftDay(report.toExclusive, -1)} · {report.currency}
+              </p>
             </div>
             {report.groups.length ? (
               report.groups.map((group) => (
@@ -980,6 +979,15 @@ export function PhaseThreeScreen({
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm max-[1024px]:flex-col max-[1024px]:items-end">
+            <label className="ml-auto flex w-[176px] items-center gap-2 text-xs text-[var(--muted)]">
+              <span className="sr-only">Budget month</span>
+              <CalendarField
+                mode="month"
+                value={month}
+                onValueChange={(value) => setAnchor(`${value}-01`)}
+                containerClassName="w-full"
+              />
+            </label>
             <div className="flex gap-2 border-b border-[var(--line)] max-[1024px]:grid max-[1024px]:w-full max-[1024px]:grid-cols-3 max-[1024px]:gap-0">
               {[
                 ["all", "All budgets"],
@@ -1001,15 +1009,6 @@ export function PhaseThreeScreen({
                 </button>
               ))}
             </div>
-            <label className="ml-auto flex w-[176px] items-center gap-2 text-xs text-[var(--muted)]">
-              <span className="sr-only">Budget month</span>
-              <CalendarField
-                mode="month"
-                value={month}
-                onValueChange={(value) => setAnchor(`${value}-01`)}
-                containerClassName="w-full"
-              />
-            </label>
           </div>
           {visibleBudgets.length ? (
             <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
