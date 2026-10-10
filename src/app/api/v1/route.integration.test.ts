@@ -1615,6 +1615,9 @@ describe("Phase 1 HTTP API flows", () => {
     const actor = "profileavatarowner";
     await request("POST", "me/bootstrap", actor, {});
     const initial = await request("GET", "me", actor);
+    const timings = initial.response.headers.get("Server-Timing");
+    for (const phase of ["auth", "db", "guards"])
+      expect(timings).toMatch(new RegExp(`${phase};dur=[\\d.]+`));
     const png =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==";
     const invalid = await request(

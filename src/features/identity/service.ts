@@ -90,18 +90,27 @@ export async function profileDto(
 ): Promise<Profile> {
   let lastBucketId: string | null = null;
   if (user.lastBucketId) {
-    const member = await MembershipModel.exists({
-      userId: user._id,
-      bucketId: user.lastBucketId,
-      state: "active",
-    }).session(session ?? null);
-    const bucket =
-      member &&
-      (await BucketModel.exists({
+    const membershipQuery = () =>
+      MembershipModel.exists({
+        userId: user._id,
+        bucketId: user.lastBucketId,
+        state: "active",
+      }).session(session ?? null);
+    const bucketQuery = () =>
+      BucketModel.exists({
         _id: user.lastBucketId,
         status: { $in: ["active", "archived"] },
-      }).session(session ?? null));
-    if (bucket) lastBucketId = String(user.lastBucketId);
+      }).session(session ?? null);
+    // MongoDB does not support parallel operations on the same transaction session.
+    let member: Awaited<ReturnType<typeof membershipQuery>>;
+    let bucket: Awaited<ReturnType<typeof bucketQuery>> | null;
+    if (session) {
+      member = await membershipQuery();
+      bucket = member ? await bucketQuery() : null;
+    } else {
+      [member, bucket] = await Promise.all([membershipQuery(), bucketQuery()]);
+    }
+    if (member && bucket) lastBucketId = String(user.lastBucketId);
   }
   return {
     id: String(user._id),
@@ -129,17 +138,26 @@ export async function bucketForUser(
   owner = false,
 ) {
   if (!/^[a-f\d]{24}$/i.test(id)) throw notFound();
-  const membership = await MembershipModel.findOne({
-    bucketId: id,
-    userId: user._id,
-    state: "active",
-  }).session(session ?? null);
-  const bucket =
-    membership &&
-    (await BucketModel.findOne({ _id: id, status: { $in: ["active", "archived"] } }).session(
+  const membershipQuery = () =>
+    MembershipModel.exists({
+      bucketId: id,
+      userId: user._id,
+      state: "active",
+    }).session(session ?? null);
+  const bucketQuery = () =>
+    BucketModel.findOne({ _id: id, status: { $in: ["active", "archived"] } }).session(
       session ?? null,
-    ));
-  if (!bucket) throw notFound();
+    );
+  // Keep queries serial inside a MongoDB transaction.
+  let membership: Awaited<ReturnType<typeof membershipQuery>>;
+  let bucket: Awaited<ReturnType<typeof bucketQuery>> | null;
+  if (session) {
+    membership = await membershipQuery();
+    bucket = membership ? await bucketQuery() : null;
+  } else {
+    [membership, bucket] = await Promise.all([membershipQuery(), bucketQuery()]);
+  }
+  if (!membership || !bucket) throw notFound();
   if (owner && String(bucket.ownerUserId) !== String(user._id))
     throw new ApiError(403, "FORBIDDEN", "Only the bucket owner can create invitations.");
   if (write) {
