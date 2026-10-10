@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Pin,
   PinOff,
+  ChevronLeft,
   ChevronRight,
   Plus,
   Settings2,
@@ -130,7 +131,8 @@ const sidebarGroups: {
 ];
 
 function ProfileAvatar({ profile, size = 34 }: { profile: Profile; size?: 34 | 38 | 56 }) {
-  const dimensions = size === 56 ? "size-14" : size === 38 ? "size-[38px]" : "size-[34px]";
+  const dimensions =
+    size === 56 ? "size-14" : size === 38 ? "size-[38px]" : "size-[34px] max-[767px]:size-[42px]";
   return profile.avatarDataUrl ? (
     <Image
       src={profile.avatarDataUrl}
@@ -716,6 +718,23 @@ function Workspace() {
         className={`workspace-main min-w-0 transition-[margin-left] duration-200 max-[767px]:!ml-0 ${sidebarExpanded ? "ml-[248px] [--workspace-sidebar-width:248px] min-[768px]:max-[1024px]:ml-[200px] min-[768px]:max-[1024px]:[--workspace-sidebar-width:200px]" : "ml-[68px] [--workspace-sidebar-width:68px]"} ${mobileForm ? "[--workspace-bottom-bar:0px]" : "[--workspace-bottom-bar:calc(66px+env(safe-area-inset-bottom))]"}`}
       >
         <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-6 text-xs min-[768px]:max-[1199px]:px-[18px] max-[767px]:gap-2 max-[767px]:px-4 max-[400px]:gap-1 max-[400px]:px-2 sticky top-0 z-20">
+          {sidebarExpanded && (
+            <button
+              type="button"
+              className="fixed top-[14px] z-40 hidden size-9 place-items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] min-[768px]:grid"
+              style={{ left: "calc(var(--workspace-sidebar-width) - 18px)" }}
+              onClick={() => {
+                setSidebarPinned(false);
+                setSidebarExpanded(false);
+                setSidebarTooltip(null);
+                setPreference("buckit-sidebar-pinned", "false");
+              }}
+              aria-label="Close sidebar"
+              title="Close sidebar"
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+            </button>
+          )}
           {!sidebarExpanded && (
             <button
               type="button"
@@ -731,7 +750,7 @@ function Workspace() {
             </button>
           )}
           <div className="mx-auto flex w-full max-w-[1112px] min-w-0 items-center justify-between gap-3 max-[767px]:gap-2">
-            <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-9">
+            <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-[42px]">
               <Brand compact />
             </span>
             <nav
@@ -804,7 +823,7 @@ function Workspace() {
                 <button
                   ref={profileButtonRef}
                   type="button"
-                  className="profile-chip flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)] max-[767px]:min-h-11"
+                  className="profile-chip flex min-h-10 items-center gap-1 rounded-lg border-0 bg-transparent text-left text-xs text-[var(--ink)] hover:bg-[var(--soft)] focus-visible:outline-2 focus-visible:outline-[var(--green)] max-[767px]:min-h-[42px]"
                   aria-label={`Account menu for ${profile.displayName}`}
                   aria-haspopup="menu"
                   aria-expanded={profileMenuOpen}

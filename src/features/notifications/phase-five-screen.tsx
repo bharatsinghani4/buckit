@@ -387,7 +387,13 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
           }
           onClick={() => void changePushDevice()}
         >
-          <Smartphone size={15} /> {pushStatus === "enabled" ? "Disable" : "Enable"}
+          <Smartphone size={15} />
+          <span className="min-[768px]:hidden">
+            {pushStatus === "enabled" ? "Disable push notifications" : "Enable push notifications"}
+          </span>
+          <span className="max-[767px]:hidden">
+            {pushStatus === "enabled" ? "Disable" : "Enable"}
+          </span>
         </button>
       </section>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,.85fr)]">

@@ -3,7 +3,6 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID }
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { z } from "zod";
 import { ApiError, assertRevision } from "@/lib/api/errors";
-import { requireConfig } from "@/lib/config/required";
 import {
   BucketModel,
   ContactShareModel,
@@ -25,12 +24,20 @@ const registrationInput = z
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 function encryptionKey() {
-  const key = Buffer.from(
-    requireConfig("PUSH_TOKEN_ENCRYPTION_KEY", process.env.PUSH_TOKEN_ENCRYPTION_KEY),
-    "base64",
-  );
+  const configured = process.env.PUSH_TOKEN_ENCRYPTION_KEY?.trim();
+  if (!configured)
+    throw new ApiError(
+      503,
+      "PUSH_CONFIGURATION_MISSING",
+      "Push notifications need a server encryption key in this deployment.",
+    );
+  const key = Buffer.from(configured, "base64");
   if (key.length !== 32)
-    throw new Error("PUSH_TOKEN_ENCRYPTION_KEY must be base64-encoded 32 random bytes.");
+    throw new ApiError(
+      503,
+      "PUSH_CONFIGURATION_INVALID",
+      "The server encryption key for push notifications is invalid.",
+    );
   return key;
 }
 

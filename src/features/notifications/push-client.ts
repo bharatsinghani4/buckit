@@ -34,11 +34,12 @@ export async function enablePushOnThisDevice() {
   if (!vapidKey) throw new Error("Web push is not configured for this deployment.");
   if (!("Notification" in window) || !("serviceWorker" in navigator))
     throw new Error("This browser does not support web push.");
-  const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
-  if (!(await isSupported())) throw new Error("Web push is unavailable in this browser.");
+  // Permission must be requested directly from the click handler while user activation is active.
   const permission = await Notification.requestPermission();
   if (permission !== "granted")
     throw new Error("Allow notifications in your browser to enable push.");
+  const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
+  if (!(await isSupported())) throw new Error("Web push is unavailable in this browser.");
   const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
     scope: "/",
   });

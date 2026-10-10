@@ -294,7 +294,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
         <section
           className={`${card} min-w-0 overflow-hidden ${mode !== "read" || selectedId ? "max-[767px]:hidden" : ""}`}
         >
-          <div className="border-b border-[var(--line)] p-4">
+          <div className="border-b border-[var(--line)] p-4 min-[768px]:max-[1024px]:grid min-[768px]:max-[1024px]:grid-cols-[minmax(0,1fr)_auto] min-[768px]:max-[1024px]:items-center min-[768px]:max-[1024px]:gap-2">
             <label className="relative block">
               <Search size={16} className="absolute left-3 top-2.5 text-[var(--muted)]" />
               <input
@@ -305,7 +305,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
                 aria-label="Search contacts"
               />
             </label>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex gap-2 min-[768px]:max-[1024px]:mt-0">
               {["all", "owned", "shared"].map((option) => (
                 <button
                   key={option}
