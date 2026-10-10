@@ -6,6 +6,8 @@ Update this file with each development phase or significant fix. Record what cha
 
 ## Completed
 
+- Vercel function locality (10 October 2026): the user confirmed the Atlas cluster is in Mumbai and Vercel is on Hobby. Set the single function region to `bom1` in `vercel.json`, aligning Node.js APIs and the daily job with Atlas. Hobby permits one region without an added region-selection fee; usage still remains subject to Hobby limits. Production region and latency require verification after deployment.
+- API latency pass (10 October 2026): the shared route now overlaps Firebase verification with cold MongoDB connection setup, and rate-limit/access checks run concurrently after authentication. Bucket membership and bucket-state reads, plus the last-bucket profile checks, run concurrently outside transactions; transaction queries remain serial. Authenticated responses expose `Server-Timing` for auth, database setup, and guards to identify remaining production latency without logging sensitive data. Token revocation checks, per-request rate limits, and access validation remain enabled. A read-only local Atlas probe measured 540ms to connect and 31ms for a warm ping; this does not measure Vercel-to-Atlas latency. The 81 integration/unit tests, TypeScript, ESLint, full-repository Prettier, and production build passed. Live production latency remains to be measured after deployment.
 - Foundation on `dev`: Next.js, TypeScript, npm, Firebase client/Admin, MongoDB models, API routing, and tests.
 - Phase 1: public home, authentication, account recovery/verification, onboarding, bucket creation/selection, invitations, workspace, profile, and tour.
 - Live development connections: Firebase Authentication and MongoDB Atlas verified; Phase 1 indexes created.

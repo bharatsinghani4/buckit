@@ -131,6 +131,14 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
     Vary: "Authorization",
     "Referrer-Policy": "no-referrer",
   });
+  async function measure<T>(name: string, operation: () => Promise<T>): Promise<T> {
+    const started = performance.now();
+    try {
+      return await operation();
+    } finally {
+      headers.append("Server-Timing", `${name};dur=${(performance.now() - started).toFixed(1)}`);
+    }
+  }
   try {
     const url = new URL(request.url);
     const origin = request.headers.get("origin");
@@ -143,16 +151,27 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         "buckets/$1/options/$2",
       );
     const method = request.method;
-    const identity = await authenticate(request);
-    await connectDatabase();
-    await limit(
-      identity,
-      path.includes("invitations") ? "invitations" : "api",
-      path.includes("invitations") ? 20 : 120,
+    const authorization = request.headers.get("authorization");
+    if (!authorization?.startsWith("Bearer ") || authorization.length > 8192)
+      throw new ApiError(401, "AUTHENTICATION_REQUIRED", "Sign in to continue.");
+    const [identity] = await Promise.all([
+      measure("auth", () => authenticate(request)),
+      measure("db", connectDatabase),
+    ]);
+    await measure("guards", () =>
+      Promise.all([
+        limit(
+          identity,
+          path.includes("invitations") ? "invitations" : "api",
+          path.includes("invitations") ? 20 : 120,
+        ),
+        ...(path === "contacts/share-candidates"
+          ? [limit(identity, "contact-candidates", 30)]
+          : []),
+        ...(path.includes("/imports/") ? [limit(identity, "imports", 60)] : []),
+        ...(path !== "me/bootstrap" && path !== "me/deletion" ? [activeUser(identity)] : []),
+      ]),
     );
-    if (path === "contacts/share-candidates") await limit(identity, "contact-candidates", 30);
-    if (path.includes("/imports/")) await limit(identity, "imports", 60);
-    if (path !== "me/bootstrap" && path !== "me/deletion") await activeUser(identity);
     let data: unknown;
     let status = 200;
     let meta: Record<string, unknown> = { requestId };
