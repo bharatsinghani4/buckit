@@ -61,6 +61,8 @@ type ExpenseRow = {
     kind?: string;
     emiPlanId?: mongoose.Types.ObjectId;
     emiInstallmentId?: mongoose.Types.ObjectId;
+    recurringPlanId?: mongoose.Types.ObjectId;
+    recurringDueDate?: string;
   };
   deletedAt?: Date | null;
   restoreUntil?: Date | null;
@@ -140,7 +142,13 @@ async function expenseDto(expense: ExpenseRow, userId: string, session?: ClientS
             planId: String(expense.source.emiPlanId),
             installmentId: String(expense.source.emiInstallmentId),
           }
-        : { kind: "manual" },
+        : expense.source?.kind === "recurring"
+          ? {
+              kind: "recurring",
+              planId: String(expense.source.recurringPlanId),
+              dueDate: expense.source.recurringDueDate,
+            }
+          : { kind: "manual" },
     permissions: {
       canEdit: creator && !deleted && bucket?.status === "active",
       canDelete: creator && !deleted && bucket?.status === "active",

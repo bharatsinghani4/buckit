@@ -10,8 +10,11 @@ import { nextReminderDue, type ReminderSchedule } from "./reminder-dates";
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const date = z.iso.date();
 const frequency = z.enum(["daily", "weekly", "twice_weekly", "fortnightly", "monthly"]);
+const purpose = z.enum(["add_expenses", "funds", "pay", "review_budget", "custom"]);
 const reminderInput = z
   .object({
+    purpose: purpose.optional(),
+    message: z.string().trim().max(240).optional(),
     bucketId: objectId.nullable().optional(),
     enabled: z.boolean().optional(),
     timezone: z.string().min(1).max(80).optional(),
@@ -64,6 +67,8 @@ function dto(reminder: InstanceType<typeof ReminderModel>) {
   return {
     id: String(reminder._id),
     bucketId: reminder.bucketId ? String(reminder.bucketId) : null,
+    purpose: reminder.purpose ?? "add_expenses",
+    message: reminder.message ?? "",
     enabled: reminder.enabled,
     timezone: reminder.timezone,
     frequency: reminder.frequency,
@@ -119,6 +124,8 @@ export async function listReminders(identity: DecodedIdToken) {
 
 export async function createReminder(identity: DecodedIdToken, raw: unknown, key: string) {
   const input = reminderInput.parse(raw);
+  if (input.purpose === "custom" && !input.message)
+    throw new ApiError(422, "REMINDER_MESSAGE_REQUIRED", "Enter a custom reminder message.");
   const user = await activeUser(identity);
   const schedule = validateSchedule({
     timezone: input.timezone ?? user.timezone,
@@ -140,6 +147,8 @@ export async function createReminder(identity: DecodedIdToken, raw: unknown, key
         [
           {
             userId: currentUser._id,
+            purpose: input.purpose ?? "add_expenses",
+            message: input.message ?? "",
             bucketId: input.bucketId ?? undefined,
             membershipId: membership?._id,
             enabled: input.enabled ?? true,
@@ -187,6 +196,8 @@ export async function changeReminder(
         return { resourceId: id, status: 204, data: null };
       }
       const edits = input as z.infer<typeof reminderInput>;
+      if ((edits.purpose ?? reminder.purpose) === "custom" && !(edits.message ?? reminder.message))
+        throw new ApiError(422, "REMINDER_MESSAGE_REQUIRED", "Enter a custom reminder message.");
       const schedule = validateSchedule({ ...scheduleOf(reminder), ...edits });
       const nextBucketId = edits.bucketId === undefined ? reminder.bucketId : edits.bucketId;
       const membership =
@@ -214,6 +225,8 @@ export async function changeReminder(
         {
           $set: {
             ...schedule,
+            purpose: edits.purpose ?? reminder.purpose ?? "add_expenses",
+            message: edits.message ?? reminder.message ?? "",
             bucketId: nextBucketId ?? null,
             membershipId: membership?._id ?? null,
             enabled: edits.enabled ?? reminder.enabled,

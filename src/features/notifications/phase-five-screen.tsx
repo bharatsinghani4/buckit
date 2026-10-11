@@ -46,6 +46,8 @@ type NotificationItem = {
 type Frequency = "daily" | "weekly" | "twice_weekly" | "fortnightly" | "monthly";
 type Reminder = {
   id: string;
+  purpose: "add_expenses" | "funds" | "pay" | "review_budget" | "custom";
+  message: string;
   bucketId: string | null;
   enabled: boolean;
   timezone: string;
@@ -57,6 +59,8 @@ type Reminder = {
   revision: number;
 };
 type ReminderForm = {
+  purpose: Reminder["purpose"];
+  message: string;
   bucketId: string;
   enabled: boolean;
   timezone: string;
@@ -125,6 +129,8 @@ function targetHref(item: NotificationItem) {
     return `/workspace?bucket=${target.bucketId}&view=expense&expense=${target.id}`;
   if (target.kind === "emiPlan" && target.bucketId)
     return `/workspace?bucket=${target.bucketId}&view=emi-plan&plan=${target.id}`;
+  if (target.kind === "recurringPlan" && target.bucketId)
+    return `/workspace?bucket=${target.bucketId}&view=scheduled&tab=recurring`;
   if (target.bucketId) return `/workspace?bucket=${target.bucketId}`;
   return null;
 }
@@ -595,6 +601,8 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
 
 function emptyForm(profile: Profile, bucketId = ""): ReminderForm {
   return {
+    purpose: "add_expenses",
+    message: "",
     bucketId,
     enabled: true,
     timezone: profile.timezone,
@@ -650,6 +658,8 @@ function ReminderSettings({
       );
     setSelectedId(item.id);
     setForm({
+      purpose: item.purpose,
+      message: item.message,
       bucketId: item.bucketId ?? "",
       enabled: item.enabled,
       timezone: item.timezone,
@@ -670,6 +680,8 @@ function ReminderSettings({
     setMessage("");
     const current = reminders.find((item) => item.id === selectedId);
     const body = {
+      purpose: form.purpose,
+      message: form.message,
       bucketId: form.bucketId || null,
       enabled: form.enabled,
       timezone: form.timezone,
@@ -770,8 +782,7 @@ function ReminderSettings({
         </button>
         <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 border-b border-[var(--line)] pb-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <CalendarClock size={18} className="shrink-0 text-[var(--green)]" /> Personal spending
-            reminders
+            <CalendarClock size={18} className="shrink-0 text-[var(--green)]" /> Personal reminders
           </h2>
           <Switch
             checked={form.enabled}
@@ -779,11 +790,49 @@ function ReminderSettings({
             label="Enable this reminder"
           />
           <p className={`${small} col-span-2 mt-1`}>
-            Choose a fixed schedule. Reminders do not depend on whether you entered an expense.
+            Choose when and what Buckit should remind you about. Buckit does not check bank balances
+            or whether an expense was entered.
           </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_250px]">
           <form id="reminder-form" onSubmit={save} className="min-w-0 space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="reminder-purpose" className="mb-2 block text-xs font-semibold">
+                  Remind me to
+                </label>
+                <Dropdown
+                  id="reminder-purpose"
+                  value={form.purpose}
+                  onValueChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      purpose: value as ReminderForm["purpose"],
+                    }))
+                  }
+                  options={[
+                    { value: "add_expenses", label: "Add expenses" },
+                    { value: "funds", label: "Keep money ready" },
+                    { value: "pay", label: "Make a payment" },
+                    { value: "review_budget", label: "Review my budget" },
+                    { value: "custom", label: "Custom reminder" },
+                  ]}
+                />
+              </div>
+              <label className="block text-xs font-semibold">
+                Message {form.purpose === "custom" ? "" : "(optional)"}
+                <input
+                  className={`${controls.input} mt-2`}
+                  value={form.message}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, message: event.target.value }))
+                  }
+                  maxLength={240}
+                  required={form.purpose === "custom"}
+                  placeholder="Shown in your Buckit inbox"
+                />
+              </label>
+            </div>
             <div className="flex flex-wrap gap-2">
               {frequencies.map((option) => (
                 <button
@@ -966,7 +1015,8 @@ function ReminderSettings({
                   className={`rounded-lg border p-4 ${item.id === selectedId ? "border-[var(--green)] bg-[var(--sage)]" : "border-[var(--line)]"}`}
                 >
                   <p className="text-xs font-semibold capitalize">
-                    {item.frequency.replaceAll("_", " ")} · {item.enabled ? "On" : "Off"}
+                    {item.message || item.purpose.replaceAll("_", " ")} ·{" "}
+                    {item.enabled ? "On" : "Off"}
                   </p>
                   <p className={`${small} mt-1`}>
                     {item.bucketId

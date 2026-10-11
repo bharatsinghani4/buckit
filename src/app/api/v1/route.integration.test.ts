@@ -17,6 +17,8 @@ import {
 } from "@/lib/db/models";
 import { generateInstallments, processDaily } from "@/features/scheduling/service";
 import { processDueReminders } from "@/features/notifications/reminder-worker";
+import { processAutomaticRecurring } from "@/features/scheduling/recurring-service";
+import { processRecurringReminders } from "@/features/notifications/recurring-reminder-worker";
 import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
 import { localDate } from "@/features/scheduling/dates";
 import { continuePendingImports } from "@/features/csv/import-service";
@@ -1609,6 +1611,140 @@ async function request(
   });
   return { response, payload: response.status === 204 ? null : await response.json() };
 }
+
+describe("Open-ended recurring payments and reminder messages", () => {
+  it("records a confirmed SIP once and keeps future occurrences available", async () => {
+    const actor = "recurring-confirm-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "SIP Test",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const category = (await request("GET", `${root}/options/categories`, actor)).payload.data[0].id;
+    const account = (
+      await request("POST", `${root}/options/accounts`, actor, { name: "SIP account" })
+    ).payload.data.id;
+    const userId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const today = new Date().toISOString().slice(0, 10);
+    const created = await request("POST", `${root}/recurring-plans`, actor, {
+      title: "Monthly SIP",
+      amount: "1250.00",
+      currency: "INR",
+      frequency: "monthly",
+      startDate: today,
+      categoryId: category,
+      accountId: account,
+      paymentMode: "upi",
+      paidByUserId: userId,
+      recordingMode: "confirm",
+      reminderLeadDays: 1,
+      reminderPurpose: "funds",
+      reminderMessage: "Check the SIP account balance.",
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    expect(created.payload.data.nextDate).toBe(today);
+    const planId = created.payload.data.id;
+    expect(
+      (await request("GET", `${root}/scheduled-expenses`, actor)).payload.data.some(
+        (item: { sourceKind: string; status: string }) =>
+          item.sourceKind === "recurring" && item.status === "due_confirmation",
+      ),
+    ).toBe(true);
+    const confirmed = await request(
+      "POST",
+      `${root}/recurring-plans/${planId}/confirm`,
+      actor,
+      { paymentDate: today },
+      { "If-Match": `"r${created.payload.data.revision}"` },
+    );
+    expect(confirmed.response.status, JSON.stringify(confirmed.payload)).toBe(201);
+    expect(confirmed.payload.data.status).toBe("recorded");
+    const expense = await ExpenseModel.findById(confirmed.payload.data.id);
+    expect(expense?.postingState).toBe("posted");
+    expect(expense?.source?.kind).toBe("recurring");
+    expect(
+      (await request("GET", `${root}/recurring-plans`, actor)).payload.data[0].nextDate,
+    ).not.toBe(today);
+    expect(await ExpenseModel.countDocuments({ "source.recurringPlanId": planId })).toBe(1);
+  });
+
+  it("automatically records a due premium only once", async () => {
+    const actor = "recurring-auto-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Premium Test",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const category = (await request("GET", `${root}/options/categories`, actor)).payload.data[0].id;
+    const account = (
+      await request("POST", `${root}/options/accounts`, actor, { name: "Premium account" })
+    ).payload.data.id;
+    const userId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const today = new Date().toISOString().slice(0, 10);
+    const created = await request("POST", `${root}/recurring-plans`, actor, {
+      title: "Insurance",
+      amount: "700.00",
+      currency: "INR",
+      frequency: "yearly",
+      startDate: today,
+      categoryId: category,
+      accountId: account,
+      paymentMode: "upi",
+      paidByUserId: userId,
+      recordingMode: "automatic",
+      reminderLeadDays: 0,
+      reminderPurpose: "pay",
+      reminderMessage: "Pay the insurance premium.",
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    await processRecurringReminders();
+    await fanoutPendingEvents();
+    const reminder = await NotificationModel.findOne({
+      recipientUserId: userId,
+      triggerType: "reminder.due",
+      "target.id": created.payload.data.id,
+    });
+    expect(reminder?.title).toBe("Pay the insurance premium.");
+    await processAutomaticRecurring();
+    await processAutomaticRecurring();
+    expect(
+      await ExpenseModel.countDocuments({ "source.recurringPlanId": created.payload.data.id }),
+    ).toBe(1);
+  });
+
+  it("uses a personal reminder's custom message in the inbox", async () => {
+    const actor = "reminder-message-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "me/reminders", actor, {
+      purpose: "custom",
+      message: "Check the EMI account balance.",
+      timezone: "UTC",
+      frequency: "daily",
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    await ReminderModel.updateOne(
+      { _id: created.payload.data.id },
+      {
+        $set: {
+          nextLocalDate: new Date().toISOString().slice(0, 10),
+          nextDueAt: new Date(Date.now() - 60_000),
+        },
+      },
+    );
+    await processDueReminders();
+    await fanoutPendingEvents();
+    const user = await UserModel.findOne({ firebaseUid: actor });
+    const notification = await NotificationModel.findOne({
+      recipientUserId: user?._id,
+      triggerType: "reminder.due",
+    });
+    expect(notification?.title).toBe("Check the EMI account balance.");
+  });
+});
 
 describe("Phase 1 HTTP API flows", () => {
   it("saves and clears a validated profile image", async () => {

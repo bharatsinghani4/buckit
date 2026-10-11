@@ -170,6 +170,8 @@ const expenseSchema = new Schema(
       kind: { type: String, default: "manual" },
       emiPlanId: Schema.Types.ObjectId,
       emiInstallmentId: Schema.Types.ObjectId,
+      recurringPlanId: Schema.Types.ObjectId,
+      recurringDueDate: String,
     },
     originKey: String,
     revision: { type: Number, default: 1 },
@@ -252,6 +254,37 @@ emiInstallmentSchema.index(
   { expenseId: 1 },
   { unique: true, partialFilterExpression: { expenseId: { $type: "objectId" } } },
 );
+
+const recurringPlanSchema = new Schema(
+  {
+    bucketId: ref,
+    actualCreatorUserId: ref,
+    creatorMembershipId: ref,
+    title: { type: String, required: true },
+    amount: { type: Schema.Types.Decimal128, required: true },
+    currency: { type: String, required: true },
+    frequency: { type: String, enum: ["weekly", "monthly", "quarterly", "yearly"], required: true },
+    startDate: { type: String, required: true },
+    endDate: String,
+    nextIndex: { type: Number, default: 0 },
+    categoryId: ref,
+    accountId: ref,
+    platformId: ref,
+    referenceLabels: { category: String, account: String, platform: String },
+    paymentMode: { type: String, required: true },
+    paidByUserId: ref,
+    recordingMode: { type: String, enum: ["confirm", "automatic"], default: "confirm" },
+    reminderLeadDays: { type: Number, default: 1 },
+    reminderPurpose: { type: String, default: "funds" },
+    reminderMessage: { type: String, default: "" },
+    state: { type: String, enum: ["active", "paused", "ended"], default: "active" },
+    revision: { type: Number, default: 1 },
+  },
+  common,
+);
+recurringPlanSchema.index({ bucketId: 1, state: 1, createdAt: -1 });
+recurringPlanSchema.index({ state: 1, recordingMode: 1, startDate: 1 });
+recurringPlanSchema.index({ creatorMembershipId: 1, state: 1 });
 
 const budgetSchema = new Schema(
   {
@@ -348,6 +381,8 @@ const reminderSchema = new Schema(
     userId: ref,
     bucketId: Schema.Types.ObjectId,
     membershipId: Schema.Types.ObjectId,
+    purpose: { type: String, default: "add_expenses" },
+    message: { type: String, default: "" },
     enabled: { type: Boolean, default: true },
     timezone: { type: String, required: true },
     frequency: {
@@ -607,6 +642,9 @@ export const EmiPlanModel =
 export const EmiInstallmentModel =
   mongoose.models.BuckitEmiInstallment ||
   mongoose.model("BuckitEmiInstallment", emiInstallmentSchema, "emi_installments");
+export const RecurringPlanModel =
+  mongoose.models.BuckitRecurringPlan ||
+  mongoose.model("BuckitRecurringPlan", recurringPlanSchema, "recurring_plans");
 export const BudgetModel =
   mongoose.models.BuckitBudget || mongoose.model("BuckitBudget", budgetSchema, "budgets");
 export const BudgetPeriodModel =
@@ -670,6 +708,7 @@ export const phaseFourModels = [
   ...phaseThreeModels,
   EmiPlanModel,
   EmiInstallmentModel,
+  RecurringPlanModel,
   JobLeaseModel,
 ];
 export const phaseFiveModels = [

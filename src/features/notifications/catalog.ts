@@ -43,7 +43,7 @@ export const notificationGroups = [
   },
   {
     title: "Reminders",
-    description: "Your personal expense-entry reminders",
+    description: "Your personal payment and spending reminders",
     triggers: ["reminder.due"],
   },
 ] as const;

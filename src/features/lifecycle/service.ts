@@ -27,6 +27,7 @@ import {
   PushDeliveryModel,
   PushInstallationModel,
   ReceiptModel,
+  RecurringPlanModel,
   ReminderModel,
   UserModel,
 } from "@/lib/db/models";
@@ -41,6 +42,8 @@ import { timezoneSchema, currencies } from "@/features/identity/contracts";
 import { endMembership } from "@/features/expenses/member-service";
 import { getFirebaseAdminAuth } from "@/lib/firebase/admin";
 import { requireConfig } from "@/lib/config/required";
+import { localDate } from "@/features/scheduling/dates";
+import { recurringDate, type RecurringFrequency } from "@/features/scheduling/recurring-dates";
 
 const bucketSettingsSchema = z
   .object({
@@ -192,6 +195,26 @@ export async function changeArchive(
           { $set: { endedAt: now, endedByUserId: user._id } },
           { session },
         );
+        const today = localDate(now, bucket.timezone);
+        const automaticPlans = await RecurringPlanModel.find({
+          bucketId: bucket._id,
+          state: "active",
+          recordingMode: "automatic",
+        }).session(session);
+        for (const plan of automaticPlans) {
+          let nextIndex = plan.nextIndex;
+          while (
+            recurringDate(plan.startDate, plan.frequency as RecurringFrequency, nextIndex) <
+              today &&
+            nextIndex < 5_000
+          )
+            nextIndex += 1;
+          if (nextIndex !== plan.nextIndex) {
+            plan.nextIndex = nextIndex;
+            plan.revision += 1;
+            await plan.save({ session });
+          }
+        }
         const reviewed = await ExpenseModel.updateMany(
           {
             bucketId: bucket._id,
@@ -412,7 +435,10 @@ export async function bucketDeletionPreview(identity: DecodedIdToken, bucketId: 
     ExpenseModel.countDocuments({ bucketId }),
     MembershipModel.countDocuments({ bucketId }),
     BudgetModel.countDocuments({ bucketId }),
-    EmiPlanModel.countDocuments({ bucketId }),
+    Promise.all([
+      EmiPlanModel.countDocuments({ bucketId }),
+      RecurringPlanModel.countDocuments({ bucketId }),
+    ]).then(([emi, recurring]) => emi + recurring),
     CommentModel.countDocuments({ bucketId }),
   ]);
   return {
@@ -634,6 +660,7 @@ const bucketCollections: Model<unknown>[] = [
   BudgetModel,
   EmiInstallmentModel,
   EmiPlanModel,
+  RecurringPlanModel,
   ImportRowModel,
   ImportSessionModel,
   OptionModel,

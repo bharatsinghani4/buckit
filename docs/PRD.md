@@ -229,6 +229,14 @@ Example: Bharat and Anjali each spend in Personal. Bharat's member budget includ
 - Show active/completed plans, recorded installments, upcoming dates, remaining counts/amounts, and skipped/unpaid obligations.
 - Previously recorded installments are schedule-based records, not bank-confirmed payments.
 
+### Open-ended recurring payments
+
+- The Scheduled section has an Upcoming ledger and a Recurring tab for SIPs, insurance premiums, subscriptions, and similar payments without a fixed installment count. Finite EMIs remain separate.
+- A recurring plan stores a positive amount/currency, category, account, payer, payment method, weekly/monthly/quarterly/yearly cadence, first due date, and optional end date. Past start dates do not create historical expenses automatically. Month-end schedules return to their intended day after a short month.
+- Confirmation is the default: the next occurrence stays a commitment until its creator records the actual payment date. A user can opt into automatic expense creation on the due date; that record follows the schedule and is not bank confirmation. Both modes count successfully posted payments, including SIPs, in ordinary monthly spending, reports, and matching budgets.
+- Pausing suppresses automatic recording and linked reminders; resuming advances past missed automatic dates. Ending preserves recorded expenses and stops future occurrences. Creator departure ends the plan. Archived buckets suspend processing, and restoring one does not back-post missed automatic recurring payments.
+- Plan reminders can fire on the due day or 1, 3, or 7 days beforehand. The reminder purpose can prompt the user to keep funds ready, make a payment, add an expense, or show custom text. Buckit does not inspect bank balances or guarantee that a debit succeeded.
+
 ## 10. Comments
 
 - Every current bucket member can add comments to any expense, regardless of payer or creator.
@@ -276,6 +284,7 @@ Provide independently configurable triggers covering expense additions/edits/del
 
 ### Personal reminders
 
+- Each reminder has a purpose (add expenses, keep funds ready, make a payment, review a budget, or custom) and an optional message. Custom purpose requires a message. In-app inbox items show that message; device push remains generic on the lock screen.
 - Users set fixed expense-entry reminders: daily, weekly, twice weekly, every two weeks, or monthly.
 - Users choose applicable days/recurrence, interpreted in their own timezone, independent of bucket timezone. V1 sends due reminders during the daily processing window rather than at an exact user-selected time.
 - Reminders are personal and follow the configured notification channels.

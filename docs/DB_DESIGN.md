@@ -293,6 +293,10 @@ Transitions:
 
 Plan edits use generation/version guards and modify only future entries by default. Previously recorded installments require explicit individual expense corrections. Do not implement interest, amortization, or variable-rate loan accounting.
 
+### Open-ended `recurring_plans`
+
+Fields: bucket/creator/membership IDs, title, positive amount/currency, recurrence frequency and start date, optional end date, `nextIndex`, category/account/platform/payment-mode/payer, recording mode (`confirm` or `automatic`), reminder lead days/purpose/message, state (`active`, `paused`, `ended`), and revision. The next occurrence is derived from the original anchor plus `nextIndex`; do not materialize an unlimited schedule. Existing expense rows carry `source.recurringPlanId`, `source.recurringDueDate`, and a unique origin key per plan/due date. Only posted, converted expenses enter spending and budgets. Index active plans by bucket/state and creator membership. Bucket deletion removes plans; creator departure ends them.
+
 ## 7. Budgets and alert state
 
 ### 7.1 `budgets`
@@ -347,7 +351,7 @@ Validate an existing shared current bucket at grant time, coordinating with its 
 
 ### 9.1 `reminders`
 
-Fields: `userId`, optional `bucketId`, optional `membershipId` for bucket-related reminders, `enabled`, `timezone`, `frequency` (`daily`, `weekly`, `twice_weekly`, `fortnightly`, `monthly`), recurrence-specific weekdays/anchor date/day-of-month, `nextLocalDate`, `nextDueAt`, `lastEmittedOccurrenceKey?`, `revision`.
+Fields: `userId`, optional `bucketId`, optional `membershipId` for bucket-related reminders, `purpose`, optional `message`, `enabled`, `timezone`, `frequency` (`daily`, `weekly`, `twice_weekly`, `fortnightly`, `monthly`), recurrence-specific weekdays/anchor date/day-of-month, `nextLocalDate`, `nextDueAt`, `lastEmittedOccurrenceKey?`, `revision`.
 
 Indexes: `{ enabled: 1, nextDueAt: 1 }`; `{ userId: 1, enabled: 1 }`; `{ bucketId: 1 }`.
 

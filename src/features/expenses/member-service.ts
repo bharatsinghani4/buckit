@@ -13,6 +13,7 @@ import {
   ImportSessionModel,
   MembershipModel,
   ReminderModel,
+  RecurringPlanModel,
   UserModel,
 } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
@@ -41,6 +42,11 @@ export async function endMembership(
   await EmiPlanModel.updateMany(
     { bucketId: bucket._id, creatorMembershipId: member._id, state: "active" },
     { $set: { state: "owner_departed" }, $inc: { revision: 1, generationVersion: 1 } },
+    { session },
+  );
+  await RecurringPlanModel.updateMany(
+    { bucketId: bucket._id, creatorMembershipId: member._id, state: { $in: ["active", "paused"] } },
+    { $set: { state: "ended" }, $inc: { revision: 1 } },
     { session },
   );
   await EmiInstallmentModel.updateMany(
