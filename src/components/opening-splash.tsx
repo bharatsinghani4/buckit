@@ -1,7 +1,6 @@
 "use client";
 
-import { Volume2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { playOpeningCue } from "@/lib/brand-sounds";
 
 function OpeningMark() {
@@ -60,46 +59,47 @@ function OpeningMark() {
 
 export function OpeningSplash() {
   const [visible, setVisible] = useState(true);
-  const [showReplay, setShowReplay] = useState(false);
-  const [take, setTake] = useState(0);
+  const splashRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reducedMotion) playOpeningCue();
-    const duration = reducedMotion ? 250 : 2850;
-    const timer = window.setTimeout(() => {
-      setVisible(false);
-      setShowReplay(true);
-    }, duration);
-    const replayTimer = window.setTimeout(() => setShowReplay(false), duration + 10_000);
+    const cue = new AbortController();
+    const startCue = () => {
+      const splash = splashRef.current;
+      if (!splash || window.getComputedStyle(splash).visibility !== "visible") {
+        cue.abort();
+        return;
+      }
+      playOpeningCue(cue.signal);
+    };
+    if (!reducedMotion) {
+      startCue();
+      window.addEventListener("pointerdown", startCue, { once: true });
+      window.addEventListener("keydown", startCue, { once: true });
+    }
+    const stopCue = () => {
+      cue.abort();
+      window.removeEventListener("pointerdown", startCue);
+      window.removeEventListener("keydown", startCue);
+    };
+    const timer = window.setTimeout(
+      () => {
+        stopCue();
+        setVisible(false);
+      },
+      reducedMotion ? 250 : 2850,
+    );
     return () => {
       window.clearTimeout(timer);
-      window.clearTimeout(replayTimer);
+      stopCue();
     };
-  }, [take]);
+  }, []);
 
-  const replayButton = (
-    <button
-      type="button"
-      className="fixed right-5 bottom-[max(20px,env(safe-area-inset-bottom))] z-[1001] inline-flex h-9 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--ink)] shadow-sm hover:bg-[var(--soft)]"
-      onClick={() => {
-        setShowReplay(false);
-        setVisible(true);
-        setTake((current) => current + 1);
-      }}
-      aria-label="Replay opening with sound"
-      title="Replay opening with sound"
-    >
-      <Volume2 size={16} aria-hidden="true" />
-      <span>Replay with sound</span>
-    </button>
-  );
-
-  if (!visible) return showReplay ? replayButton : null;
+  if (!visible) return null;
 
   return (
     <div
-      key={take}
+      ref={splashRef}
       className="opening-splash fixed inset-0 z-[1000] grid place-items-center overflow-hidden bg-[var(--canvas)]"
       role="status"
       aria-label="Opening Buckit"
@@ -117,7 +117,6 @@ export function OpeningSplash() {
           </span>
         </div>
       </div>
-      {replayButton}
     </div>
   );
 }
