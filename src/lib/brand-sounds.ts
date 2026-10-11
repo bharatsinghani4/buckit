@@ -1,6 +1,7 @@
 "use client";
 
 let context: AudioContext | null = null;
+let openingPlayed = false;
 
 function getAudioContext() {
   if (typeof window === "undefined") return null;
@@ -52,10 +53,12 @@ function play(sequence: (audio: AudioContext, start: number) => void) {
   }
 }
 
-export function playOpeningCue() {
-  if (typeof navigator !== "undefined" && navigator.userActivation?.hasBeenActive === false) return;
+export function playOpeningCue(signal?: AbortSignal) {
+  if (openingPlayed || signal?.aborted) return;
 
   play((audio, start) => {
+    if (openingPlayed || signal?.aborted) return;
+    openingPlayed = true;
     // A short, upbeat four-note signature under the color sweep.
     for (const [offset, frequency] of [
       [0, 392],
