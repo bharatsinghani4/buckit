@@ -2,6 +2,7 @@
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/features/identity/auth-provider";
+import { playThemeCue } from "@/lib/brand-sounds";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useAuth();
@@ -18,7 +19,11 @@ export function ThemeToggle() {
     <button
       type="button"
       className="theme-toggle inline-grid size-9 flex-none place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:bg-[var(--soft)] max-[767px]:size-[42px]"
-      onClick={() => setTheme(dark ? "light" : "dark")}
+      onClick={() => {
+        const nextTheme = dark ? "light" : "dark";
+        playThemeCue(nextTheme);
+        setTheme(nextTheme);
+      }}
       aria-label={`Switch to ${dark ? "light" : "dark"} theme`}
       title={`Switch to ${dark ? "light" : "dark"} theme`}
     >

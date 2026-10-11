@@ -718,12 +718,7 @@ function Workspace() {
         <header className="workspace-header flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--canvas)] px-6 text-xs min-[768px]:max-[1199px]:px-[18px] max-[767px]:gap-2 max-[767px]:px-4 max-[400px]:gap-1 max-[400px]:px-2 sticky top-0 z-20">
           <button
             type="button"
-            className={`fixed top-1/2 z-40 hidden size-9 -translate-y-1/2 place-items-center border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] transition-[left,background-color] duration-200 hover:bg-[var(--soft)] min-[768px]:grid ${sidebarExpanded ? "rounded-lg" : "rounded-r-lg border-l-0"}`}
-            style={{
-              left: sidebarExpanded
-                ? "calc(var(--workspace-sidebar-width) - 18px)"
-                : "calc(var(--workspace-sidebar-width) - 1px)",
-            }}
+            className="fixed top-1/2 z-40 hidden size-9 -translate-y-1/2 place-items-center border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] transition-[left,background-color] duration-200 min-[768px]:grid rounded-lg rounded-l-none border-l-0 left-[calc(var(--workspace-sidebar-width)-1px)]"
             onClick={() => {
               const expanded = !sidebarExpanded;
               setSidebarExpanded(expanded);
