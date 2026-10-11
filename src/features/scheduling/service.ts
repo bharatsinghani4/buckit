@@ -10,6 +10,7 @@ import {
   EmiPlanModel,
   ExpenseModel,
   MembershipModel,
+  RecurringPlanModel,
   UserModel,
 } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
@@ -18,6 +19,7 @@ import { minorUnits } from "@/features/expenses/money";
 import { z } from "zod";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { dueInstant, installmentDate, localDate } from "./dates";
+import { recurringDate, type RecurringFrequency } from "./recurring-dates";
 import { planEditInput, planInput, type PlanInput } from "./contracts";
 import { requireConfig } from "@/lib/config/required";
 import { recordDomainEvent } from "@/features/notifications/event-service";
@@ -886,27 +888,60 @@ export async function listScheduled(identity: DecodedIdToken, bucketId: string) 
   })
     .sort({ expenseDate: 1 })
     .limit(100);
-  return expenses.map((item) => ({
-    id: String(item._id),
-    description: item.description,
-    expenseDate: item.expenseDate,
-    amount: item.originalAmount.toString(),
-    currency: item.originalCurrency,
-    sourceKind: item.source?.kind ?? "manual",
-    conversionStatus: item.conversion?.status ?? "missing",
-    canResolve:
-      String(item.actualCreatorUserId) === String(user._id) &&
-      String(item.creatorMembershipId) === String(membership?._id),
-    revision: item.revision,
-    status:
-      item.reviewState === "archive_review_required"
-        ? "review_required"
-        : item.expenseDate <= today && item.conversion.status === "missing"
-          ? "conversion_needed"
-          : item.expenseDate <= today
-            ? "pending_processing"
+  const recurringPlans = await RecurringPlanModel.find({ bucketId, state: "active" }).limit(100);
+  const recurring = recurringPlans.flatMap((plan) => {
+    const date = recurringDate(
+      plan.startDate,
+      plan.frequency as RecurringFrequency,
+      plan.nextIndex,
+    );
+    if (plan.endDate && date > plan.endDate) return [];
+    return [
+      {
+        id: String(plan._id),
+        description: plan.title,
+        expenseDate: date,
+        amount: plan.amount.toString(),
+        currency: plan.currency,
+        sourceKind: "recurring",
+        conversionStatus: "estimated",
+        canResolve:
+          String(plan.actualCreatorUserId) === String(user._id) &&
+          String(plan.creatorMembershipId) === String(membership?._id),
+        revision: plan.revision,
+        status:
+          date <= today
+            ? plan.recordingMode === "confirm"
+              ? "due_confirmation"
+              : "pending_processing"
             : "scheduled",
-  }));
+      },
+    ];
+  });
+  return [
+    ...expenses.map((item) => ({
+      id: String(item._id),
+      description: item.description,
+      expenseDate: item.expenseDate,
+      amount: item.originalAmount.toString(),
+      currency: item.originalCurrency,
+      sourceKind: item.source?.kind ?? "manual",
+      conversionStatus: item.conversion?.status ?? "missing",
+      canResolve:
+        String(item.actualCreatorUserId) === String(user._id) &&
+        String(item.creatorMembershipId) === String(membership?._id),
+      revision: item.revision,
+      status:
+        item.reviewState === "archive_review_required"
+          ? "review_required"
+          : item.expenseDate <= today && item.conversion.status === "missing"
+            ? "conversion_needed"
+            : item.expenseDate <= today
+              ? "pending_processing"
+              : "scheduled",
+    })),
+    ...recurring,
+  ].sort((a, b) => a.expenseDate.localeCompare(b.expenseDate));
 }
 
 async function eligibleDueIds(limit: number, includeConversionMissing = true) {

@@ -101,7 +101,10 @@ export type Expense = {
   deletedAt: string | null;
   restoreUntil: string | null;
   revision: number;
-  source?: { kind: "manual" } | { kind: "emi"; planId: string; installmentId: string };
+  source?:
+    | { kind: "manual" }
+    | { kind: "emi"; planId: string; installmentId: string }
+    | { kind: "recurring"; planId: string; dueDate: string };
   permissions: { canEdit: boolean; canDelete: boolean; canRestore: boolean; canComment: boolean };
 };
 export type Option = {

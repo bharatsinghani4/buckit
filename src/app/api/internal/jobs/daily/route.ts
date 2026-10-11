@@ -1,8 +1,10 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { connectDatabase } from "@/lib/db/mongoose";
 import { processDaily } from "@/features/scheduling/service";
+import { processAutomaticRecurring } from "@/features/scheduling/recurring-service";
 import { JobLeaseModel } from "@/lib/db/models";
 import { processDueReminders } from "@/features/notifications/reminder-worker";
+import { processRecurringReminders } from "@/features/notifications/recurring-reminder-worker";
 import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
 import { sendPendingPush } from "@/features/notifications/push-service";
 import { continuePendingImports } from "@/features/csv/import-service";
@@ -52,16 +54,29 @@ export async function GET(request: Request) {
     const lifecycle = await processLifecycleCleanup(startedAt + 12_000);
     const finance = await processDaily();
     const reminders = await processDueReminders();
+    const recurringReminders = await processRecurringReminders(1_000, startedAt + 50_000);
+    const recurring = await processAutomaticRecurring(20, startedAt + 50_000);
     const notifications = await fanoutPendingEvents();
     const push = await sendPendingPush();
     const imports =
       Date.now() - startedAt < 42_000
         ? await continuePendingImports(startedAt + 54_000)
         : { committed: 0, reviewed: 0, failed: 0, hasMore: false };
-    const processedCounts = { ...finance, reminders, notifications, push, imports, lifecycle };
+    const processedCounts = {
+      ...finance,
+      recurring,
+      reminders,
+      recurringReminders,
+      notifications,
+      push,
+      imports,
+      lifecycle,
+    };
     const hasRemainingWork =
       finance.hasRemainingWork ||
+      recurring.hasMore ||
       reminders.hasMore ||
+      recurringReminders.hasMore ||
       notifications.hasMore ||
       push.hasMore ||
       imports.hasMore ||

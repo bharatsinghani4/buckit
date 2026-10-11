@@ -360,6 +360,17 @@ Generation is checkpointed in bounded batches. Incomplete setup is visible and r
 
 Skipping/rescheduling applies only to eligible unrecorded obligations. A recorded payment is corrected through its expense, keeping the obligation synchronized. Deleting a payment uses expense DELETE and makes its obligation unpaid; restoring uses expense restore. A soft-deleted payment must not be silently revived by reschedule or generation. Ending a plan never deletes recorded payments. No API accepts `paidCount` as an arbitrary replacement for installment history after creation.
 
+### Open-ended recurring plans
+
+| Method and path                                      | Access  | Contract                                                                   |
+| ---------------------------------------------------- | ------- | -------------------------------------------------------------------------- |
+| `GET /buckets/{b}/recurring-plans`                   | Member  | List definitions and each next due date                                    |
+| `POST /buckets/{b}/recurring-plans`                  | Member  | Create a weekly/monthly/quarterly/yearly plan; confirmation is the default |
+| `PATCH /buckets/{b}/recurring-plans/{planId}`        | Creator | Future defaults and pause/resume/end, with revision                        |
+| `POST /buckets/{b}/recurring-plans/{planId}/confirm` | Creator | Record the current due occurrence on an optional actual payment date       |
+
+Inputs include title, positive amount/currency, first due date, optional end date, category/account/platform/payment mode/payer, `recordingMode` (`confirm` or `automatic`), reminder purpose/message, and lead days (`0`, `1`, `3`, or `7`). A custom purpose requires a message. Historical dates before plan creation are skipped. Each recorded occurrence creates one ordinary expense with a unique plan/due-date origin; it counts in spending, reports, and budgets only when posted with final conversion. Automatic mode follows the due schedule without bank confirmation. Pausing and ending preserve history. The Scheduled ledger includes the next recurring occurrence without treating it as actual spending.
+
 ## 9. Global contacts and selective sharing
 
 | Method and path                                 | Access           | Contract                                                                                               |
@@ -419,7 +430,7 @@ Inbox DTO: ID, trigger, safe title, occurredAt, readAt, authorized target descri
 | `PATCH /me/reminders/{reminderId}`  | Owner of reminder | Edit recurrence/timezone/enabled state, with revision |
 | `DELETE /me/reminders/{reminderId}` | Owner of reminder | Delete and suppress pending occurrences; 204          |
 
-Input: optional bucketId, enabled, timezone, and frequency. Weekly needs one weekday; twice_weekly two distinct weekdays; fortnightly an anchor date; monthly a day from 1–31; daily no weekday selector. Use ISO weekdays 1–7. Bucket-scoped reminders require current membership and retain its episode. Return `nextEligibleDate` and a daily processing description, not an exact guaranteed delivery time. Reminders are fixed-schedule and not conditional on expense entry. Archive pauses related reminders; do not replay stale reminder bursts.
+Input: optional bucketId, enabled, timezone, frequency, purpose (`add_expenses`, `funds`, `pay`, `review_budget`, or `custom`), and an optional message up to 240 characters. Custom purpose requires a message. Weekly needs one weekday; twice_weekly two distinct weekdays; fortnightly an anchor date; monthly a day from 1–31; daily no weekday selector. Use ISO weekdays 1–7. Bucket-scoped reminders require current membership and retain its episode. Return `nextEligibleDate` and a daily processing description, not an exact guaranteed delivery time. Reminders are fixed-schedule and not conditional on expense entry. Archive pauses related reminders; do not replay stale reminder bursts.
 
 ## 11. CSV import and export
 

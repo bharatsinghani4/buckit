@@ -285,7 +285,10 @@ export async function fanoutPendingEvents(limit = 30) {
                   recipientUserId: recipientId,
                   bucketId: current.bucketId,
                   triggerType: trigger,
-                  title: triggerLabels[trigger],
+                  title:
+                    trigger === "reminder.due" && typeof current.context?.message === "string"
+                      ? current.context.message.slice(0, 240)
+                      : triggerLabels[trigger],
                   target,
                 },
               },

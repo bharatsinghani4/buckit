@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
@@ -26,6 +26,7 @@ import type { Member, Option } from "@/features/expenses/contracts";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
 import { api, friendlyError } from "@/lib/api/client";
 import type { Installment, Plan } from "./contracts";
+import { RecurringPlans } from "./recurring-plans";
 
 type View = "emis" | "emi-plan" | "scheduled";
 type Scheduled = {
@@ -79,6 +80,7 @@ function statusLabel(status: string) {
         conversion_needed: "Conversion needed",
         pending_processing: "Pending daily processing",
         review_required: "Review required",
+        due_confirmation: "Confirm payment",
       } as Record<string, string>
     )[status] ?? status
   );
@@ -89,7 +91,8 @@ function statusStyle(status: string) {
     : status === "unpaid" ||
         status === "skipped" ||
         status === "conversion_needed" ||
-        status === "review_required"
+        status === "review_required" ||
+        status === "due_confirmation"
       ? "bg-[var(--error-bg)] text-[var(--error)]"
       : "bg-[var(--surface-2)] text-[var(--muted)]";
 }
@@ -104,12 +107,14 @@ export function PhaseFourScreen({
   planId: string | null;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { read, invalidate } = useWorkspaceData();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<Plan | null>(null);
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [installmentCursor, setInstallmentCursor] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState<Scheduled[]>([]);
+  const scheduledTab = searchParams.get("tab") === "recurring" ? "recurring" : "upcoming";
   const [options, setOptions] = useState<{
     categories: Option[];
     accounts: Option[];
@@ -146,9 +151,19 @@ export function PhaseFourScreen({
   });
   const mutationKey = useRef<string | null>(null);
 
+  function chooseScheduledTab(tab: "upcoming" | "recurring") {
+    router.replace(
+      `${page(bucket.id, "scheduled")}${tab === "recurring" ? "&tab=recurring" : ""}`,
+      { scroll: false },
+    );
+  }
+
   const load = useCallback(async () => {
     setError("");
     try {
+      if (view === "scheduled" && scheduledTab === "recurring") {
+        return;
+      }
       if (view === "scheduled") {
         const result = await read<Scheduled[]>(`buckets/${bucket.id}/scheduled-expenses`);
         setScheduled(result.data);
@@ -169,7 +184,7 @@ export function PhaseFourScreen({
     } finally {
       setLoading(false);
     }
-  }, [bucket.id, planId, read, view]);
+  }, [bucket.id, planId, read, view, scheduledTab]);
 
   async function loadMoreInstallments() {
     if (!planId || !installmentCursor || busy) return;
@@ -474,13 +489,33 @@ export function PhaseFourScreen({
         </div>
         <p className="col-span-2 max-w-2xl text-xs leading-5 text-[var(--muted)]">
           {view === "scheduled"
-            ? "Future commitments stay separate from spending until the daily run records them."
+            ? "Future commitments stay separate from spending until recorded or confirmed."
             : "Track installments and unpaid commitments before they become spending."}
         </p>
       </div>
       {error && <Notice>{error}</Notice>}
+      {view === "scheduled" && (
+        <div className="flex gap-2 border-b border-[var(--line)] pb-2">
+          <button
+            type="button"
+            className={`${scheduledTab === "upcoming" ? primary : secondary}`}
+            onClick={() => chooseScheduledTab("upcoming")}
+          >
+            Upcoming
+          </button>
+          <button
+            type="button"
+            className={`${scheduledTab === "recurring" ? primary : secondary}`}
+            onClick={() => chooseScheduledTab("recurring")}
+          >
+            Recurring
+          </button>
+        </div>
+      )}
       {loading ? (
         <Pending label="Loading scheduled spending…" layout="workspace" />
+      ) : view === "scheduled" && scheduledTab === "recurring" ? (
+        <RecurringPlans bucket={bucket} />
       ) : view === "scheduled" ? (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-2">
@@ -505,7 +540,9 @@ export function PhaseFourScreen({
               label="Needs attention"
               value={String(
                 scheduled.filter((item) =>
-                  ["conversion_needed", "review_required"].includes(item.status),
+                  ["conversion_needed", "review_required", "due_confirmation"].includes(
+                    item.status,
+                  ),
                 ).length,
               )}
               detail="Resolve before posting"
@@ -524,7 +561,11 @@ export function PhaseFourScreen({
                       <p className="text-sm font-semibold">{item.description}</p>
                       <p className="mt-1 text-xs text-[var(--muted)]">
                         {dateLabel(item.expenseDate)} ·{" "}
-                        {item.sourceKind === "emi" ? "EMI installment" : "Manual expense"}
+                        {item.sourceKind === "emi"
+                          ? "EMI installment"
+                          : item.sourceKind === "recurring"
+                            ? "Recurring payment"
+                            : "Manual expense"}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -534,7 +575,14 @@ export function PhaseFourScreen({
                         {statusLabel(item.status)}
                       </span>
                       <strong className="text-sm">{money(item.amount, item.currency)}</strong>
-                      {item.status === "review_required" && item.canResolve ? (
+                      {item.sourceKind === "recurring" ? (
+                        <button
+                          className={secondary}
+                          onClick={() => chooseScheduledTab("recurring")}
+                        >
+                          Manage plan <ArrowRight size={13} />
+                        </button>
+                      ) : item.status === "review_required" && item.canResolve ? (
                         <button
                           className={secondary}
                           onClick={() => {
@@ -560,7 +608,7 @@ export function PhaseFourScreen({
                 ))}
               </div>
             ) : (
-              <Empty text="No scheduled expenses yet. Future-dated entries and EMI installments appear here." />
+              <Empty text="No scheduled expenses yet. Future-dated entries, recurring payments, and EMI installments appear here." />
             )}
           </section>
         </>

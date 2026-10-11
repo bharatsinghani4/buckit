@@ -57,6 +57,12 @@ import {
   previewPlan,
 } from "@/features/scheduling/service";
 import {
+  changeRecurringPlan,
+  confirmRecurringPayment,
+  createRecurringPlan,
+  listRecurringPlans,
+} from "@/features/scheduling/recurring-service";
+import {
   getNotificationPreferences,
   updateNotificationPreferences,
 } from "@/features/notifications/preferences-service";
@@ -510,6 +516,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       data = await spendingReport(identity, path.split("/")[1], url.searchParams);
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/scheduled-expenses$/i.test(path))
       data = await listScheduled(identity, path.split("/")[1]);
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/recurring-plans$/i.test(path))
+      data = await listRecurringPlans(identity, path.split("/")[1]);
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/emi-plans$/i.test(path))
       data = await listPlans(identity, path.split("/")[1], url.searchParams.get("state"));
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}$/i.test(path))
@@ -597,9 +605,10 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           (path === "me/bootstrap" ||
             path === "buckets" ||
             path === "invitations/join" ||
-            /^buckets\/[a-f\d]{24}\/(invitations|expenses|budgets|emi-plans|options\/(accounts|categories|platforms))$/i.test(
+            /^buckets\/[a-f\d]{24}\/(invitations|expenses|budgets|emi-plans|recurring-plans|options\/(accounts|categories|platforms))$/i.test(
               path,
             ) ||
+            /^buckets\/[a-f\d]{24}\/recurring-plans\/[a-f\d]{24}\/confirm$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/end$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/installments\/[a-f\d]{24}\/(skip|reschedule)$/i.test(
               path,
@@ -612,7 +621,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
             ))) ||
         (method === "PATCH" &&
           (path === "me" ||
-            /^buckets\/[a-f\d]{24}\/(budgets\/[a-f\d]{24}|emi-plans\/[a-f\d]{24}|expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
+            /^buckets\/[a-f\d]{24}\/(budgets\/[a-f\d]{24}|emi-plans\/[a-f\d]{24}|recurring-plans\/[a-f\d]{24}|expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
               path,
             ))) ||
         (method === "DELETE" &&
@@ -657,6 +666,26 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         );
       else if (parts[2] === "emi-plans" && parts.length === 3 && method === "POST")
         result = await createPlan(identity, bucketId, body, key);
+      else if (parts[2] === "recurring-plans" && parts.length === 3 && method === "POST")
+        result = await createRecurringPlan(identity, bucketId, body, key);
+      else if (parts[2] === "recurring-plans" && parts.length === 4 && method === "PATCH")
+        result = await changeRecurringPlan(
+          identity,
+          bucketId,
+          parts[3],
+          body,
+          key,
+          request.headers.get("if-match"),
+        );
+      else if (parts[2] === "recurring-plans" && parts[4] === "confirm" && method === "POST")
+        result = await confirmRecurringPayment(
+          identity,
+          bucketId,
+          parts[3],
+          body,
+          key,
+          request.headers.get("if-match"),
+        );
       else if (parts[2] === "emi-plans" && parts.length === 4 && method === "PATCH")
         result = await changePlan(
           identity,

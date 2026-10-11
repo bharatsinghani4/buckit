@@ -67,7 +67,20 @@ export async function processDueReminders(limit = 30) {
               entityType: "reminder",
               entityId: reminder._id,
               occurredAt: now,
-              context: { recipientUserId: String(reminder.userId) },
+              context: {
+                recipientUserId: String(reminder.userId),
+                message:
+                  reminder.message ||
+                  (
+                    {
+                      add_expenses: "Add your recent expenses to Buckit.",
+                      funds: "Check that your payment account has enough money.",
+                      pay: "A planned payment is due.",
+                      review_budget: "Review your budget and remaining amount.",
+                    } as Record<string, string>
+                  )[reminder.purpose ?? "add_expenses"] ||
+                  "Your Buckit reminder is due.",
+              },
             },
           },
           { session, upsert: true },
