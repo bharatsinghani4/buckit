@@ -8,6 +8,7 @@ import "@fontsource-variable/fraunces/standard-italic.css";
 import { AuthProvider } from "@/features/identity/auth-provider";
 import { SkipLink } from "@/components/skip-link";
 import { InstallPrompt } from "@/components/install-prompt";
+import { OpeningSplash } from "@/components/opening-splash";
 
 export const metadata: Metadata = {
   title: "Buckit",
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     >
       <body className="m-0 bg-[var(--canvas)] font-['Plus_Jakarta_Sans_Variable',Arial,sans-serif] text-base leading-[1.6] text-[var(--ink)] antialiased max-[767px]:[&_input]:!text-base max-[767px]:[&_select]:!text-base max-[767px]:[&_textarea]:!text-base">
         <Script src="/theme-init.js" strategy="beforeInteractive" />
+        <OpeningSplash />
         <SkipLink />
         <AuthProvider>
           {children}

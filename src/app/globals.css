@@ -20,6 +20,7 @@
   --shadow: 0 4px 24px #172f2806;
   --button-primary: #193a2e;
   --button-primary-text: #fff;
+  --splash-rush: #34d399;
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -37,6 +38,7 @@
   --shadow: 0 4px 18px #00000018;
   --button-primary: #a8e6c2;
   --button-primary-text: #17251e;
+  --splash-rush: #226950;
 }
 @layer base {
   button,
@@ -124,5 +126,248 @@
   }
   50% {
     transform: translateY(-4px) scale(1.04);
+  }
+}
+
+.opening-splash {
+  animation: opening-splash-fallback 3s forwards;
+}
+
+.opening-scene {
+  animation: opening-scene-out 2.7s both;
+}
+
+.opening-wash {
+  transform: translateX(-145%) skewX(-12deg);
+}
+
+.opening-wash-mint {
+  animation: opening-wash-in 2.7s cubic-bezier(0.7, 0, 0.2, 1) both;
+}
+
+.opening-wash-return {
+  animation: opening-wash-back 2.7s cubic-bezier(0.7, 0, 0.2, 1) both;
+}
+
+.opening-mark {
+  animation: opening-mark-arrive 2.7s both;
+}
+
+.opening-mark .opening-tile,
+.opening-mark .opening-left-face,
+.opening-mark .opening-right-face,
+.opening-mark .opening-lid {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.opening-mark .opening-tile {
+  animation: opening-tile-in 2.7s both;
+}
+
+.opening-mark .opening-left-face {
+  animation: opening-face-left 2.7s both;
+}
+
+.opening-mark .opening-right-face {
+  animation: opening-face-right 2.7s both;
+}
+
+.opening-mark .opening-lid {
+  animation: opening-lid-in 2.7s both;
+}
+
+.opening-word {
+  animation: opening-word-in 2.7s both;
+}
+
+.opening-it {
+  animation: opening-it-color 2.7s both;
+}
+
+@keyframes opening-splash-fallback {
+  0%,
+  99% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+@keyframes opening-wash-in {
+  0%,
+  4% {
+    transform: translateX(-145%) skewX(-12deg);
+  }
+  34%,
+  100% {
+    transform: translateX(0) skewX(-12deg);
+  }
+}
+
+@keyframes opening-wash-back {
+  0%,
+  55% {
+    transform: translateX(-145%) skewX(-12deg);
+  }
+  86%,
+  100% {
+    transform: translateX(0) skewX(-12deg);
+  }
+}
+
+@keyframes opening-mark-arrive {
+  0%,
+  12% {
+    transform: scale(0.68) rotate(-18deg);
+    opacity: 0;
+  }
+  38% {
+    transform: scale(1.06) rotate(2deg);
+    opacity: 1;
+  }
+  49%,
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+@keyframes opening-tile-in {
+  0%,
+  15% {
+    transform: scale(0.72);
+    opacity: 0;
+  }
+  38%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes opening-face-left {
+  0%,
+  23% {
+    transform: translate(-24px, 14px) rotate(-16deg);
+    opacity: 0;
+  }
+  49%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes opening-face-right {
+  0%,
+  27% {
+    transform: translate(24px, 14px) rotate(16deg);
+    opacity: 0;
+  }
+  53%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes opening-lid-in {
+  0%,
+  34% {
+    transform: translateY(-28px) rotate(-12deg);
+    opacity: 0;
+  }
+  56% {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+  63% {
+    transform: translateY(-5px);
+  }
+  72%,
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes opening-word-in {
+  0%,
+  33% {
+    clip-path: inset(0 100% 0 0);
+    transform: translateY(18px);
+    color: #fff;
+    opacity: 0;
+  }
+  60% {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+    color: #fff;
+    opacity: 1;
+  }
+  83%,
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+    color: var(--ink);
+    opacity: 1;
+  }
+}
+
+@keyframes opening-it-color {
+  0%,
+  60% {
+    color: #fff;
+  }
+  83%,
+  100% {
+    color: var(--mint);
+  }
+}
+
+@keyframes opening-scene-out {
+  0%,
+  89% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opening-splash {
+    animation-duration: 300ms;
+  }
+
+  .opening-scene,
+  .opening-mark,
+  .opening-mark .opening-tile,
+  .opening-mark .opening-left-face,
+  .opening-mark .opening-right-face,
+  .opening-mark .opening-lid,
+  .opening-word,
+  .opening-it {
+    animation: none !important;
+    clip-path: none;
+    transform: none;
+    opacity: 1;
+  }
+
+  .opening-wash {
+    display: none;
+  }
+
+  .opening-word {
+    color: var(--ink);
+  }
+
+  .opening-it {
+    color: var(--mint);
   }
 }
