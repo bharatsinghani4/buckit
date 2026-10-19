@@ -34,7 +34,7 @@ const filters = z
     accountId: objectId.optional(),
     platformId: objectId.optional(),
     paidByUserId: objectId.optional(),
-    paymentMode: z.enum(["upi", "cash", "neft", "imps", "credit_card"]).optional(),
+    paymentMode: z.enum(["upi", "cash", "neft", "imps", "credit_card", "auto_debit"]).optional(),
     q: z.string().trim().max(100).optional(),
     status: z
       .enum(["scheduled", "conversion_needed", "archive_review", "actual", "pending_processing"])

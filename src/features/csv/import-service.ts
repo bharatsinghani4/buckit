@@ -15,7 +15,7 @@ import {
   UserModel,
 } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
-import { expenseInput, type ExpenseInput } from "@/features/expenses/contracts";
+import { expenseInput, paymentModes, type ExpenseInput } from "@/features/expenses/contracts";
 import { conversionFor, validateReferences } from "@/features/expenses/service";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { dueInstant, localDate } from "@/features/scheduling/dates";
@@ -114,9 +114,9 @@ function initialMapping(headers: string[]) {
   );
 }
 function strictDate(value: string) {
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value.trim());
   if (!match) return null;
-  const iso = `${match[3]}-${match[2]}-${match[1]}`;
+  const iso = `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
   const date = new Date(`${iso}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso ? null : iso;
 }
@@ -179,7 +179,7 @@ export async function importGuidance(identity: DecodedIdToken, bucketId: string)
     maxBytes: 5 * 1024 * 1024,
     maxRows: 5000,
     chunkMaxBytes: 512 * 1024,
-    dateFormat: "DD/MM/YYYY",
+    dateFormat: "D/M/YYYY or DD/MM/YYYY",
     acknowledgments: ["defaults", "ignored_comments", "duplicates", "conversion"],
     isOwner: choices.isOwner,
     currentMembers: choices.members,
@@ -187,10 +187,10 @@ export async function importGuidance(identity: DecodedIdToken, bucketId: string)
     options: choices.options,
     rules: [
       "Blank Currency uses the bucket currency; Platform uses Other; Added By uses you; Notes is empty.",
-      "Date, Description and nonzero Amount are required. Resolve a current or former bucket payer, category, bank account and payment mode before import.",
+      "Date (D/M/YYYY or DD/MM/YYYY), Description and nonzero Amount are required. Resolve a current or former bucket payer, category, bank account and payment mode before import.",
       "Negative amounts are credits. Future dates become scheduled entries. Conversion may remain unresolved.",
       "Comments are ignored and Status is derived. You always own imported entries.",
-      "Only bucket owners can attribute Added By to another current or former member or create reference options.",
+      "Only bucket owners can attribute Added By to another current or former member. Missing categories, accounts and platforms are proposed for owner approval in the preview.",
       "Duplicate warnings require an explicit include or skip choice; import creates no notifications.",
     ],
   };
@@ -318,7 +318,7 @@ export async function resolveImport(
       await bucketForUser(bucketId, user, session, true);
       assertRevision(revision, item.revision);
       if (item.state !== "preview") throw stale();
-      if (input.proposedOptions?.length) {
+      if (input.proposedOptions !== undefined) {
         const bucket = await BucketModel.findById(bucketId).session(session);
         if (String(bucket.ownerUserId) !== String(user._id))
           throw new ApiError(
@@ -326,6 +326,15 @@ export async function resolveImport(
             "FORBIDDEN",
             "Only the bucket owner can create reference options.",
           );
+        const autoKeys = new Set(
+          (item.autoProposedOptions ?? []).map(
+            (option: { kind: string; name: string }) =>
+              `${option.kind}:${option.name.toLowerCase()}`,
+          ),
+        );
+        item.manualProposedOptions = input.proposedOptions.filter(
+          (option) => !autoKeys.has(`${option.kind}:${option.name.toLowerCase()}`),
+        );
         item.proposedOptions = input.proposedOptions;
       }
       if (input.mapping) {
@@ -367,6 +376,7 @@ type ValidationContext = {
   members: { id: string; name: string }[];
   formerMembers: { id: string; name: string }[];
   options: { id: string; kind: string; name: string; systemKey?: string }[];
+  archivedOptions: { kind: string; name: string }[];
   proposed: { kind: string; name: string }[];
 };
 async function context(
@@ -380,7 +390,7 @@ async function context(
   const people = await UserModel.find({
     _id: { $in: [userId, ...memberships.map((row) => row.userId)] },
   }).session(session ?? null);
-  const options = await OptionModel.find({ bucketId, state: "active" }).session(session ?? null);
+  const options = await OptionModel.find({ bucketId }).session(session ?? null);
   return {
     userId,
     isOwner: String(bucket.ownerUserId) === userId,
@@ -394,14 +404,31 @@ async function context(
       )
       .map((row) => ({ id: String(row._id), name: row.displayName })),
     formerMembers: people.map((row) => ({ id: String(row._id), name: row.displayName })),
-    options: options.map((row) => ({
-      id: String(row._id),
-      kind: row.kind,
-      name: row.name,
-      systemKey: row.systemKey,
-    })),
+    options: options
+      .filter((row) => row.state === "active")
+      .map((row) => ({
+        id: String(row._id),
+        kind: row.kind,
+        name: row.name,
+        systemKey: row.systemKey,
+      })),
+    archivedOptions: options
+      .filter((row) => row.state === "archived")
+      .map((row) => ({
+        kind: row.kind,
+        name: row.name,
+      })),
     proposed,
   };
+}
+function memberMatches(value: string, members: ValidationContext["formerMembers"]) {
+  const exact = members.filter(
+    (member) => member.id === value || member.name.toLowerCase() === value.toLowerCase(),
+  );
+  if (exact.length) return exact;
+  return members.filter(
+    (member) => member.name.split(/\s+/)[0]?.toLowerCase() === value.toLowerCase(),
+  );
 }
 function normalize(
   row: InstanceType<typeof ImportRowModel>,
@@ -419,18 +446,16 @@ function normalize(
   const warnings: string[] = [];
   const defaults: string[] = [];
   const date = strictDate(cell("Date"));
-  if (!date) errors.push("Date must be a real DD/MM/YYYY date.");
+  if (!date) errors.push("Date must be a real D/M/YYYY or DD/MM/YYYY date.");
   const description = cell("Description");
   if (!description) errors.push("Description is required.");
-  const amount = cell("Amount");
+  const amount = cell("Amount").replace(/,(?=\d{3}(?:,\d{3})*(?:\.|$))/g, "");
   if (!/^-?(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(amount) || Number(amount) === 0)
     errors.push("Amount must be a nonzero value with up to two decimals.");
   const currency = cell("Currency") || ctx.bucketCurrency;
   if (!cell("Currency")) defaults.push("Currency");
   const payerText = cell("PaidBy");
-  const payerMatches = ctx.formerMembers.filter(
-    (member) => member.id === payerText || member.name.toLowerCase() === payerText.toLowerCase(),
-  );
+  const payerMatches = memberMatches(payerText, ctx.formerMembers);
   if (payerMatches.length !== 1)
     errors.push("Choose a current or former, unambiguous PaidBy member.");
   const reference = (kind: string, header: string, fallback?: string) => {
@@ -455,19 +480,18 @@ function normalize(
   const accountId = reference("account", "Bank Account");
   const platformId = reference("platform", "Platform", "Other");
   const mode = cell("Payment Mode").toLowerCase().replace(/[ -]/g, "_");
-  if (!["upi", "cash", "neft", "imps", "credit_card"].includes(mode))
+  if (!(paymentModes as readonly string[]).includes(mode))
     errors.push("Choose a valid Payment Mode.");
   const addedBy = cell("Added By");
+  const addedByMatches = addedBy ? memberMatches(addedBy, ctx.formerMembers) : [];
   if (!addedBy) defaults.push("Added By");
-  if (addedBy && addedBy !== ctx.userId && !ctx.isOwner)
-    errors.push("Only the bucket owner can choose another Added By member.");
   if (
     addedBy &&
-    ctx.isOwner &&
-    !ctx.formerMembers.some(
-      (person) => person.id === addedBy || person.name.toLowerCase() === addedBy.toLowerCase(),
-    )
+    !ctx.isOwner &&
+    (addedByMatches.length !== 1 || addedByMatches[0].id !== ctx.userId)
   )
+    errors.push("Only the bucket owner can choose another Added By member.");
+  if (addedBy && ctx.isOwner && addedByMatches.length !== 1)
     errors.push("Choose a current or former Added By member.");
   if (cell("Comments")) warnings.push("Comments are ignored.");
   if (cell("Status")) warnings.push("Status is derived from the expense state.");
@@ -492,11 +516,7 @@ function normalize(
     errors: [...new Set(errors)],
     warnings,
     defaultsApplied: defaults,
-    addedByUserId: addedBy
-      ? (ctx.formerMembers.find(
-          (person) => person.id === addedBy || person.name.toLowerCase() === addedBy.toLowerCase(),
-        )?.id ?? ctx.userId)
-      : ctx.userId,
+    addedByUserId: addedBy ? (addedByMatches[0]?.id ?? ctx.userId) : ctx.userId,
   };
 }
 async function rowPreview(
@@ -614,7 +634,48 @@ export async function validateImport(
     requiredColumns.some((name) => item.mapping?.get(name) === undefined)
   )
     throw new ApiError(422, "IMPORT_INCOMPLETE", "Stage all rows and map every required column.");
-  const ctx = await context(bucketId, String(user._id), item.proposedOptions ?? []);
+  const manualProposals = item.manualProposedOptions?.length
+    ? item.manualProposedOptions
+    : item.autoProposedOptions?.length
+      ? []
+      : (item.proposedOptions ?? []);
+  const ctx = await context(bucketId, String(user._id), manualProposals);
+  if (ctx.isOwner) {
+    const mapping = Object.fromEntries(item.mapping ?? []) as Record<string, number>;
+    const proposals = [...ctx.proposed];
+    const automatic: ValidationContext["proposed"] = [];
+    for (const row of rows) {
+      if (row.excluded || row.duplicateDecision === "skip") continue;
+      const cell = (name: string) =>
+        (row.corrections?.get(name) ?? row.cells[mapping[name]] ?? "").trim();
+      // Never create reference options from blank rows, totals, or malformed expenses.
+      if (!strictDate(cell("Date")) || !cell("Description") || !cell("Amount")) continue;
+      for (const [kind, header] of [
+        ["category", "Category"],
+        ["account", "Bank Account"],
+        ["platform", "Platform"],
+      ] as const) {
+        const name = cell(header) || (kind === "platform" ? "Other" : "");
+        if (!name || name.length > 80 || id.safeParse(name).success) continue;
+        const key = name.toLowerCase();
+        if (
+          ctx.options.some((option) => option.kind === kind && option.name.toLowerCase() === key) ||
+          ctx.archivedOptions.some(
+            (option) => option.kind === kind && option.name.toLowerCase() === key,
+          ) ||
+          proposals.some((option) => option.kind === kind && option.name.toLowerCase() === key)
+        )
+          continue;
+        if (proposals.length < 50) {
+          proposals.push({ kind, name });
+          automatic.push({ kind, name });
+        }
+      }
+    }
+    ctx.proposed = proposals;
+    item.proposedOptions = proposals;
+    item.autoProposedOptions = automatic;
+  }
   const normalized = rows
     .map((row) => normalize(row, item, ctx).normalized)
     .filter((value): value is ExpenseInput => Boolean(value));
@@ -670,6 +731,7 @@ export async function validateImport(
       row.duplicateDecision,
       row.excluded,
     ]),
+    proposedOptions: ctx.proposed,
   });
   await ImportRowModel.bulkWrite(
     previews.map((preview, index) => ({
@@ -695,6 +757,7 @@ export async function validateImport(
     rows: previews.slice(0, 50),
     hasMore: previews.length > 50,
     warnings: ["Import creates no notifications, including budget threshold alerts."],
+    proposedOptions: ctx.proposed,
   };
 }
 export async function listImportRows(

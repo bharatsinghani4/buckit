@@ -8,7 +8,7 @@ export const optionKinds = {
   platforms: "platform",
 } as const;
 export type OptionKind = keyof typeof optionKinds;
-export const paymentModes = ["upi", "cash", "neft", "imps", "credit_card"] as const;
+export const paymentModes = ["upi", "cash", "neft", "imps", "credit_card", "auto_debit"] as const;
 export const amountSchema = z.string().regex(/^-?(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/);
 export const expenseInput = z
   .object({

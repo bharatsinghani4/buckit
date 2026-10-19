@@ -142,7 +142,7 @@ On voluntary departure, removal, or user-account deletion, remove that actual cr
 | Added By     | Automatic for manual entry; imported attribution rules apply                  |
 | Category     | Required; exactly one category                                                |
 | Platform     | Always populated; defaults to Other                                           |
-| Payment Mode | Required: UPI, Cash, NEFT, IMPS, or Credit Card                               |
+| Payment Mode | Required: UPI, Cash, NEFT, IMPS, Credit Card, or Auto Debit                   |
 | Account      | Required; selected bucket account                                             |
 | Amount       | Required nonzero monetary amount; positive spending or negative credit/refund |
 | Currency     | Defaults to bucket primary currency; supported alternatives allowed           |
@@ -301,12 +301,12 @@ Preserve these column names and order:
 
 | Column       | Import/export behavior                                                                                                                       |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Date         | DD/MM/YYYY; required; future dates create scheduled entries                                                                                  |
+| Date         | D/M/YYYY or DD/MM/YYYY; required; future dates create scheduled entries                                                                      |
 | Description  | Required expense description                                                                                                                 |
 | PaidBy       | Resolve to a member of the selected bucket                                                                                                   |
 | Category     | Resolve to a category; owner can create after preview                                                                                        |
 | Platform     | Default Other if missing/blank; owner can create after preview                                                                               |
-| Payment Mode | Required valid method, supplied in file or resolved before import                                                                            |
+| Payment Mode | Required valid method, including Auto Debit, supplied in file or resolved before import                                                      |
 | Bank Account | Maps to Account; owner can create after preview                                                                                              |
 | Amount       | Required original-currency amount                                                                                                            |
 | Currency     | Default bucket currency if missing/blank                                                                                                     |
@@ -330,7 +330,7 @@ Preserve these column names and order:
 2. Show concise import guidance explaining all defaults and blank-value behavior, required fields, date format, ownership, currency conversion, negative amounts, scheduling, ignored Comments, and derived Status.
 3. Parse and preview individual rows with clear validation errors and duplicate warnings.
 4. Resolve missing values and member/reference mappings. Allow assigning common required values to affected rows where appropriate.
-5. Show owner-only creation of missing accounts, categories, and platforms before confirmation.
+5. Propose owner-only creation of missing accounts, categories, and platforms in the preview; create them with the first committed batch after confirmation.
 6. Explicitly confirm which valid rows will be imported and which will be excluded; no silent row loss.
 7. Create separate normal expenses against their dates and show successes, skips, and errors on screen.
 

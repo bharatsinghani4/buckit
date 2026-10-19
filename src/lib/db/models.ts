@@ -142,7 +142,7 @@ const expenseSchema = new Schema(
     },
     paymentMode: {
       type: String,
-      enum: ["upi", "cash", "neft", "imps", "credit_card"],
+      enum: ["upi", "cash", "neft", "imps", "credit_card", "auto_debit"],
       required: true,
     },
     originalAmount: { type: Schema.Types.Decimal128, required: true },
@@ -541,6 +541,14 @@ const importSessionSchema = new Schema(
     headers: { type: [String], required: true },
     mapping: { type: Map, of: Number, default: {} },
     proposedOptions: {
+      type: [new Schema({ kind: String, name: String }, { _id: false })],
+      default: [],
+    },
+    autoProposedOptions: {
+      type: [new Schema({ kind: String, name: String }, { _id: false })],
+      default: [],
+    },
+    manualProposedOptions: {
       type: [new Schema({ kind: String, name: String }, { _id: false })],
       default: [],
     },

@@ -74,7 +74,7 @@ async function spending(
   }
   const paymentMode = filters.get("paymentMode");
   if (paymentMode) {
-    if (!["upi", "cash", "neft", "imps", "credit_card"].includes(paymentMode))
+    if (!["upi", "cash", "neft", "imps", "credit_card", "auto_debit"].includes(paymentMode))
       throw new ApiError(422, "INVALID_FILTER", "Choose a valid payment mode.");
     match.paymentMode = paymentMode;
   }
