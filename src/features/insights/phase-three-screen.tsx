@@ -897,6 +897,7 @@ export function PhaseThreeScreen({
                       { value: "neft", label: "NEFT" },
                       { value: "imps", label: "IMPS" },
                       { value: "credit_card", label: "Credit card" },
+                      { value: "auto_debit", label: "Auto debit" },
                     ]}
                   />
                 </div>

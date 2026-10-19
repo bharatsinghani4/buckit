@@ -77,6 +77,7 @@ type ImportPreview = {
   rows: ImportRow[];
   hasMore: boolean;
   warnings: string[];
+  proposedOptions: { kind: string; name: string }[];
 };
 type ExportPreview = {
   columns: string[];
@@ -215,7 +216,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     if (field === "Added By")
       return guidance.formerMembers.map((row) => ({ value: row.id, label: row.name }));
     if (field === "Payment Mode")
-      return ["upi", "cash", "neft", "imps", "credit_card"].map((value) => ({
+      return ["upi", "cash", "neft", "imps", "credit_card", "auto_debit"].map((value) => ({
         value,
         label: value.replaceAll("_", " "),
       }));
@@ -305,7 +306,22 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
         },
       );
       const headers = parsed.shift();
-      if (!headers || parsed.length === 0 || parsed.length > 5000)
+      // Spreadsheet exports commonly append empty rows and a grand-total footer.
+      const dataRows = parsed.filter((cells) => {
+        const nonempty = cells.map((cell) => cell.trim()).filter(Boolean);
+        if (nonempty.length === 0) return false;
+        const dateIndex =
+          headers?.findIndex((header) => header.trim().toLowerCase() === "date") ?? -1;
+        const descriptionIndex =
+          headers?.findIndex((header) => header.trim().toLowerCase() === "description") ?? -1;
+        const date = dateIndex >= 0 ? cells[dateIndex]?.trim() : "";
+        const description = descriptionIndex >= 0 ? cells[descriptionIndex]?.trim() : "";
+        return !(
+          date?.toLowerCase() === "total" ||
+          (!date && description?.toLowerCase() === "total")
+        );
+      });
+      if (!headers || dataRows.length === 0 || dataRows.length > 5000)
         throw new Error("The CSV needs a header and 1–5,000 expense rows.");
       if (headers.length > 50) throw new Error("The CSV has too many columns.");
       setBusyMessage("Creating the import preview…");
@@ -316,7 +332,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
             fileName: file.name,
             fileHash: hash,
             fileSize: file.size,
-            rowCount: parsed.length,
+            rowCount: dataRows.length,
             headers,
           },
           key: crypto.randomUUID(),
@@ -330,7 +346,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       async function sendChunk() {
         if (chunk.length === 0) return;
         setBusyMessage(
-          `Staging rows ${stagedRows + 1}–${stagedRows + chunk.length} of ${parsed.length}…`,
+          `Staging rows ${stagedRows + 1}–${stagedRows + chunk.length} of ${dataRows.length}…`,
         );
         current = (
           await api<ImportSession>(`${base}/${created.id}/chunks/${chunkNumber++}`, {
@@ -343,8 +359,8 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
         stagedRows += chunk.length;
         chunk = [];
       }
-      for (let index = 0; index < parsed.length; index++) {
-        const next = { rowNumber: index + 1, cells: parsed[index] };
+      for (let index = 0; index < dataRows.length; index++) {
+        const next = { rowNumber: index + 1, cells: dataRows[index] };
         const nextSize = new TextEncoder().encode(
           JSON.stringify({ rows: [...chunk, next] }),
         ).byteLength;
@@ -358,7 +374,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       setMapping(current.mapping);
       setFileName(file.name);
       setStep(1);
-      setNotice(`${parsed.length} rows staged. Check column mapping before validation.`);
+      setNotice(
+        `${dataRows.length} expense rows staged. ${parsed.length - dataRows.length} blank/total rows ignored. Check column mapping before validation.`,
+      );
       window.history.replaceState(
         null,
         "",
@@ -426,6 +444,11 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
         await api<ImportPreview>(`${base}/${current.id}/validate`, { method: "POST", body: {} })
       ).data;
       setPreview(result);
+      setSession((previous) =>
+        previous?.id === current.id
+          ? { ...previous, proposedOptions: result.proposedOptions }
+          : previous,
+      );
       setRows(result.rows);
       setRowCursor(result.hasMore ? "50" : null);
       setStep(2);
@@ -782,8 +805,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
             <section className={`${card} p-5 sm:p-6`}>
               <h2 className="text-base font-bold text-[var(--ink)]">Missing reference option?</h2>
               <p className="mb-4 mt-1 text-xs text-[var(--muted)]">
-                As the bucket owner, you can approve a new category, account, or platform for this
-                import. It is created with the first committed batch.
+                Missing categories, accounts, and platforms are added to this preview automatically.
+                You can add another here. They are created with the first committed batch after
+                confirmation.
               </p>
               <div className="flex flex-wrap items-end gap-3">
                 <label className="w-40">
@@ -815,12 +839,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                   {busyTarget === "proposal" && (
                     <LoaderCircle size={15} className="animate-spin" aria-hidden />
                   )}
-                  Approve option
+                  Add to preview
                 </button>
               </div>
               {Boolean(session.proposedOptions?.length) && (
                 <p className="mt-3 text-xs text-[var(--muted)]">
-                  Approved:{" "}
+                  Will be created when you confirm this import:{" "}
                   {session
                     .proposedOptions!.map((option) => `${option.name} (${option.kind})`)
                     .join(", ")}
@@ -1019,8 +1043,8 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                   checked={ack}
                   onChange={(event) => setAck(event.target.checked)}
                 />
-                I understand these defaults, ignored fields, duplicate choices, and conversion
-                limits.
+                I approve the listed new options and understand these defaults, ignored fields,
+                duplicate choices, and conversion limits.
               </label>
               <button
                 className={`${controls.primary} mt-4`}

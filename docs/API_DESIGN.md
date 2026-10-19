@@ -49,7 +49,7 @@ For an inaccessible bucket/contact or an ID from another bucket, return `404 RES
 - JSON uses camelCase and `Content-Type: application/json`.
 - IDs are opaque strings in responses; database ObjectIds are serialized as strings.
 - Monetary amounts, exchange rates, percentages, and calculated money are decimal strings, never JSON numbers. Counts and revisions are integers.
-- Calendar dates are `YYYY-MM-DD`; timestamps are UTC ISO 8601 strings. CSV dates alone use `DD/MM/YYYY`.
+- Calendar dates are `YYYY-MM-DD`; timestamps are UTC ISO 8601 strings. CSV import dates use `D/M/YYYY` or `DD/MM/YYYY`.
 - Reporting ranges use `from` inclusive and `toExclusive` exclusive. Convert the UI's inclusive end date before calling.
 - Currency defaults to the bucket currency where specified. Missing account, payer, category, payment mode, date, description, or amount cannot be invented.
 - PATCH uses an explicit allowlist. Omitted fields are unchanged. `null` clears only documented optional fields; required fields reject null.
@@ -461,10 +461,10 @@ Guidance explicitly states:
 
 - Missing/blank Currency uses bucket currency; Platform uses Other; Added By uses importer; Notes is empty.
 - Missing Date, Description, or Amount is an error. Missing payer/account/category/payment mode must be resolved before acceptance.
-- DD/MM/YYYY date parsing is strict. Negative credits and future scheduling are supported; zero original amount is not.
+- D/M/YYYY and DD/MM/YYYY dates are parsed strictly. Grouped thousands in Amount, negative credits, and future scheduling are supported; zero original amount is not.
 - Comments is ignored with a warning. Status may be left blank on import; any supplied value is ignored with a warning because status is derived from the expense state.
-- Importer always owns entries. Only bucket owner may select another current/former member for Added By or create missing reference options.
-- Ambiguous/unknown member names require explicit mapping. Do not create members automatically.
+- Importer always owns entries. Only bucket owner may select another current/former member for Added By or approve creation of missing category, account, and platform options proposed by validation. Options are created with the first committed batch, never during preview.
+- An exact member name or unique first name resolves to a current/former bucket member. Ambiguous/unknown names require explicit mapping. Do not create members automatically.
 - Duplicate warnings require a deliberate include/skip decision; identical legitimate purchases are possible.
 - Conversion can be unavailable; accepted unresolved entries are shown as needing conversion, not silently skipped or given zero equivalents.
 - No import/export notifications, including import-caused budget threshold alerts.

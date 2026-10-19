@@ -55,6 +55,7 @@ const paymentModes = [
   { value: "neft", label: "NEFT" },
   { value: "imps", label: "IMPS" },
   { value: "credit_card", label: "Credit card" },
+  { value: "auto_debit", label: "Auto debit" },
 ];
 const card =
   "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] min-[768px]:max-[1199px]:p-4";

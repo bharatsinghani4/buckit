@@ -14,6 +14,7 @@ import {
   ContactShareModel,
   LifecycleOperationModel,
   NotificationModel,
+  OptionModel,
 } from "@/lib/db/models";
 import { generateInstallments, processDaily } from "@/features/scheduling/service";
 import { processDueReminders } from "@/features/notifications/reminder-worker";
@@ -496,6 +497,106 @@ describe("Phase 6 contacts and CSV", () => {
     ).toBe(204);
     expect((await request("GET", `contacts/${contactId}`, member)).response.status).toBe(404);
     expect(String(ownerId)).not.toBe(String(memberId));
+  });
+
+  it("previews and creates CSV reference options while accepting source date, amount, member and mode", async () => {
+    const actor = "csvautocreate";
+    await request("POST", "me/bootstrap", actor, {});
+    const user = (await UserModel.findOne({ firebaseUid: actor }))!;
+    user.displayName = "Bharat Singhani";
+    await user.save();
+    const bucket = await request("POST", "buckets", actor, {
+      name: "CSV Auto Create",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const headers = [
+      "Date",
+      "Description",
+      "PaidBy",
+      "Category",
+      "Platform",
+      "Payment Mode",
+      "Bank Account",
+      "Amount",
+      "Currency",
+      "Added By",
+    ];
+    const created = await request("POST", `${root}/imports`, actor, {
+      fileName: "april.csv",
+      fileHash: "d".repeat(64),
+      fileSize: 300,
+      rowCount: 1,
+      headers,
+    });
+    const importId = created.payload.data.id;
+    const staged = await request(
+      "PUT",
+      `${root}/imports/${importId}/chunks/0`,
+      actor,
+      {
+        rows: [
+          {
+            rowNumber: 1,
+            cells: [
+              "1/4/2026",
+              "April bill",
+              "Bharat",
+              "Bills",
+              "Finance App",
+              "Auto Debit",
+              "ICICI",
+              "5,522.77",
+              "INR",
+              "Bharat",
+            ],
+          },
+        ],
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(staged.response.status, JSON.stringify(staged.payload)).toBe(200);
+    const preview = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
+    expect(preview.response.status, JSON.stringify(preview.payload)).toBe(200);
+    expect(preview.payload.data.counts.ready).toBe(1);
+    expect(preview.payload.data.proposedOptions).toEqual([
+      { kind: "category", name: "Bills" },
+      { kind: "account", name: "ICICI" },
+      { kind: "platform", name: "Finance App" },
+    ]);
+    expect(
+      await OptionModel.countDocuments({
+        bucketId: bucket.payload.data.id,
+        name: { $in: ["Bills", "ICICI", "Finance App"] },
+      }),
+    ).toBe(0);
+    const confirmed = await request(
+      "POST",
+      `${root}/imports/${importId}/confirm`,
+      actor,
+      {
+        previewDigest: preview.payload.data.previewDigest,
+        acknowledgments: ["defaults", "ignored_comments", "duplicates", "conversion"],
+      },
+      { "If-Match": staged.response.headers.get("ETag")! },
+    );
+    expect(confirmed.response.status, JSON.stringify(confirmed.payload)).toBe(200);
+    const committed = await request("POST", `${root}/imports/${importId}/commit-next`, actor, {});
+    expect(committed.response.status, JSON.stringify(committed.payload)).toBe(200);
+    expect(committed.payload.data.committed).toBe(1);
+    const expense = await ExpenseModel.findOne({ originKey: `import:${importId}:1` });
+    expect(expense?.expenseDate).toBe("2026-04-01");
+    expect(expense?.originalAmount.toString()).toBe("5522.77");
+    expect(expense?.paymentMode).toBe("auto_debit");
+    expect(String(expense?.paidByUserId)).toBe(String(user._id));
+    expect(String(expense?.addedByUserId)).toBe(String(user._id));
+    expect(
+      await OptionModel.countDocuments({
+        bucketId: bucket.payload.data.id,
+        name: { $in: ["Bills", "ICICI", "Finance App"] },
+      }),
+    ).toBe(3);
   });
 
   it("stages and commits one CSV row, exports a completed snapshot, and rejects a changed revision", async () => {
