@@ -6,6 +6,8 @@ Update this file with each development phase or significant fix. Record what cha
 
 ## Completed
 
+- Historical EMI production release (19 October 2026): committed the reviewed changes on `dev` as `a748f90`, merged into `main` as `f065ef6`, and pushed both branches. Vercel reported deployment success. Live read-only checks returned HTTP 200 for the homepage, sign-in page, and JavaScript messaging worker, while unauthenticated `/api/v1/me` and the EMI plan API returned Buckit JSON 401 responses. The authenticated EMI form, dashboard state after direct database plan deletion, and financial records were not changed or verified in production.
+
 - EMI visibility review fix (19 October 2026): reviewed the uncommitted EMI plan, dashboard, expense-list, scheduled-list, and export changes. Restored the dashboard's active-plan count to count only `active` plans; the broader live-plan ID set still keeps `owner_departed` plan expenses visible. Added an HTTP regression assertion for that state. Prettier, ESLint, TypeScript, all 90 tests, and the Webpack production build passed. Production deployment and authenticated live verification remain pending for this change.
 
 - EMI plan clarity (19 October 2026): Paid Installments now has an info icon that reveals its explanation on hover, keyboard focus, or tap, with outside-click dismissal. Plan cards show one equally spaced bar per installment, with separate paid and remaining colors. Setting Paid Installments to the count of historical CSV entries skips generation of those installment numbers; the current plan flow does not automatically match or link existing imported expenses, so users must count them correctly to avoid duplicate historical expenses.
