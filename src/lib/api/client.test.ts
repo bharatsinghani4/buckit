@@ -40,4 +40,25 @@ describe("API client requests", () => {
     ]);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it("sends revisions without an HTTP conditional header", async () => {
+    const requests: { input: string; init: RequestInit }[] = [];
+    const fetcher = vi.fn(async (input: string, init: RequestInit) => {
+      requests.push({ input, init });
+      return Response.json({ data: {}, meta: {} });
+    });
+    vi.stubGlobal("fetch", fetcher);
+
+    await api("buckets/example/imports/example/resolution", {
+      method: "PATCH",
+      body: { mapping: {} },
+      revision: 3,
+      key: "example-operation-key",
+    });
+
+    expect(requests[0].input).toBe("/api/v1/buckets/example/imports/example/resolution");
+    const headers = requests[0].init.headers as Record<string, string>;
+    expect(headers["X-Buckit-Revision"]).toBe('"r3"');
+    expect(headers["If-Match"]).toBeUndefined();
+  });
 });

@@ -132,6 +132,7 @@ export const dynamic = "force-dynamic";
 
 async function handle(request: Request, context: { params: Promise<{ path: string[] }> }) {
   const requestId = randomUUID();
+  const revision = request.headers.get("x-buckit-revision") ?? request.headers.get("if-match");
   const headers = new Headers({
     "Cache-Control": "private, no-store",
     Vary: "Authorization",
@@ -207,7 +208,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[1],
         await readJson(request),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -217,7 +218,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[1],
         await readJson(request),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -226,7 +227,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         identity,
         path.split("/")[1],
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -236,7 +237,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[1],
         path.split("/")[2] as "archive" | "restore",
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -246,7 +247,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[1],
         await readJson(request),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -290,7 +291,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         Number(path.split("/")[5]),
         await readJson(request, 512 * 1024),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -304,7 +305,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[3],
         await readJson(request),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -328,7 +329,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
               parts[3],
               await readJson(request),
               requireIdempotencyKey(request),
-              request.headers.get("if-match"),
+              revision,
             )
           : parts[4] === "commit-next"
             ? await commitNext(identity, parts[1], parts[3], requireIdempotencyKey(request))
@@ -338,7 +339,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
                   parts[1],
                   parts[3],
                   requireIdempotencyKey(request),
-                  request.headers.get("if-match"),
+                  revision,
                 )
               : await cancelImport(identity, parts[1], parts[3], requireIdempotencyKey(request));
       data = result.data;
@@ -390,7 +391,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         method === "DELETE" ? "delete" : "edit",
         method === "DELETE" ? {} : await readJson(request),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -409,7 +410,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[1],
         path.split("/")[3],
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -418,7 +419,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         identity,
         path.split("/")[1],
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -435,7 +436,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[2],
         await readJson(request),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -444,7 +445,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         identity,
         path.split("/")[2],
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -486,7 +487,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         method === "DELETE" ? "delete" : "edit",
         method === "DELETE" ? {} : await readJson(request),
         requireIdempotencyKey(request),
-        request.headers.get("if-match"),
+        revision,
       );
       data = result.data;
       status = result.status;
@@ -494,7 +495,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       const result = await updateNotificationPreferences(
         identity,
         await readJson(request),
-        request.headers.get("if-match"),
+        revision,
         requireIdempotencyKey(request),
       );
       data = result.data;
@@ -645,7 +646,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       if (method === "POST" && path === "me/bootstrap")
         result = await bootstrap(identity, body, key);
       else if (method === "PATCH" && path === "me")
-        result = await updateProfile(identity, body, key, request.headers.get("if-match"));
+        result = await updateProfile(identity, body, key, revision);
       else if (method === "POST" && path === "buckets")
         result = await createBucket(identity, body, key);
       else if (method === "POST" && /^buckets\/[a-f\d]{24}\/invitations$/i.test(path))
@@ -662,50 +663,20 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           method === "DELETE" ? "delete" : "edit",
           body,
           key,
-          request.headers.get("if-match"),
+          revision,
         );
       else if (parts[2] === "emi-plans" && parts.length === 3 && method === "POST")
         result = await createPlan(identity, bucketId, body, key);
       else if (parts[2] === "recurring-plans" && parts.length === 3 && method === "POST")
         result = await createRecurringPlan(identity, bucketId, body, key);
       else if (parts[2] === "recurring-plans" && parts.length === 4 && method === "PATCH")
-        result = await changeRecurringPlan(
-          identity,
-          bucketId,
-          parts[3],
-          body,
-          key,
-          request.headers.get("if-match"),
-        );
+        result = await changeRecurringPlan(identity, bucketId, parts[3], body, key, revision);
       else if (parts[2] === "recurring-plans" && parts[4] === "confirm" && method === "POST")
-        result = await confirmRecurringPayment(
-          identity,
-          bucketId,
-          parts[3],
-          body,
-          key,
-          request.headers.get("if-match"),
-        );
+        result = await confirmRecurringPayment(identity, bucketId, parts[3], body, key, revision);
       else if (parts[2] === "emi-plans" && parts.length === 4 && method === "PATCH")
-        result = await changePlan(
-          identity,
-          bucketId,
-          parts[3],
-          "edit",
-          body,
-          key,
-          request.headers.get("if-match"),
-        );
+        result = await changePlan(identity, bucketId, parts[3], "edit", body, key, revision);
       else if (parts[2] === "emi-plans" && parts[4] === "end")
-        result = await changePlan(
-          identity,
-          bucketId,
-          parts[3],
-          "end",
-          body,
-          key,
-          request.headers.get("if-match"),
-        );
+        result = await changePlan(identity, bucketId, parts[3], "end", body, key, revision);
       else if (parts[2] === "emi-plans" && parts[4] === "installments" && parts.length === 7)
         result = await changeInstallment(
           identity,
@@ -715,7 +686,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           parts[6] as "skip" | "reschedule",
           body,
           key,
-          request.headers.get("if-match"),
+          revision,
         );
       else if (optionKind && parts.length === 4 && method === "POST")
         result = await createOption(identity, bucketId, optionKind, body, key);
@@ -733,19 +704,12 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
               : (parts[5] as "archive" | "restore"),
           body,
           key,
-          request.headers.get("if-match"),
+          revision,
         );
       else if (parts[2] === "expenses" && parts.length === 3 && method === "POST")
         result = await createExpense(identity, bucketId, body, key);
       else if (parts[2] === "expenses" && parts[4] === "archive-resolution" && method === "POST")
-        result = await resolveArchiveExpense(
-          identity,
-          bucketId,
-          parts[3],
-          body,
-          key,
-          request.headers.get("if-match"),
-        );
+        result = await resolveArchiveExpense(identity, bucketId, parts[3], body, key, revision);
       else if (
         parts[2] === "expenses" &&
         parts[4] === "comments" &&
@@ -760,7 +724,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           "create",
           body,
           key,
-          request.headers.get("if-match"),
+          revision,
         );
       else if (parts[2] === "expenses" && parts[4] === "comments" && parts.length === 6)
         result = await changeComment(
@@ -771,7 +735,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           method === "DELETE" ? "delete" : "edit",
           body,
           key,
-          request.headers.get("if-match"),
+          revision,
         );
       else if (parts[2] === "expenses" && parts[4] === "conversion" && method === "PUT")
         result = await changeExpense(
@@ -781,7 +745,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           "edit",
           { manualConversion: body },
           key,
-          request.headers.get("if-match"),
+          revision,
         );
       else if (parts[2] === "expenses" && parts.length >= 4)
         result = await changeExpense(
@@ -791,24 +755,12 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
           method === "DELETE" ? "delete" : method === "PATCH" ? "edit" : "restore",
           body,
           key,
-          request.headers.get("if-match"),
+          revision,
         );
       else if (parts[2] === "members" && parts.length === 4 && method === "DELETE")
-        result = await removeMember(
-          identity,
-          bucketId,
-          parts[3],
-          key,
-          request.headers.get("if-match"),
-        );
+        result = await removeMember(identity, bucketId, parts[3], key, revision);
       else if (parts[2] === "invitations" && parts.length === 4 && method === "DELETE")
-        result = await revokeInvitation(
-          identity,
-          bucketId,
-          parts[3],
-          key,
-          request.headers.get("if-match"),
-        );
+        result = await revokeInvitation(identity, bucketId, parts[3], key, revision);
       else throw new ApiError(404, "RESOURCE_NOT_FOUND", "This endpoint is not available.");
       data = result.data;
       status = result.status;

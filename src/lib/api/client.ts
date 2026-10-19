@@ -41,7 +41,7 @@ async function sendApi<T>(user: User, path: string, options: ApiOptions): Promis
   const headers: Record<string, string> = { Authorization: `Bearer ${await user.getIdToken()}` };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (options.key) headers["Idempotency-Key"] = options.key;
-  if (options.revision !== undefined) headers["If-Match"] = `"r${options.revision}"`;
+  if (options.revision !== undefined) headers["X-Buckit-Revision"] = `"r${options.revision}"`;
   const send = () =>
     fetch(`/api/v1/${path}`, {
       method: options.method ?? "GET",

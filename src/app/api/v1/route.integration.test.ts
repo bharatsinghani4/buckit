@@ -570,9 +570,18 @@ describe("Phase 6 contacts and CSV", () => {
       `${root}/imports/${importId}/resolution`,
       actor,
       { rows: [{ rowNumber: 1, corrections: { Date: "02/01/2026" } }] },
-      { "If-Match": staged.response.headers.get("ETag")! },
+      { "X-Buckit-Revision": staged.response.headers.get("ETag")! },
     );
     expect(resolved.response.status, JSON.stringify(resolved.payload)).toBe(200);
+    const staleResolution = await request(
+      "PATCH",
+      `${root}/imports/${importId}/resolution`,
+      actor,
+      { rows: [{ rowNumber: 1, excluded: true }] },
+      { "X-Buckit-Revision": staged.response.headers.get("ETag")! },
+    );
+    expect(staleResolution.response.status).toBe(412);
+    expect(staleResolution.payload.error.code).toBe("REVISION_MISMATCH");
     const validation = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
     expect(validation.response.status, JSON.stringify(validation.payload)).toBe(200);
     expect(validation.payload.data.counts.ready).toBe(1);

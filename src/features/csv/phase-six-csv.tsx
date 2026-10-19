@@ -11,6 +11,7 @@ import {
   FileUp,
   Filter,
   Info,
+  LoaderCircle,
   RefreshCw,
   ShieldCheck,
   UploadCloud,
@@ -107,6 +108,19 @@ function heading(_eyebrow: string, title: string, description: string) {
   );
 }
 
+function CsvActivity({ message }: { message: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`${card} mb-4 flex items-center gap-3 px-4 py-3 text-xs font-medium text-[var(--ink)]`}
+    >
+      <LoaderCircle size={18} className="shrink-0 animate-spin text-[var(--green)]" aria-hidden />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 export function PhaseSixCsv({
   bucket,
   view,
@@ -138,10 +152,24 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
   const [fixes, setFixes] = useState<Record<number, { field: Column; value: string }>>({});
   const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyMessage, setBusyMessage] = useState("");
+  const [busyTarget, setBusyTarget] = useState<string | null>(null);
+  const [loadedImportId, setLoadedImportId] = useState<string | null>(null);
+  const loadingSession = Boolean(importId) && loadedImportId !== importId;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [step, setStep] = useState(0);
   const base = `buckets/${bucket.id}/imports`;
+  function begin(message: string, target: string) {
+    setBusy(true);
+    setBusyMessage(message);
+    setBusyTarget(target);
+  }
+  function finish() {
+    setBusy(false);
+    setBusyMessage("");
+    setBusyTarget(null);
+  }
   useEffect(() => {
     if (!importId) return;
     let active = true;
@@ -160,6 +188,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       })
       .catch((cause) => {
         if (active) setError(friendlyError(cause));
+      })
+      .finally(() => {
+        if (active) setLoadedImportId(importId);
       });
     return () => {
       active = false;
@@ -214,7 +245,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
   }
   async function addProposal() {
     if (!session || !proposalName.trim()) return;
-    setBusy(true);
+    begin("Saving the new reference option…", "proposal");
     setError("");
     try {
       const result = await api<ImportSession>(`${base}/${session.id}/resolution`, {
@@ -235,14 +266,14 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const input = event.target;
     const file = input.files?.[0];
     if (!file) return;
-    setBusy(true);
+    begin("Reading and checking the CSV file…", "upload");
     setError("");
     setNotice("");
     let createdSessionId: string | null = null;
@@ -277,6 +308,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       if (!headers || parsed.length === 0 || parsed.length > 5000)
         throw new Error("The CSV needs a header and 1–5,000 expense rows.");
       if (headers.length > 50) throw new Error("The CSV has too many columns.");
+      setBusyMessage("Creating the import preview…");
       const created = (
         await api<ImportSession>(base, {
           method: "POST",
@@ -294,8 +326,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       let current = created;
       let chunk: { rowNumber: number; cells: string[] }[] = [];
       let chunkNumber = 0;
+      let stagedRows = 0;
       async function sendChunk() {
         if (chunk.length === 0) return;
+        setBusyMessage(
+          `Staging rows ${stagedRows + 1}–${stagedRows + chunk.length} of ${parsed.length}…`,
+        );
         current = (
           await api<ImportSession>(`${base}/${created.id}/chunks/${chunkNumber++}`, {
             method: "PUT",
@@ -304,6 +340,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
             key: crypto.randomUUID(),
           })
         ).data;
+        stagedRows += chunk.length;
         chunk = [];
       }
       for (let index = 0; index < parsed.length; index++) {
@@ -337,11 +374,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
         }).catch(() => {});
       setError(csvError(cause));
     } finally {
-      setBusy(false);
+      finish();
       input.value = "";
     }
   }
   async function template() {
+    begin("Preparing the CSV template…", "template");
     try {
       const result = (await api<{ csv: string; fileName: string }>(`${base}/template`)).data;
       const url = URL.createObjectURL(
@@ -354,11 +392,13 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (cause) {
       setError(friendlyError(cause));
+    } finally {
+      finish();
     }
   }
   async function applyMapping() {
     if (!session) return;
-    setBusy(true);
+    begin("Saving the column mapping…", "mapping");
     setError("");
     try {
       const result = await api<ImportSession>(`${base}/${session.id}/resolution`, {
@@ -374,12 +414,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function validate(current = session) {
     if (!current) return;
-    setBusy(true);
+    begin("Checking the import rows…", "validate");
     setError("");
     try {
       const result = (
@@ -392,12 +432,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function correct(row: ImportRow, field: Column, value: string) {
     if (!session) return;
-    setBusy(true);
+    begin(`Saving correction for row ${row.rowNumber}…`, `correct:${row.rowNumber}`);
     setError("");
     try {
       const result = await api<ImportSession>(`${base}/${session.id}/resolution`, {
@@ -412,12 +452,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function decide(row: ImportRow, decision: "include" | "skip" | "exclude") {
     if (!session) return;
-    setBusy(true);
+    begin(`Updating row ${row.rowNumber}…`, `decide:${row.rowNumber}:${decision}`);
     setError("");
     try {
       const body = {
@@ -442,22 +482,25 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function loadMore() {
     if (!session || !rowCursor) return;
+    begin("Loading more import rows…", "more");
     try {
       const result = await api<ImportRow[]>(`${base}/${session.id}/rows?after=${rowCursor}`);
       setRows((old) => [...old, ...result.data]);
       setRowCursor(result.meta.nextCursor ?? null);
     } catch (cause) {
       setError(friendlyError(cause));
+    } finally {
+      finish();
     }
   }
   async function confirm() {
     if (!session || !preview || !ack) return;
-    setBusy(true);
+    begin("Confirming the import…", "confirm");
     setError("");
     try {
       const result = await api<ImportSession>(`${base}/${session.id}/confirm`, {
@@ -474,12 +517,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function commit(current = session) {
     if (!current) return;
-    setBusy(true);
+    begin("Importing expenses…", "commit");
     setError("");
     try {
       let hasMore = true;
@@ -493,6 +536,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
         ).data;
         total = result.committed;
         hasMore = result.hasMore;
+        setBusyMessage(
+          `Importing expenses… ${result.committed} of ${result.committed + result.pending} complete`,
+        );
         setSession((old) =>
           old
             ? {
@@ -509,12 +555,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function reopen() {
     if (!session) return;
-    setBusy(true);
+    begin("Reopening the import review…", "reopen");
     setError("");
     try {
       const result = await api<ImportSession>(`${base}/${session.id}/reopen`, {
@@ -530,12 +576,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   async function cancel() {
     if (!session) return;
-    setBusy(true);
+    begin("Canceling the import…", "cancel");
     setError("");
     try {
       const result = await api<ImportSession>(`${base}/${session.id}/cancel`, {
@@ -548,7 +594,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      finish();
     }
   }
   return (
@@ -589,7 +635,10 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       </div>
       {error && <Notice kind="error">{error}</Notice>}
       {notice && <Notice kind="success">{notice}</Notice>}
-      {!session && (
+      {(loadingSession || busy) && (
+        <CsvActivity message={loadingSession ? "Opening the import…" : busyMessage} />
+      )}
+      {!session && !loadingSession && (
         <div className={`${card} p-6 sm:p-8`}>
           <div className="grid min-h-56 place-items-center rounded-xl border-2 border-dashed border-[var(--line)] bg-[var(--soft)] p-6 text-center">
             <div>
@@ -599,7 +648,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                 UTF-8, up to 5 MiB and 5,000 rows. Nothing posts before confirmation.
               </p>
               <label className={`${controls.primary} relative cursor-pointer`}>
-                <FileUp size={16} /> Select CSV
+                {busy ? (
+                  <LoaderCircle size={16} className="animate-spin" aria-hidden />
+                ) : (
+                  <FileUp size={16} />
+                )}
+                {busy ? "Working…" : "Select CSV"}
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -610,8 +664,17 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
               </label>
             </div>
           </div>
-          <button className={`${controls.secondary} mt-4`} onClick={() => void template()}>
-            <Download size={15} /> Download template
+          <button
+            className={`${controls.secondary} mt-4`}
+            disabled={busy}
+            onClick={() => void template()}
+          >
+            {busyTarget === "template" ? (
+              <LoaderCircle size={15} className="animate-spin" aria-hidden />
+            ) : (
+              <Download size={15} />
+            )}
+            Download template
           </button>
         </div>
       )}
@@ -633,6 +696,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                 disabled={busy}
                 onClick={() => void cancel()}
               >
+                {busyTarget === "cancel" && (
+                  <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                )}
                 Cancel import
               </button>
             )}
@@ -643,7 +709,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                 <h2 className="text-lg font-bold text-[var(--ink)]">Map your columns</h2>
                 <p className="text-xs text-[var(--muted)]">
                   Required fields are marked *. Leave optional fields unmapped to use the disclosed
-                  defaults.
+                  defaults. You can leave Status blank; Buckit derives it from each expense.
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
@@ -690,14 +756,24 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                   disabled={busy}
                   onClick={() => void applyMapping()}
                 >
-                  <Check size={15} /> Apply mapping & validate
+                  {busyTarget === "mapping" ? (
+                    <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                  ) : (
+                    <Check size={15} />
+                  )}
+                  Apply mapping & validate
                 </button>
                 <button
                   className={controls.secondary}
                   disabled={busy}
                   onClick={() => void validate()}
                 >
-                  <RefreshCw size={15} /> Refresh preview
+                  {busyTarget === "validate" ? (
+                    <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                  ) : (
+                    <RefreshCw size={15} />
+                  )}
+                  Refresh preview
                 </button>
               </div>
             </section>
@@ -736,6 +812,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                   disabled={busy || !proposalName.trim()}
                   onClick={() => void addProposal()}
                 >
+                  {busyTarget === "proposal" && (
+                    <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                  )}
                   Approve option
                 </button>
               </div>
@@ -860,6 +939,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                                 )
                               }
                             >
+                              {busyTarget === `correct:${row.rowNumber}` && (
+                                <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                              )}
                               Apply correction
                             </button>
                           </>
@@ -871,6 +953,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                               disabled={busy}
                               onClick={() => void decide(row, "include")}
                             >
+                              {busyTarget === `decide:${row.rowNumber}:include` && (
+                                <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                              )}
                               Include duplicate
                             </button>
                             <button
@@ -878,6 +963,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                               disabled={busy}
                               onClick={() => void decide(row, "skip")}
                             >
+                              {busyTarget === `decide:${row.rowNumber}:skip` && (
+                                <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                              )}
                               Skip duplicate
                             </button>
                           </>
@@ -888,6 +976,9 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                             disabled={busy}
                             onClick={() => void decide(row, "exclude")}
                           >
+                            {busyTarget === `decide:${row.rowNumber}:exclude` && (
+                              <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                            )}
                             Exclude row
                           </button>
                         )}
@@ -897,7 +988,14 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                 ))}
               </div>
               {rowCursor && (
-                <button className={`${controls.quietAction} m-4`} onClick={() => void loadMore()}>
+                <button
+                  className={`${controls.quietAction} m-4`}
+                  disabled={busy}
+                  onClick={() => void loadMore()}
+                >
+                  {busyTarget === "more" && (
+                    <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                  )}
                   Load more rows
                 </button>
               )}
@@ -929,7 +1027,12 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                 disabled={busy || !ack || Boolean(preview.counts.invalid)}
                 onClick={() => void confirm()}
               >
-                <ArrowRight size={16} /> Confirm & import {preview.counts.ready ?? 0} expenses
+                {busyTarget === "confirm" ? (
+                  <LoaderCircle size={16} className="animate-spin" aria-hidden />
+                ) : (
+                  <ArrowRight size={16} />
+                )}
+                Confirm & import {preview.counts.ready ?? 0} expenses
               </button>
             </div>
           )}
@@ -939,13 +1042,21 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                 {session.counts?.committed ?? 0} committed. Resume remaining rows safely.
               </p>
               <button className={controls.primary} disabled={busy} onClick={() => void commit()}>
-                <RefreshCw size={15} /> Resume import
+                {busyTarget === "commit" ? (
+                  <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                ) : (
+                  <RefreshCw size={15} />
+                )}
+                Resume import
               </button>
               <button
                 className={`${controls.secondary} ml-2`}
                 disabled={busy}
                 onClick={() => void reopen()}
               >
+                {busyTarget === "reopen" && (
+                  <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                )}
                 Review remaining rows
               </button>
             </div>
@@ -988,7 +1099,9 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
     ),
   );
   const [preview, setPreview] = useState<ExportPreview | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<"preview" | "download" | null>(null);
+  const [busyMessage, setBusyMessage] = useState("");
+  const busy = busyAction !== null;
   const [error, setError] = useState("");
   const base = `buckets/${bucket.id}/exports`;
   const selection = {
@@ -1001,7 +1114,8 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
     includeScheduled,
   };
   async function inspect() {
-    setBusy(true);
+    setBusyAction("preview");
+    setBusyMessage("Checking the selected expenses…");
     setError("");
     try {
       setPreview(
@@ -1010,11 +1124,13 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
-      setBusy(false);
+      setBusyAction(null);
+      setBusyMessage("");
     }
   }
   async function download() {
-    setBusy(true);
+    setBusyAction("download");
+    setBusyMessage("Preparing the export…");
     setError("");
     try {
       const start = (
@@ -1031,14 +1147,19 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
           })
         ).data;
         all.push(...page.rows.map((row) => row.cells));
+        setBusyMessage(
+          `Preparing CSV rows… ${all.length}${preview ? ` of ${preview.count}` : ""} ready`,
+        );
         cursor = page.cursor;
         complete = page.completionCursor;
       } while (cursor);
       if (!complete) throw new Error("The export did not finish. Try again.");
+      setBusyMessage("Checking the completed export…");
       await api(`${base}/complete`, {
         method: "POST",
         body: { exportToken: start.exportToken, completionCursor: complete },
       });
+      setBusyMessage("Creating the CSV file…");
       const csv =
         [
           columns.map((value) => quoteCsv(value)).join(","),
@@ -1055,7 +1176,8 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
     } catch (cause) {
       setError(csvError(cause));
     } finally {
-      setBusy(false);
+      setBusyAction(null);
+      setBusyMessage("");
     }
   }
   return (
@@ -1066,6 +1188,7 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
         "Choose a scope, preview the count, and download a clean expense CSV.",
       )}
       {error && <Notice kind="error">{error}</Notice>}
+      {busy && <CsvActivity message={busyMessage} />}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_310px]">
         <div className="space-y-5">
           <section className={`${card} p-5 sm:p-6`}>
@@ -1149,14 +1272,24 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
             )}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button className={controls.secondary} disabled={busy} onClick={() => void inspect()}>
-                <Info size={15} /> Preview
+                {busyAction === "preview" ? (
+                  <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                ) : (
+                  <Info size={15} />
+                )}{" "}
+                Preview
               </button>
               <button
                 className={controls.primary}
                 disabled={busy || !preview}
                 onClick={() => void download()}
               >
-                <Download size={15} /> Download
+                {busyAction === "download" ? (
+                  <LoaderCircle size={15} className="animate-spin" aria-hidden />
+                ) : (
+                  <Download size={15} />
+                )}{" "}
+                Download
               </button>
             </div>
           </section>
@@ -1232,19 +1365,26 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
           )}
           <div className="mt-5 flex flex-col gap-2">
             <button className={controls.secondary} disabled={busy} onClick={() => void inspect()}>
-              <Info size={15} /> Preview export
+              {busyAction === "preview" ? (
+                <LoaderCircle size={15} className="animate-spin" aria-hidden />
+              ) : (
+                <Info size={15} />
+              )}{" "}
+              Preview export
             </button>
             <button
               className={controls.primary}
               disabled={busy || !preview}
               onClick={() => void download()}
             >
-              <Download size={15} /> Download CSV
+              {busyAction === "download" ? (
+                <LoaderCircle size={15} className="animate-spin" aria-hidden />
+              ) : (
+                <Download size={15} />
+              )}{" "}
+              Download CSV
             </button>
           </div>
-          {busy && (
-            <p className="mt-3 text-xs text-[var(--muted)]">Preparing a consistent export…</p>
-          )}
           <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
             CSV is a readable expense export, not a full backup of plans, audit history, or
             identities.
