@@ -84,9 +84,9 @@ An expense saved as Conversion needed is a successful save, not a fabricated spe
 
 ### 3.3 Version checks
 
-Mutable resource responses include `revision` and an ETag such as `"r3"`. PATCH, DELETE, and existing-resource command endpoints require `If-Match: "r3"`, unless explicitly exempted below. Missing preconditions produce 428; stale revisions produce 412. The client refetches and lets the user reconcile rather than silently overwriting another change.
+Mutable resource responses include `revision` and an ETag such as `"r3"`. PATCH, DELETE, and existing-resource command endpoints require `X-Buckit-Revision: "r3"` from browser clients, unless explicitly exempted below. The API also accepts `If-Match: "r3"` from existing clients. Missing preconditions produce 428; stale revisions produce 412. The client refetches and lets the user reconcile rather than silently overwriting another change.
 
-Creation requests, bootstrap, invitation join, and read-only preview/export calls do not require If-Match. Invitation join validates the current invitation and membership transactionally using its token. Endpoints that update a separate subresource, such as a share or membership, use that subresource's revision rather than the parent's. Preference responses use the underlying user revision; refetch on a concurrent profile change.
+Creation requests, bootstrap, invitation join, and read-only preview/export calls do not require a revision precondition. Invitation join validates the current invitation and membership transactionally using its token. Endpoints that update a separate subresource, such as a share or membership, use that subresource's revision rather than the parent's. Preference responses use the underlying user revision; refetch on a concurrent profile change.
 
 Composite operations such as changing an installment and its expense also accept the linked record's `expectedExpenseRevision`. Server-only lifecycle guards protect races with removal, archive, deletion, and option retirement; a matching client revision is not sufficient authorization.
 
@@ -462,7 +462,7 @@ Guidance explicitly states:
 - Missing/blank Currency uses bucket currency; Platform uses Other; Added By uses importer; Notes is empty.
 - Missing Date, Description, or Amount is an error. Missing payer/account/category/payment mode must be resolved before acceptance.
 - DD/MM/YYYY date parsing is strict. Negative credits and future scheduling are supported; zero original amount is not.
-- Comments is ignored with a warning. Status is derived, never trusted from CSV.
+- Comments is ignored with a warning. Status may be left blank on import; any supplied value is ignored with a warning because status is derived from the expense state.
 - Importer always owns entries. Only bucket owner may select another current/former member for Added By or create missing reference options.
 - Ambiguous/unknown member names require explicit mapping. Do not create members automatically.
 - Duplicate warnings require a deliberate include/skip decision; identical legitimate purchases are possible.
@@ -486,7 +486,7 @@ Export tokens are short-lived signed capabilities bound to the user/bucket/filte
 
 Each page uses a short consistent read of expenses/comments/labels and verifies exportRevision. Completion confirms the same revision after the last page. `409 EXPORT_CHANGED` means discard assembled rows and restart; the UI must not download a mixed snapshot. Changes to exported user labels/anonymization also invalidate the export. Any access loss stops reads immediately.
 
-The browser builds/downloads CSV only after successful completion. Use original amounts/currencies, DD/MM/YYYY dates, displayed Added By, notes, and comments with author/timestamp context in one escaped cell. Status distinguishes actual/scheduled/pending/review/conversion states; exclude deleted/canceled/skipped obligations. Only actual entries are exported unless Include scheduled is selected. Protect textual cells from spreadsheet formula execution while preserving genuine signed numeric Amount values. CSV is not a lossless backup of plans, author identities, audit, or conversion snapshots.
+The browser builds/downloads CSV only after successful completion. Use original amounts/currencies, DD/MM/YYYY dates, displayed Added By, notes, and comments with author/timestamp context in one escaped cell. Exported Status is one of `Actual`, `Scheduled`, `Conversion needed`, `Pending processing`, or `Review required`; exclude deleted/canceled/skipped obligations. Only actual entries are exported unless Include scheduled is selected. Protect textual cells from spreadsheet formula execution while preserving genuine signed numeric Amount values. CSV is not a lossless backup of plans, author identities, audit, or conversion snapshots.
 
 ## 12. Scheduled processing and service operations
 
