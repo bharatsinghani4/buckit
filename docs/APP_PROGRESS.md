@@ -6,6 +6,8 @@ Update this file with each development phase or significant fix. Record what cha
 
 ## Completed
 
+- EMI plan grouping production release (19 October 2026): reviewed the two uncommitted files and found no actionable issues. Committed the grouping on `dev` as `97e9bd5`, merged into `main` as `e82e666`, and pushed both branches. Vercel reported deployment success. Live read-only checks returned HTTP 200 for the homepage, sign-in page, and JavaScript messaging worker; unauthenticated `/api/v1/me` returned Buckit JSON 401. The authenticated Financing schedule layout was not visually rechecked in production, and no financial records were changed.
+
 - EMI plan list grouping (19 October 2026): Financing schedule now shows active plans first and completed plans in a separate section. Ended or owner-departed plans remain visible in an Other plans section when present. The existing plan cards and installment bars are unchanged. Review found no actionable regression; Prettier, ESLint, TypeScript, all 90 tests, and the Webpack production build passed. Authenticated visual verification remains unperformed.
 
 - Historical EMI production release (19 October 2026): committed the reviewed changes on `dev` as `a748f90`, merged into `main` as `f065ef6`, and pushed both branches. Vercel reported deployment success. Live read-only checks returned HTTP 200 for the homepage, sign-in page, and JavaScript messaging worker, while unauthenticated `/api/v1/me` and the EMI plan API returned Buckit JSON 401 responses. The authenticated EMI form, dashboard state after direct database plan deletion, and financial records were not changed or verified in production.
