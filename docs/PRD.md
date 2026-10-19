@@ -220,7 +220,7 @@ Example: Bharat and Anjali each spend in Personal. Bharat's member budget includ
 - Store title, installment amount/currency, installment count, monthly schedule, category, platform, account, payment mode, and payer.
 - Automatically generate individual entries against the installment dates, owned by the plan creator.
 - Count installments as expenses when the daily run posts them after their due dates become eligible, retaining each installment's original expense date. Do not also count the financed purchase amount.
-- Allow adding an existing plan with a previously paid count; generate only remaining installments and do not create prior expenses automatically.
+- Allow adding an existing plan with a paid-installment count, including a fully paid historical plan; generate only remaining installments and do not create prior expenses automatically.
 - Permit correction of an individual installment payment without introducing variable-rate loan calculations.
 - Plan changes affect future installments by default, preserving recorded expenses. Ending a plan cancels its future entries and preserves history. The creator can separately correct individual recorded installments.
 - Rescheduling an installment changes its date without shifting other installments.

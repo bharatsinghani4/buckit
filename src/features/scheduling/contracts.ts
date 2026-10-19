@@ -19,9 +19,9 @@ const planBase = z
   .strict();
 
 export const planInput = planBase.refine(
-  (value) => value.previouslyPaidCount < value.totalInstallments,
+  (value) => value.previouslyPaidCount <= value.totalInstallments,
   {
-    message: "At least one installment must remain.",
+    message: "Paid installments cannot exceed total installments.",
     path: ["previouslyPaidCount"],
   },
 );

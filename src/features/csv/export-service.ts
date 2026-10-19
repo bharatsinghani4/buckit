@@ -8,6 +8,7 @@ import { requireConfig } from "@/lib/config/required";
 import { CommentModel, ExpenseModel, UserModel } from "@/lib/db/models";
 import { activeUser, bucketForUser } from "@/features/identity/service";
 import { localDate } from "@/features/scheduling/dates";
+import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
 
 export const csvColumns = [
   "Date",
@@ -144,6 +145,7 @@ export async function exportPreview(identity: DecodedIdToken, bucketId: string, 
     throw new ApiError(422, "INVALID_RANGE", "The end date must be after the start date.");
   const { bucket } = await exportContext(identity, bucketId);
   const match = query(bucketId, input, localDate(new Date(), bucket.timezone));
+  match.$and = [visibleExpenseFilter(await liveEmiPlanIds(bucketId))];
   const [count, scheduledCount, conversionNeededCount] = await Promise.all([
     ExpenseModel.countDocuments(match),
     ExpenseModel.countDocuments({ ...match, postingState: "unposted" }),
@@ -209,6 +211,7 @@ export async function exportPage(identity: DecodedIdToken, bucketId: string, raw
   }
   const rows = await ExpenseModel.find({
     ...query(bucketId, input, today),
+    $and: [visibleExpenseFilter(await liveEmiPlanIds(bucketId))],
     ...(after ? { _id: { $gt: new mongoose.Types.ObjectId(after) } } : {}),
   })
     .sort({ _id: 1 })
