@@ -509,6 +509,14 @@ export function PhaseFourScreen({
   const foreignPlans = plans.filter((item) => item.currency !== bucket.primaryCurrency).length;
   const active = plans.filter((item) => item.state === "active");
   const dueCount = plans.reduce((sum, item) => sum + item.unpaidCount, 0);
+  const planSections = [
+    { title: "Active plans", items: active },
+    { title: "Completed plans", items: plans.filter((item) => item.state === "completed") },
+    {
+      title: "Other plans",
+      items: plans.filter((item) => item.state !== "active" && item.state !== "completed"),
+    },
+  ].filter((section) => section.items.length > 0);
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 pb-12 min-[768px]:max-[1199px]:space-y-4">
@@ -718,56 +726,73 @@ export function PhaseFourScreen({
               </div>
             </div>
             {plans.length ? (
-              <div className="grid gap-3 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
-                {plans.map((plan) => (
-                  <Link
-                    key={plan.id}
-                    href={page(bucket.id, "emi-plan", plan.id)}
-                    className="block rounded-xl border border-[var(--line)] p-4 transition hover:border-[var(--green)] hover:bg-[var(--soft)]"
+              <div className="space-y-5">
+                {planSections.map((section) => (
+                  <div
+                    key={section.title}
+                    className="space-y-3 border-t border-[var(--line)] pt-5 first:border-0 first:pt-0"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="rounded-lg bg-[var(--soft)] p-2 text-[var(--green)]">
-                        <CreditCard size={20} />
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-1 text-[11px] font-semibold ${plan.state === "active" ? "bg-[var(--soft)] text-[var(--green)]" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}
-                      >
-                        {plan.state}
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold">{section.title}</h3>
+                      <span className="rounded-full bg-[var(--soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">
+                        {section.items.length}
                       </span>
                     </div>
-                    <h3 className="mt-3 text-base font-bold max-[767px]:text-sm">{plan.title}</h3>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
-                      {plan.categoryName} · {plan.accountName} · {plan.creatorName}
-                    </p>
-                    <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-[var(--line)] pt-3 text-xs">
-                      <span>
-                        {plan.recordedCount} of {plan.totalInstallments} paid
-                      </span>
-                      <strong>{money(plan.installmentAmount, plan.currency)} / month</strong>
-                    </div>
-                    <div
-                      role="img"
-                      aria-label={`${plan.recordedCount} of ${plan.totalInstallments} installments paid`}
-                      className={`mt-2 grid ${plan.totalInstallments <= 24 ? "gap-1" : "gap-px"}`}
-                      style={{
-                        gridTemplateColumns: `repeat(${plan.totalInstallments}, minmax(0, 1fr))`,
-                      }}
-                    >
-                      {Array.from({ length: plan.totalInstallments }, (_, index) => (
-                        <span
-                          key={index}
-                          aria-hidden="true"
-                          className={`h-1.5 min-w-0 rounded-full ${index < plan.recordedCount ? "bg-[var(--mint)]" : "bg-[var(--line)]"}`}
-                        />
+                    <div className="grid gap-3 md:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
+                      {section.items.map((plan) => (
+                        <Link
+                          key={plan.id}
+                          href={page(bucket.id, "emi-plan", plan.id)}
+                          className="block rounded-xl border border-[var(--line)] p-4 transition hover:border-[var(--green)] hover:bg-[var(--soft)]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="rounded-lg bg-[var(--soft)] p-2 text-[var(--green)]">
+                              <CreditCard size={20} />
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${plan.state === "active" ? "bg-[var(--soft)] text-[var(--green)]" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}
+                            >
+                              {plan.state}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 text-base font-bold max-[767px]:text-sm">
+                            {plan.title}
+                          </h3>
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            {plan.categoryName} · {plan.accountName} · {plan.creatorName}
+                          </p>
+                          <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-[var(--line)] pt-3 text-xs">
+                            <span>
+                              {plan.recordedCount} of {plan.totalInstallments} paid
+                            </span>
+                            <strong>{money(plan.installmentAmount, plan.currency)} / month</strong>
+                          </div>
+                          <div
+                            role="img"
+                            aria-label={`${plan.recordedCount} of ${plan.totalInstallments} installments paid`}
+                            className={`mt-2 grid ${plan.totalInstallments <= 24 ? "gap-1" : "gap-px"}`}
+                            style={{
+                              gridTemplateColumns: `repeat(${plan.totalInstallments}, minmax(0, 1fr))`,
+                            }}
+                          >
+                            {Array.from({ length: plan.totalInstallments }, (_, index) => (
+                              <span
+                                key={index}
+                                aria-hidden="true"
+                                className={`h-1.5 min-w-0 rounded-full ${index < plan.recordedCount ? "bg-[var(--mint)]" : "bg-[var(--line)]"}`}
+                              />
+                            ))}
+                          </div>
+                          <p className="mt-3 text-[11px] text-[var(--muted)]">
+                            {plan.nextDate
+                              ? `Next: ${dateLabel(plan.nextDate)}`
+                              : "No upcoming installments"}
+                            {plan.unpaidCount ? ` · ${plan.unpaidCount} unpaid` : ""}
+                          </p>
+                        </Link>
                       ))}
                     </div>
-                    <p className="mt-3 text-[11px] text-[var(--muted)]">
-                      {plan.nextDate
-                        ? `Next: ${dateLabel(plan.nextDate)}`
-                        : "No upcoming installments"}
-                      {plan.unpaidCount ? ` · ${plan.unpaidCount} unpaid` : ""}
-                    </p>
-                  </Link>
+                  </div>
                 ))}
               </div>
             ) : (
