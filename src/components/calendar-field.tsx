@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays } from "lucide-react";
 import { controls } from "./control-styles";
@@ -50,6 +50,7 @@ export function CalendarField({
 }: CalendarFieldProps) {
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const currentValue = value ?? internalValue;
   const root = useRef<HTMLDivElement>(null);
   const calendarRoot = useRef<HTMLDivElement>(null);
@@ -58,6 +59,10 @@ export function CalendarField({
   const popupId = useId();
   const [placement, setPlacement] = useState<{ left: number; top: number } | null>(null);
   const onValueChangeRef = useRef(onValueChange);
+  const setRoot = useCallback((node: HTMLDivElement | null) => {
+    root.current = node;
+    if (node) setPortalHost(node.closest("dialog") ?? document.body);
+  }, []);
   useEffect(() => {
     onValueChangeRef.current = onValueChange;
   }, [onValueChange]);
@@ -138,6 +143,15 @@ export function CalendarField({
   }, [open]);
 
   useLayoutEffect(() => {
+    if (!open || !popup.current) return;
+    const element = popup.current;
+    element.showPopover();
+    return () => {
+      if (element.matches(":popover-open")) element.hidePopover();
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
     if (!open) return;
     const updatePlacement = () => {
       if (!root.current || !popup.current) return;
@@ -168,7 +182,7 @@ export function CalendarField({
   }, [open]);
 
   return (
-    <div ref={root} className={`relative min-w-0 ${containerClassName}`}>
+    <div ref={setRoot} className={`relative min-w-0 ${containerClassName}`}>
       <div className="relative">
         <input
           ref={input}
@@ -198,22 +212,25 @@ export function CalendarField({
         />
       </div>
       {open &&
+        portalHost &&
         createPortal(
           <div
             ref={popup}
             id={popupId}
             role="dialog"
+            popover="manual"
             aria-label={`Choose ${mode}`}
             style={{
+              inset: "auto",
               left: placement?.left ?? 0,
               top: placement?.top ?? 0,
               visibility: placement ? "visible" : "hidden",
             }}
-            className="fixed z-[110] max-h-[calc(100dvh-16px)] w-max max-w-[calc(100vw-16px)] overflow-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 text-[var(--ink)] shadow-xl [--vc-date-selected-bg:var(--green)] [--vc-date-selected-color:var(--surface)] [--vc-date-weekend-color:var(--muted)] [--vc-date-weekend-selected-bg:var(--green)] [--vc-date-weekend-selected-color:var(--surface)] [--vc-months-years-bg-selected:var(--green)] [--vc-months-years-color-selected:var(--surface)] [--vc-focus-outline-color:var(--green)]"
+            className="fixed m-0 max-h-[calc(100dvh-16px)] w-max max-w-[calc(100vw-16px)] overflow-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 text-[var(--ink)] shadow-xl [--vc-date-selected-bg:var(--green)] [--vc-date-selected-color:var(--surface)] [--vc-date-weekend-color:var(--muted)] [--vc-date-weekend-selected-bg:var(--green)] [--vc-date-weekend-selected-color:var(--surface)] [--vc-months-years-bg-selected:var(--green)] [--vc-months-years-color-selected:var(--surface)] [--vc-focus-outline-color:var(--green)]"
           >
             <div ref={calendarRoot} />
           </div>,
-          document.body,
+          portalHost,
         )}
     </div>
   );
