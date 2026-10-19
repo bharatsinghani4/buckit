@@ -46,6 +46,7 @@ import {
   listBudgets,
 } from "@/features/insights/budget-service";
 import { dashboard, spendingReport } from "@/features/insights/report-service";
+import { moveRecord, previewMove, type MoveKind } from "@/features/buckets/move-service";
 import {
   changeInstallment,
   changePlan,
@@ -515,6 +516,19 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       data = await dashboard(identity, path.split("/")[1], url.searchParams);
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/reports\/spending$/i.test(path))
       data = await spendingReport(identity, path.split("/")[1], url.searchParams);
+    else if (
+      method === "GET" &&
+      /^buckets\/[a-f\d]{24}\/moves\/(expense|emi-plan|recurring-plan)\/[a-f\d]{24}\/preview$/i.test(
+        path,
+      )
+    )
+      data = await previewMove(
+        identity,
+        path.split("/")[1],
+        path.split("/")[3] as MoveKind,
+        path.split("/")[4],
+        url.searchParams.get("targetBucketId") ?? "",
+      );
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/scheduled-expenses$/i.test(path))
       data = await listScheduled(identity, path.split("/")[1]);
     else if (method === "GET" && /^buckets\/[a-f\d]{24}\/recurring-plans$/i.test(path))
@@ -569,7 +583,13 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
       data = result.data;
       meta = { ...meta, nextCursor: result.nextCursor, hasMore: result.hasMore };
     } else if (/^buckets\/[a-f\d]{24}\/expenses\/summary$/i.test(path) && method === "GET")
-      data = await expenseSummary(identity, path.split("/")[1], url.searchParams.get("month"));
+      data = await expenseSummary(
+        identity,
+        path.split("/")[1],
+        url.searchParams.get("month"),
+        url.searchParams.get("from"),
+        url.searchParams.get("toExclusive"),
+      );
     else if (/^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}$/i.test(path) && method === "GET")
       data = await getExpense(identity, path.split("/")[1], path.split("/")[3]);
     else if (
@@ -616,6 +636,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
             ) ||
             /^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}\/archive-resolution$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}\/restore$/i.test(path) ||
+            /^buckets\/[a-f\d]{24}\/moves\/(expense|emi-plan|recurring-plan)\/[a-f\d]{24}$/i.test(
+              path,
+            ) ||
             /^buckets\/[a-f\d]{24}\/expenses\/[a-f\d]{24}\/comments$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/options\/(accounts|categories|platforms)\/[a-f\d]{24}\/(archive|restore)$/i.test(
               path,
@@ -653,6 +676,16 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         result = await createInvitation(identity, path.split("/")[1], body, key, url.origin);
       else if (method === "POST" && path === "invitations/join")
         result = await joinInvitation(identity, body, key);
+      else if (parts[2] === "moves" && parts.length === 5 && method === "POST")
+        result = await moveRecord(
+          identity,
+          bucketId,
+          parts[3] as MoveKind,
+          parts[4],
+          body,
+          key,
+          revision,
+        );
       else if (parts[2] === "budgets" && parts.length === 3 && method === "POST")
         result = await createBudget(identity, bucketId, body, key);
       else if (parts[2] === "budgets" && parts.length === 4)

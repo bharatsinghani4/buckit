@@ -24,6 +24,7 @@ import { controls } from "@/components/control-styles";
 import { Dialog, Notice, Pending } from "@/components/ui";
 import { CalendarField } from "@/components/calendar-field";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
+import { useWorkspacePeriod } from "@/features/buckets/workspace-period-context";
 import type { Bucket } from "@/features/identity/contracts";
 import type { Member, Option } from "@/features/expenses/contracts";
 import { api, friendlyError } from "@/lib/api/client";
@@ -35,7 +36,6 @@ type Dashboard = SpendingReport & {
   comparable: { from: string; toExclusive: string; totalAmount: string };
   categories: SpendingGroup[];
   members: SpendingGroup[];
-  trend: SpendingGroup[];
   budgets: BudgetEntry[];
   budgetCount: number;
   emi: {
@@ -137,6 +137,160 @@ function progress(value: number, warning = false) {
   );
 }
 
+function MonthlySpendingChart({
+  bucketId,
+  currency,
+  anchor,
+}: {
+  bucketId: string;
+  currency: string;
+  anchor: string;
+}) {
+  const { read } = useWorkspaceData();
+  const [months, setMonths] = useState(3);
+  const [groups, setGroups] = useState<SpendingGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [year, number] = anchor.slice(0, 7).split("-").map(Number);
+  const start = new Date(Date.UTC(year, number - months, 1)).toISOString().slice(0, 7);
+  const end = new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 7);
+
+  useEffect(() => {
+    let canceled = false;
+    const params = new URLSearchParams({
+      period: "custom",
+      anchorDate: anchor,
+      from: `${start}-01`,
+      toExclusive: `${end}-01`,
+      groupBy: "month",
+    });
+    queueMicrotask(() => {
+      if (canceled) return;
+      setLoading(true);
+      setError("");
+      void read<SpendingReport>(`buckets/${bucketId}/reports/spending?${params}`)
+        .then((result) => {
+          if (!canceled) setGroups(result.data.groups);
+        })
+        .catch((cause: unknown) => {
+          if (!canceled) setError(friendlyError(cause));
+        })
+        .finally(() => {
+          if (!canceled) setLoading(false);
+        });
+    });
+    return () => {
+      canceled = true;
+    };
+  }, [anchor, bucketId, end, read, start]);
+
+  const amounts = Array.from({ length: months }, (_, index) => {
+    const month = new Date(Date.UTC(year, number - months + index, 1)).toISOString().slice(0, 7);
+    return { month, amount: Number(groups.find((group) => group.id === month)?.amount ?? "0") };
+  });
+  const min = Math.min(0, ...amounts.map((point) => point.amount));
+  const max = Math.max(1, ...amounts.map((point) => point.amount));
+  const left = 42;
+  const right = 760;
+  const top = 18;
+  const bottom = 178;
+  const x = (index: number) =>
+    months === 1 ? (left + right) / 2 : left + (index / (months - 1)) * (right - left);
+  const y = (amount: number) => bottom - ((amount - min) / (max - min)) * (bottom - top);
+  const line = amounts
+    .map(
+      (point, index) => `${index ? "L" : "M"}${x(index).toFixed(1)} ${y(point.amount).toFixed(1)}`,
+    )
+    .join(" ");
+
+  return (
+    <section className={`${card} col-span-full min-w-0`}>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-[var(--ink)]">Spending trajectory</h2>
+          <p className="text-xs text-[var(--muted)]">Posted spending by month</p>
+        </div>
+        <Dropdown
+          value={String(months)}
+          onValueChange={(value) => setMonths(Number(value))}
+          className="!w-[150px]"
+          options={[
+            { value: "1", label: "Last 1 month" },
+            { value: "3", label: "Last 3 months" },
+            { value: "6", label: "Last 6 months" },
+            { value: "12", label: "Last 12 months" },
+          ]}
+        />
+      </div>
+      {error && <Notice>{error}</Notice>}
+      <div className="relative h-[240px] w-full" aria-busy={loading}>
+        {loading ? (
+          <div className="grid h-full place-items-center text-xs text-[var(--muted)]">
+            Loading spending…
+          </div>
+        ) : (
+          <svg
+            viewBox="0 0 800 220"
+            preserveAspectRatio="none"
+            className="h-full w-full overflow-visible"
+            role="img"
+            aria-label={`Monthly spending from ${start} to ${anchor.slice(0, 7)}`}
+          >
+            {[0, 0.5, 1].map((fraction) => {
+              const value = min + (max - min) * fraction;
+              const at = y(value);
+              return (
+                <g key={fraction}>
+                  <line
+                    x1={left}
+                    x2={right}
+                    y1={at}
+                    y2={at}
+                    stroke="var(--line)"
+                    strokeDasharray={fraction === 0 ? undefined : "4 5"}
+                  />
+                  <text x="0" y={at + 4} fill="var(--muted)" fontSize="10">
+                    {new Intl.NumberFormat(undefined, { notation: "compact" }).format(value)}
+                  </text>
+                </g>
+              );
+            })}
+            <path
+              d={line}
+              fill="none"
+              stroke="var(--green)"
+              strokeWidth="3"
+              vectorEffect="non-scaling-stroke"
+            />
+            {amounts.map((point, index) => (
+              <g key={point.month}>
+                <circle cx={x(index)} cy={y(point.amount)} r="5" fill="var(--green)">
+                  <title>{`${point.month}: ${money(String(point.amount), currency)}`}</title>
+                </circle>
+                <text
+                  x={x(index)}
+                  y="210"
+                  textAnchor="middle"
+                  fill="var(--muted)"
+                  fontSize="11"
+                  className={
+                    months > 6 && index % 2 && index !== months - 1 ? "hidden sm:block" : ""
+                  }
+                >
+                  {new Date(`${point.month}-01T12:00:00Z`).toLocaleDateString(undefined, {
+                    month: "short",
+                    ...(months > 6 ? { year: "2-digit" } : {}),
+                  })}
+                </text>
+              </g>
+            ))}
+          </svg>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function BudgetCard({
   entry,
   bucketId,
@@ -214,10 +368,8 @@ export function PhaseThreeScreen({
   budgetId: string | null;
 }) {
   const { read, peek, invalidate } = useWorkspaceData();
-  const [period, setPeriod] = useState("month");
-  const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10));
-  const [customFrom, setCustomFrom] = useState(() => `${new Date().toISOString().slice(0, 7)}-01`);
-  const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const { period, setPeriod, anchor, setAnchor, customFrom, setCustomFrom, customTo, setCustomTo } =
+    useWorkspacePeriod();
   const [groupBy, setGroupBy] = useState("category");
   const [filterOpen, setFilterOpen] = useState(false);
   const [reportFilters, setReportFilters] = useState<Record<string, string>>({});
@@ -462,7 +614,7 @@ export function PhaseThreeScreen({
             <div className="flex w-full flex-wrap gap-2 min-[1200px]:w-auto [&>*]:min-w-0 [&>*]:flex-1 min-[768px]:[&>*]:min-w-[160px]">
               <Dropdown
                 value={period}
-                onValueChange={setPeriod}
+                onValueChange={(value) => setPeriod(value as typeof period)}
                 options={[
                   { value: "month", label: "This month" },
                   { value: "quarter", label: "This quarter" },
@@ -495,8 +647,13 @@ export function PhaseThreeScreen({
           )}
           {(dashboard.incompleteCount > 0 || dashboard.pendingCount > 0) && (
             <Notice kind="info">
-              <CircleAlert size={16} /> Totals are incomplete: {dashboard.incompleteCount} need
-              conversion and {dashboard.pendingCount} await processing.
+              <span className="inline-flex items-start gap-2">
+                <CircleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>
+                  Totals are incomplete: {dashboard.incompleteCount} need conversion and{" "}
+                  {dashboard.pendingCount} await processing.
+                </span>
+              </span>
             </Notice>
           )}
           <div className="grid gap-3 grid-cols-2 xl:grid-cols-4 max-[767px]:grid-cols-1">
@@ -631,34 +788,7 @@ export function PhaseThreeScreen({
                 </p>
               )}
             </section>
-            <section className={card}>
-              <h2 className="text-base font-bold text-[var(--ink)]">Spending trajectory</h2>
-              <p className="mb-4 text-xs text-[var(--muted)]">
-                Actual spending by day in this period
-              </p>
-              {dashboard.trend.length ? (
-                <div
-                  className="flex h-36 items-center gap-1"
-                  role="img"
-                  aria-label="Daily spending chart"
-                >
-                  {dashboard.trend.map((point) => (
-                    <div
-                      key={point.id}
-                      className="group relative min-w-1 flex-1 rounded-t bg-[var(--green)]/70 hover:bg-[var(--green)]"
-                      style={{
-                        height: `${Math.max(4, Math.min(100, (Number(point.amount) / Math.max(...dashboard.trend.map((day) => Math.abs(Number(day.amount))), 1)) * 100))}%`,
-                      }}
-                      title={`${point.name}: ${money(point.amount, currency)}`}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="py-8 text-center text-xs text-[var(--muted)]">
-                  No posted spending in this period.
-                </p>
-              )}
-            </section>
+            <MonthlySpendingChart bucketId={bucket.id} currency={currency} anchor={anchor} />
             <section className={card}>
               <div className="mb-4 flex justify-between">
                 <div>
@@ -777,7 +907,7 @@ export function PhaseThreeScreen({
             <div className="flex flex-wrap items-center justify-end gap-2 max-[767px]:col-span-2 max-[767px]:grid max-[767px]:w-full max-[767px]:grid-cols-2">
               <Dropdown
                 value={period}
-                onValueChange={setPeriod}
+                onValueChange={(value) => setPeriod(value as typeof period)}
                 className={`!w-[136px] max-[767px]:!w-full ${period === "custom" ? "max-[767px]:col-span-2" : ""}`}
                 options={[
                   { value: "month", label: "Month" },
@@ -979,16 +1109,7 @@ export function PhaseThreeScreen({
               Track shared or personal spending limits across categories.
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm max-[1024px]:flex-col max-[1024px]:items-end">
-            <label className="ml-auto flex w-[176px] items-center gap-2 text-xs text-[var(--muted)]">
-              <span className="sr-only">Budget month</span>
-              <CalendarField
-                mode="month"
-                value={month}
-                onValueChange={(value) => setAnchor(`${value}-01`)}
-                containerClassName="w-full"
-              />
-            </label>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <div className="flex gap-2 border-b border-[var(--line)] max-[1024px]:grid max-[1024px]:w-full max-[1024px]:grid-cols-3 max-[1024px]:gap-0">
               {[
                 ["all", "All budgets"],
@@ -1010,6 +1131,18 @@ export function PhaseThreeScreen({
                 </button>
               ))}
             </div>
+            <label className="ml-auto flex w-[176px] items-center gap-2 text-xs text-[var(--muted)]">
+              <span className="sr-only">Budget month</span>
+              <CalendarField
+                mode="month"
+                value={month}
+                onValueChange={(value) => {
+                  setAnchor(`${value}-01`);
+                  setPeriod("month");
+                }}
+                containerClassName="w-full"
+              />
+            </label>
           </div>
           {visibleBudgets.length ? (
             <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">

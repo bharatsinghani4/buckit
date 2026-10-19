@@ -6,10 +6,12 @@ import { CalendarField } from "@/components/calendar-field";
 export function LedgerMonthPicker({
   value,
   onChange,
+  onClear,
   fullWidth = false,
 }: {
   value: string;
   onChange: (month: string) => void;
+  onClear?: () => void;
   fullWidth?: boolean;
 }) {
   return (
@@ -26,9 +28,9 @@ export function LedgerMonthPicker({
         <button
           type="button"
           className="grid size-9 shrink-0 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--soft)]"
-          aria-label="Show all months"
-          title="Show all months"
-          onClick={() => onChange("")}
+          aria-label="Reset to current month"
+          title="Reset to current month"
+          onClick={() => (onClear ? onClear() : onChange(""))}
         >
           <X size={15} aria-hidden="true" />
         </button>

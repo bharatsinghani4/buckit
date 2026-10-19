@@ -1,8 +1,9 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import {
   Archive,
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   Clock3,
   ChevronDown,
@@ -31,6 +32,8 @@ import { currencies } from "@/features/identity/contracts";
 import { api, friendlyError } from "@/lib/api/client";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
 import { LedgerMonthPicker } from "@/features/buckets/ledger-month-picker";
+import { useWorkspacePeriod } from "@/features/buckets/workspace-period-context";
+import { MoveRecordDialog } from "@/features/buckets/move-record-dialog";
 import type { Comment, Expense, Member, Option, OptionKind } from "./contracts";
 import { ReferenceGlyph } from "./reference-icon";
 
@@ -174,19 +177,28 @@ function listPath(
   view: "expenses" | "deleted",
   month: string,
   appliedFilters = "",
+  range?: { from: string; toExclusive: string },
 ) {
   const filters = new URLSearchParams(appliedFilters);
   if (view === "deleted") filters.set("deleted", "only");
-  else if (month && !filters.has("from") && !filters.has("toExclusive")) {
-    filters.set("from", `${month}-01`);
+  if (range) {
+    if (!filters.has("from")) filters.set("from", range.from);
+    if (!filters.has("toExclusive")) filters.set("toExclusive", range.toExclusive);
+  } else if (month) {
+    if (!filters.has("from")) filters.set("from", `${month}-01`);
     const [year, number] = month.split("-").map(Number);
-    filters.set("toExclusive", new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10));
+    if (!filters.has("toExclusive"))
+      filters.set("toExclusive", new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10));
   }
   return `buckets/${bucket}/expenses${filters.size ? `?${filters}` : ""}`;
 }
 
-function summaryPath(bucket: string, month: string) {
-  return `buckets/${bucket}/expenses/summary${month ? `?month=${month}` : ""}`;
+function summaryPath(bucket: string, range: { from: string; toExclusive: string }) {
+  return `buckets/${bucket}/expenses/summary?from=${range.from}&toExclusive=${range.toExclusive}`;
+}
+
+function inclusiveEnd(toExclusive: string) {
+  return new Date(Date.parse(`${toExclusive}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 }
 
 function today(zone: string) {
@@ -232,15 +244,22 @@ export function PhaseTwoScreen({
   refundMode?: boolean;
 }) {
   const { read, peek, invalidate } = useWorkspaceData();
+  const { range, period, ledgerSnapshots } = useWorkspacePeriod();
+  const snapshots = ledgerSnapshots.current;
+  const snapshotKey = `${bucket.id}:${view}:${range.from}:${range.toExclusive}`;
+  const savedSnapshot = snapshots.get(snapshotKey);
+  const initialSnapshot = useRef(savedSnapshot);
+  const restoredScroll = useRef(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(() => {
+    if (savedSnapshot) return false;
     if (view === "expenses")
       return (
-        !peek<Expense[]>(listPath(bucket.id, view, month)) ||
-        !peek<LedgerSummary>(summaryPath(bucket.id, month))
+        !peek<Expense[]>(listPath(bucket.id, view, month, "", range)) ||
+        !peek<LedgerSummary>(summaryPath(bucket.id, range))
       );
-    if (view === "deleted") return !peek<Expense[]>(listPath(bucket.id, view, month));
+    if (view === "deleted") return !peek<Expense[]>(listPath(bucket.id, view, month, "", range));
     if (view === "add-expense" && !refundOf)
       return !["accounts", "categories", "platforms", "members"].every((kind) =>
         peek(`buckets/${bucket.id}/${kind}`),
@@ -249,11 +268,13 @@ export function PhaseTwoScreen({
   });
   const [expenses, setExpenses] = useState<Expense[]>(() =>
     view === "expenses" || view === "deleted"
-      ? (peek<Expense[]>(listPath(bucket.id, view, month))?.data ?? [])
+      ? (savedSnapshot?.expenses ??
+        peek<Expense[]>(listPath(bucket.id, view, month, "", range))?.data ??
+        [])
       : [],
   );
   const [summary, setSummary] = useState<LedgerSummary | null>(
-    () => peek<LedgerSummary>(summaryPath(bucket.id, month))?.data ?? null,
+    () => peek<LedgerSummary>(summaryPath(bucket.id, range))?.data ?? null,
   );
   const [expense, setExpense] = useState<Expense | null>(null);
   const [refundSource, setRefundSource] = useState<Expense | null>(null);
@@ -296,12 +317,13 @@ export function PhaseTwoScreen({
     rateDate: string | null;
   } | null>(null);
   const expenseFormRef = useRef<HTMLFormElement>(null);
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [appliedFilters, setAppliedFilters] = useState("");
+  const [query, setQuery] = useState(savedSnapshot?.query ?? "");
+  const [status, setStatus] = useState(savedSnapshot?.status ?? "all");
+  const [appliedFilters, setAppliedFilters] = useState(savedSnapshot?.appliedFilters ?? "");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<string | null>(savedSnapshot?.cursor ?? null);
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
   const [editing, setEditing] = useState(resolveRequested);
   const [entryMode, setEntryMode] = useState<"expense" | "refund">(
     refundOf || refundMode ? "refund" : "expense",
@@ -313,6 +335,8 @@ export function PhaseTwoScreen({
   const [formVersion, setFormVersion] = useState(0);
   const [renderTime] = useState(() => Date.now());
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<Expense | null>(null);
   const [commentDeleteTarget, setCommentDeleteTarget] = useState<Comment | null>(null);
   const [editingComment, setEditingComment] = useState<Comment | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState("");
@@ -328,37 +352,97 @@ export function PhaseTwoScreen({
   const loaded = useRef("");
   const filterOptionsLoaded = useRef(false);
 
+  useEffect(() => {
+    if (view !== "expenses" && view !== "deleted") return;
+    const previous = ledgerSnapshots.current.get(snapshotKey);
+    ledgerSnapshots.current.set(snapshotKey, {
+      query,
+      status,
+      appliedFilters,
+      expenses,
+      cursor,
+      scrollY: previous?.scrollY ?? 0,
+    });
+  }, [appliedFilters, cursor, expenses, ledgerSnapshots, query, snapshotKey, status, view]);
+
+  useEffect(() => {
+    if (view !== "expenses" && view !== "deleted") return;
+    const rememberScroll = () => {
+      const snapshot = ledgerSnapshots.current.get(snapshotKey);
+      if (snapshot) snapshot.scrollY = window.scrollY;
+    };
+    window.addEventListener("scroll", rememberScroll, { passive: true });
+    return () => {
+      rememberScroll();
+      window.removeEventListener("scroll", rememberScroll);
+    };
+  }, [ledgerSnapshots, snapshotKey, view]);
+
+  useLayoutEffect(() => {
+    if (
+      !initialSnapshot.current ||
+      restoredScroll.current ||
+      loading ||
+      (view !== "expenses" && view !== "deleted")
+    )
+      return;
+    restoredScroll.current = true;
+    const scrollY = initialSnapshot.current.scrollY;
+    const frame = requestAnimationFrame(() =>
+      requestAnimationFrame(() => window.scrollTo({ top: scrollY })),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [loading, view]);
+
   const refresh = useCallback(async () => {
     const hasSnapshot =
       view === "expenses"
-        ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters)) &&
-          !!peek<LedgerSummary>(summaryPath(bucket.id, month))
+        ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters, range)) &&
+          !!peek<LedgerSummary>(summaryPath(bucket.id, range))
         : view === "deleted"
-          ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters))
+          ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters, range))
           : view === "add-expense" && !refundOf
             ? ["accounts", "categories", "platforms", "members"].every((kind) =>
                 peek(`buckets/${bucket.id}/${kind}`),
               )
             : false;
-    if (!hasSnapshot) setLoading(true);
+    if (!hasSnapshot && !snapshots.has(snapshotKey)) setLoading(true);
     setError("");
     try {
       if (view === "expenses" || view === "deleted") {
-        const endpoint = listPath(bucket.id, view, month, appliedFilters);
+        const endpoint = listPath(bucket.id, view, month, appliedFilters, range);
+        const saved = snapshots.get(snapshotKey);
+        if (saved && peek(endpoint)) {
+          setExpenses(saved.expenses);
+          setCursor(saved.cursor);
+          if (view === "expenses")
+            setSummary(peek<LedgerSummary>(summaryPath(bucket.id, range))?.data ?? null);
+          setLoading(false);
+          return;
+        }
         const [result, totals] = await Promise.all([
           read<Expense[]>(endpoint),
           view === "expenses"
-            ? read<LedgerSummary>(summaryPath(bucket.id, month))
+            ? read<LedgerSummary>(summaryPath(bucket.id, range))
             : Promise.resolve(null),
         ]);
-        setExpenses(result.data);
-        setCursor(result.meta.nextCursor ?? null);
+        const rows = [...result.data];
+        let nextCursor = result.meta.nextCursor ?? null;
+        while (saved && rows.length < saved.expenses.length && nextCursor) {
+          const params = new URLSearchParams(endpoint.split("?")[1]);
+          params.set("cursor", nextCursor);
+          const next = await api<Expense[]>(`buckets/${bucket.id}/expenses?${params}`);
+          rows.push(...next.data);
+          nextCursor = next.meta.nextCursor ?? null;
+        }
+        setExpenses(rows);
+        setCursor(nextCursor);
         if (totals) setSummary(totals.data);
         if (!appliedFilters) {
           await Promise.all([
-            read<Expense[]>(listPath(bucket.id, "expenses", month)),
-            read<LedgerSummary>(summaryPath(bucket.id, month)),
-            read<Expense[]>(listPath(bucket.id, "deleted", month)),
+            read<Expense[]>(listPath(bucket.id, "expenses", month, "", range)),
+            read<LedgerSummary>(summaryPath(bucket.id, range)),
+            read<Expense[]>(listPath(bucket.id, "deleted", month, "", range)),
             read<Option[]>(`buckets/${bucket.id}/accounts`),
             read<Option[]>(`buckets/${bucket.id}/categories`),
             read<Option[]>(`buckets/${bucket.id}/platforms`),
@@ -379,9 +463,9 @@ export function PhaseTwoScreen({
         });
         setMembers(people.data);
         await Promise.all([
-          read<Expense[]>(listPath(bucket.id, "expenses", month)),
-          read<LedgerSummary>(summaryPath(bucket.id, month)),
-          read<Expense[]>(listPath(bucket.id, "deleted", month)),
+          read<Expense[]>(listPath(bucket.id, "expenses", month, "", range)),
+          read<LedgerSummary>(summaryPath(bucket.id, range)),
+          read<Expense[]>(listPath(bucket.id, "deleted", month, "", range)),
         ]);
         if (refundOf) {
           const source = (await read<Expense>(`buckets/${bucket.id}/expenses/${refundOf}`)).data;
@@ -440,18 +524,34 @@ export function PhaseTwoScreen({
     month,
     peek,
     read,
+    range,
     refundOf,
+    snapshots,
+    snapshotKey,
     view,
   ]);
 
   useEffect(() => {
-    const key = `${bucket.id}:${view}:${expenseId ?? ""}:${refundOf ?? ""}:${appliedFilters}:${month}`;
+    const key = `${bucket.id}:${view}:${expenseId ?? ""}:${refundOf ?? ""}:${appliedFilters}:${range.from}:${range.toExclusive}`;
     if (loaded.current === key) return;
     loaded.current = key;
     queueMicrotask(() => {
       void refresh();
     });
-  }, [appliedFilters, bucket.id, view, expenseId, refundOf, month, refresh]);
+  }, [appliedFilters, bucket.id, view, expenseId, refundOf, range, refresh]);
+
+  useEffect(() => {
+    if (view !== "expenses" && view !== "deleted") return;
+    const timer = window.setTimeout(() => {
+      setAppliedFilters((current) => {
+        const next = new URLSearchParams(current);
+        if (query.trim()) next.set("q", query.trim());
+        else next.delete("q");
+        return next.toString() === current ? current : next.toString();
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [query, view]);
 
   useEffect(() => {
     if (view !== "expenses" || !filtersOpen || filterOptionsLoaded.current) return;
@@ -711,6 +811,54 @@ export function PhaseTwoScreen({
       navigate(act === "delete" ? "deleted" : "expenses");
   }
 
+  async function bulkExpenseAction() {
+    const act = view === "deleted" ? "restore" : "delete";
+    const targets = expenses.filter(
+      (item) =>
+        selectedExpenseIds.includes(item.id) &&
+        (act === "delete" ? item.permissions.canDelete : item.permissions.canRestore),
+    );
+    if (!targets.length) return;
+    setBusy(true);
+    setError("");
+    const completed: string[] = [];
+    let firstError = "";
+    let summaryError = "";
+    for (const item of targets) {
+      try {
+        await api<Expense>(
+          `buckets/${bucket.id}/expenses/${item.id}${act === "restore" ? "/restore" : ""}`,
+          {
+            method: act === "restore" ? "POST" : "DELETE",
+            revision: item.revision,
+            key: crypto.randomUUID(),
+          },
+        );
+        completed.push(item.id);
+      } catch (cause) {
+        if (!firstError) firstError = friendlyError(cause);
+      }
+    }
+    if (completed.length) {
+      const changed = new Set(completed);
+      setExpenses((current) => current.filter((item) => !changed.has(item.id)));
+      setSelectedExpenseIds((current) => current.filter((id) => !changed.has(id)));
+      invalidate(`buckets/${bucket.id}/`);
+      if (view === "expenses") {
+        try {
+          setSummary((await api<LedgerSummary>(summaryPath(bucket.id, range))).data);
+        } catch (cause) {
+          summaryError = friendlyError(cause);
+        }
+      }
+    }
+    if (firstError)
+      setError(`${completed.length} updated; some could not be changed. ${firstError}`);
+    else if (summaryError)
+      setError(`Expenses updated, but totals could not refresh. ${summaryError}`);
+    setBusy(false);
+  }
+
   async function postComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!expense) return;
@@ -728,14 +876,11 @@ export function PhaseTwoScreen({
     }
   }
 
-  const filtered = expenses.filter(
-    (item) =>
-      (status === "all" || item.displayStatus === status) &&
-      (!query ||
-        [item.description, item.notes, item.categoryName, item.platformName, item.paidByName].some(
-          (value) => value.toLowerCase().includes(query.toLowerCase()),
-        )),
+  const filtered = expenses.filter((item) => status === "all" || item.displayStatus === status);
+  const selectable = filtered.filter((item) =>
+    view === "deleted" ? item.permissions.canRestore : item.permissions.canDelete,
   );
+  const activeFilters = new URLSearchParams(appliedFilters);
 
   return (
     <div
@@ -900,7 +1045,12 @@ export function PhaseTwoScreen({
                       onChange={(e) => setQuery(e.target.value)}
                     />
                     <div className="min-w-0 min-[900px]:hidden">
-                      <LedgerMonthPicker value={month} onChange={onMonthChange} fullWidth />
+                      <LedgerMonthPicker
+                        value={month}
+                        onChange={onMonthChange}
+                        onClear={onClearMonth}
+                        fullWidth
+                      />
                     </div>
                     <button
                       ref={filterButtonRef}
@@ -975,17 +1125,30 @@ export function PhaseTwoScreen({
                         </label>
                         <label className="text-xs">
                           From
-                          <CalendarField name="from" />
+                          <CalendarField
+                            key={`from:${activeFilters.get("from") ?? ""}`}
+                            name="from"
+                            defaultValue={activeFilters.get("from") ?? ""}
+                          />
                         </label>
                         <label className="text-xs">
                           To
-                          <CalendarField name="to" />
+                          <CalendarField
+                            key={`to:${activeFilters.get("toExclusive") ?? ""}`}
+                            name="to"
+                            defaultValue={
+                              activeFilters.get("toExclusive")
+                                ? inclusiveEnd(activeFilters.get("toExclusive")!)
+                                : ""
+                            }
+                          />
                         </label>
                         <label className="text-xs">
                           Category
                           <Dropdown
                             name="categoryId"
-                            defaultValue="all"
+                            key={`category:${activeFilters.get("categoryId") ?? "all"}`}
+                            defaultValue={activeFilters.get("categoryId") ?? "all"}
                             options={[
                               { value: "all", label: "All categories" },
                               ...options.categories.map((item) => ({
@@ -999,7 +1162,8 @@ export function PhaseTwoScreen({
                           Account
                           <Dropdown
                             name="accountId"
-                            defaultValue="all"
+                            key={`account:${activeFilters.get("accountId") ?? "all"}`}
+                            defaultValue={activeFilters.get("accountId") ?? "all"}
                             options={[
                               { value: "all", label: "All accounts" },
                               ...options.accounts.map((item) => ({
@@ -1013,7 +1177,8 @@ export function PhaseTwoScreen({
                           Platform
                           <Dropdown
                             name="platformId"
-                            defaultValue="all"
+                            key={`platform:${activeFilters.get("platformId") ?? "all"}`}
+                            defaultValue={activeFilters.get("platformId") ?? "all"}
                             options={[
                               { value: "all", label: "All platforms" },
                               ...options.platforms.map((item) => ({
@@ -1027,7 +1192,8 @@ export function PhaseTwoScreen({
                           Payment mode
                           <Dropdown
                             name="paymentMode"
-                            defaultValue="all"
+                            key={`mode:${activeFilters.get("paymentMode") ?? "all"}`}
+                            defaultValue={activeFilters.get("paymentMode") ?? "all"}
                             options={[{ value: "all", label: "All modes" }, ...paymentModes]}
                           />
                         </label>
@@ -1035,7 +1201,8 @@ export function PhaseTwoScreen({
                           Paid by
                           <Dropdown
                             name="paidByUserId"
-                            defaultValue="all"
+                            key={`payer:${activeFilters.get("paidByUserId") ?? "all"}`}
+                            defaultValue={activeFilters.get("paidByUserId") ?? "all"}
                             options={[
                               { value: "all", label: "All members" },
                               ...members.map((item) => ({
@@ -1058,10 +1225,15 @@ export function PhaseTwoScreen({
               )}
               {view === "expenses" && (
                 <div
-                  className={`flex flex-wrap items-center gap-2 text-xs text-[var(--muted)] ${!appliedFilters ? "max-[767px]:hidden" : ""}`}
+                  className={`flex flex-wrap items-center gap-2 text-xs text-[var(--muted)] ${!appliedFilters && period === "month" ? "max-[767px]:hidden" : ""}`}
                 >
-                  {(appliedFilters || month) && (
+                  {(appliedFilters || month || period !== "month") && (
                     <span className="mr-1 font-semibold uppercase tracking-wide">Active:</span>
+                  )}
+                  {period !== "month" && (
+                    <span className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[var(--ink)]">
+                      Period: {range.from} – {inclusiveEnd(range.toExclusive)}
+                    </span>
                   )}
                   {[...new URLSearchParams(appliedFilters).entries()]
                     .filter(([key]) => key !== "q")
@@ -1106,7 +1278,7 @@ export function PhaseTwoScreen({
                       })}
                     </span>
                   )}
-                  {(appliedFilters || month) && (
+                  {(appliedFilters || month || period !== "month") && (
                     <button
                       className="ml-1 inline-flex h-9 items-center hover:text-[var(--ink)]"
                       onClick={() => {
@@ -1164,12 +1336,78 @@ export function PhaseTwoScreen({
                   />
                 </div>
               )}
+              {selectable.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectable.every((item) => selectedExpenseIds.includes(item.id))}
+                      onChange={(event) =>
+                        setSelectedExpenseIds((current) =>
+                          event.target.checked
+                            ? [...new Set([...current, ...selectable.map((item) => item.id)])]
+                            : current.filter((id) => !selectable.some((item) => item.id === id)),
+                        )
+                      }
+                      aria-label="Select all loaded expenses"
+                    />
+                    Select loaded ({selectable.length})
+                  </label>
+                  {selectedExpenseIds.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span>{selectedExpenseIds.length} selected</span>
+                      <button
+                        type="button"
+                        className={action}
+                        onClick={() => setSelectedExpenseIds([])}
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        className={view === "deleted" ? controls.primary : controls.dangerAction}
+                        disabled={busy}
+                        onClick={() => {
+                          if (view === "deleted") void bulkExpenseAction();
+                          else setConfirmBulkDelete(true);
+                        }}
+                      >
+                        {view === "deleted" ? <RotateCcw size={15} /> : <Trash2 size={15} />}
+                        {busy
+                          ? "Updating…"
+                          : view === "deleted"
+                            ? "Restore selected"
+                            : "Delete selected"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className={`${card} overflow-hidden p-0`}>
                 {filtered.length ? (
                   <div>
                     <div className="divide-y divide-[var(--line)] min-[768px]:hidden">
                       {filtered.map((item) => (
                         <article key={item.id} className="p-4">
+                          {(view === "deleted"
+                            ? item.permissions.canRestore
+                            : item.permissions.canDelete) && (
+                            <label className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--muted)]">
+                              <input
+                                type="checkbox"
+                                checked={selectedExpenseIds.includes(item.id)}
+                                onChange={(event) =>
+                                  setSelectedExpenseIds((current) =>
+                                    event.target.checked
+                                      ? [...current, item.id]
+                                      : current.filter((id) => id !== item.id),
+                                  )
+                                }
+                                aria-label={`Select ${item.description}`}
+                              />
+                              Select
+                            </label>
+                          )}
                           <button
                             type="button"
                             onClick={() => navigate("expense", item.id)}
@@ -1253,6 +1491,9 @@ export function PhaseTwoScreen({
                       <table className="w-full min-w-[850px] text-left text-sm">
                         <thead className="border-b border-[var(--line)] bg-[var(--canvas)] text-xs uppercase tracking-wide text-[var(--muted)]">
                           <tr>
+                            <th className="w-10 px-3 py-3">
+                              <span className="sr-only">Select</span>
+                            </th>
                             <th className="px-4 py-3">Date</th>
                             <th className="py-3">Description & platform</th>
                             <th className="py-3">Category</th>
@@ -1269,6 +1510,24 @@ export function PhaseTwoScreen({
                               key={item.id}
                               className={`border-b border-[var(--line)] last:border-0 ${item.displayStatus === "conversion_needed" ? "bg-amber-50/60 dark:bg-amber-950/20" : item.displayStatus === "scheduled" ? "bg-[var(--soft)]/40" : "hover:bg-[var(--canvas)]"}`}
                             >
+                              <td className="px-3 py-4">
+                                {(view === "deleted"
+                                  ? item.permissions.canRestore
+                                  : item.permissions.canDelete) && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedExpenseIds.includes(item.id)}
+                                    onChange={(event) =>
+                                      setSelectedExpenseIds((current) =>
+                                        event.target.checked
+                                          ? [...current, item.id]
+                                          : current.filter((id) => id !== item.id),
+                                      )
+                                    }
+                                    aria-label={`Select ${item.description}`}
+                                  />
+                                )}
+                              </td>
                               <td className="whitespace-nowrap px-4 py-4 text-xs text-[var(--muted)]">
                                 {new Date(`${item.expenseDate}T12:00:00`).toLocaleDateString(
                                   undefined,
@@ -1427,8 +1686,12 @@ export function PhaseTwoScreen({
                   className={action}
                   disabled={busy}
                   onClick={async () => {
+                    const endpoint = new URLSearchParams(
+                      listPath(bucket.id, view, month, appliedFilters, range).split("?")[1],
+                    );
+                    endpoint.set("cursor", cursor);
                     const result = await api<Expense[]>(
-                      `buckets/${bucket.id}/expenses?${view === "deleted" ? "deleted=only&" : appliedFilters ? `${appliedFilters}&` : ""}cursor=${cursor}`,
+                      `buckets/${bucket.id}/expenses?${endpoint}`,
                     );
                     setExpenses((items) => [...items, ...result.data]);
                     setCursor(result.meta.nextCursor ?? null);
@@ -1859,6 +2122,17 @@ export function PhaseTwoScreen({
                       Record refund
                     </button>
                   )}
+                  {expense.permissions.canDelete &&
+                    !expense.refundOfExpenseId &&
+                    (!expense.source || expense.source.kind === "manual") && (
+                      <button
+                        className={action}
+                        disabled={busy}
+                        onClick={() => setMoveTarget(expense)}
+                      >
+                        <ArrowRight size={14} /> Move
+                      </button>
+                    )}
                   {expense.permissions.canDelete && (
                     <button
                       className={action}
@@ -2658,6 +2932,41 @@ export function PhaseTwoScreen({
             </div>
           </div>
         </Dialog>
+      )}
+      {confirmBulkDelete && (
+        <Dialog
+          title={`Delete ${selectedExpenseIds.length} selected expenses?`}
+          subtitle="They will move into recovery for 30 days and can be restored by their creators."
+          onClose={() => setConfirmBulkDelete(false)}
+        >
+          <div className="flex justify-end gap-2">
+            <button className={controls.secondary} onClick={() => setConfirmBulkDelete(false)}>
+              Cancel
+            </button>
+            <button
+              className={controls.dangerAction}
+              onClick={() => {
+                setConfirmBulkDelete(false);
+                void bulkExpenseAction();
+              }}
+            >
+              <Trash2 size={15} /> Delete selected
+            </button>
+          </div>
+        </Dialog>
+      )}
+      {moveTarget && (
+        <MoveRecordDialog
+          bucket={bucket}
+          kind="expense"
+          id={moveTarget.id}
+          revision={moveTarget.revision}
+          onClose={() => setMoveTarget(null)}
+          onMoved={(targetId) => {
+            setMoveTarget(null);
+            navigatePath(path(targetId, "expense", moveTarget.id));
+          }}
+        />
       )}
       {showInviteQr && newInvitation?.shareUrl && (
         <Dialog

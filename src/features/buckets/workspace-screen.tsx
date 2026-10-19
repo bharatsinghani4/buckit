@@ -55,6 +55,7 @@ import { PhaseSevenScreen } from "@/features/lifecycle/phase-seven-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
 import { BucketSelector } from "./bucket-selector";
+import { WorkspacePeriodProvider, useWorkspacePeriod } from "./workspace-period-context";
 
 const navItem =
   "nav-item flex w-full items-center gap-3 rounded-lg border-0 bg-transparent px-3 py-3 text-left text-xs text-[var(--muted)] hover:bg-[var(--soft)] [&.active]:bg-[var(--sage)] [&.active]:font-semibold [&.active]:text-[var(--green)]";
@@ -193,13 +194,16 @@ export function WorkspaceScreen() {
   return (
     <AccessGate>
       <WorkspaceDataProvider>
-        <Workspace />
+        <WorkspacePeriodProvider>
+          <Workspace />
+        </WorkspacePeriodProvider>
       </WorkspaceDataProvider>
     </AccessGate>
   );
 }
 function Workspace() {
   const { read, invalidate } = useWorkspaceData();
+  const workspacePeriod = useWorkspacePeriod();
   const auth = useAuth();
   const profile = auth.profile!;
   const params = useSearchParams();
@@ -215,7 +219,8 @@ function Workspace() {
   const [step, setStep] = useState(profile.tour.lastStep);
   const tourPrompted = useRef(false);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [ledgerMonth, setLedgerMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const ledgerMonth = workspacePeriod.period === "month" ? workspacePeriod.month : "";
+  const setLedgerMonth = workspacePeriod.setMonth;
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [sidebarTooltip, setSidebarTooltip] = useState<{ label: string; top: number } | null>(null);
@@ -737,7 +742,7 @@ function Workspace() {
               <ChevronRight size={16} aria-hidden="true" />
             )}
           </button>
-          <div className="mx-auto flex w-full max-w-[1112px] min-w-0 items-center justify-between gap-3 max-[767px]:gap-2">
+          <div className="flex w-full min-w-0 items-center justify-between gap-3 max-[767px]:gap-2">
             <span className="hidden shrink-0 max-[767px]:inline-flex [&_img]:size-[42px]">
               <Brand compact />
             </span>
@@ -803,7 +808,11 @@ function Workspace() {
             <div className="workspace-header-actions flex shrink-0 items-center justify-between gap-3 max-sm:!gap-1">
               {phaseView === "expenses" && (
                 <div className="max-[899px]:hidden">
-                  <LedgerMonthPicker value={ledgerMonth} onChange={setLedgerMonth} />
+                  <LedgerMonthPicker
+                    value={ledgerMonth}
+                    onChange={setLedgerMonth}
+                    onClear={workspacePeriod.clearMonth}
+                  />
                 </div>
               )}
               <ThemeToggle />
@@ -914,7 +923,7 @@ function Workspace() {
         </header>
         <main
           id="main"
-          className="workspace-content [max-width:1160px] m-auto [padding:24px] min-[768px]:max-[1199px]:[padding:18px] min-[768px]:max-[1024px]:[&_h1]:!text-[25px] min-[768px]:max-[1024px]:[&_h2]:!text-[17px] min-[768px]:max-[1024px]:[&_h3]:!text-[14px] max-[767px]:[padding:16px_16px_calc(94px+env(safe-area-inset-bottom))]"
+          className="workspace-content w-full [padding:24px] min-[768px]:max-[1199px]:[padding:18px] min-[768px]:max-[1024px]:[&_h1]:!text-[25px] min-[768px]:max-[1024px]:[&_h2]:!text-[17px] min-[768px]:max-[1024px]:[&_h3]:!text-[14px] max-[767px]:[padding:16px_16px_calc(94px+env(safe-area-inset-bottom))]"
         >
           {!profile.emailVerified && (
             <Notice kind="info">
@@ -978,7 +987,7 @@ function Workspace() {
               phaseView ?? "",
             ) ? (
             <PhaseTwoScreen
-              key={`${selected.id}:${phaseView}:${params.get("expense") ?? ""}`}
+              key={`${selected.id}:${phaseView}:${params.get("expense") ?? ""}:${workspacePeriod.range.from}:${workspacePeriod.range.toExclusive}`}
               bucket={selected}
               profile={profile}
               view={
@@ -989,7 +998,7 @@ function Workspace() {
               refundOf={params.get("refundOf")}
               month={ledgerMonth}
               onMonthChange={setLedgerMonth}
-              onClearMonth={() => setLedgerMonth("")}
+              onClearMonth={workspacePeriod.clearMonth}
               resolveRequested={params.get("resolve") === "1"}
               refundMode={params.get("mode") === "refund"}
             />

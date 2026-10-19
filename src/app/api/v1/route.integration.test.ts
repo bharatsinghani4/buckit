@@ -824,6 +824,14 @@ describe("Phase 6 contacts and CSV", () => {
     const first = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
     expect(first.payload.data.counts.invalid).toBe(2);
     expect(first.payload.data.rows[0].duplicateCandidates).toContain("row:2");
+    const needsReview = await request(
+      "GET",
+      `${root}/imports/${importId}/rows?status=invalid`,
+      actor,
+    );
+    expect(needsReview.payload.data.map((row: { rowNumber: number }) => row.rowNumber)).toEqual([
+      1, 2,
+    ]);
     const resolved = await request(
       "PATCH",
       `${root}/imports/${importId}/resolution`,
@@ -840,6 +848,23 @@ describe("Phase 6 contacts and CSV", () => {
     const second = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
     expect(second.payload.data.counts.ready).toBe(1);
     expect(second.payload.data.counts.excluded).toBe(1);
+    const readyRows = await request("GET", `${root}/imports/${importId}/rows?status=ready`, actor);
+    expect(readyRows.payload.data.map((row: { rowNumber: number }) => row.rowNumber)).toEqual([1]);
+    const excludedRows = await request(
+      "GET",
+      `${root}/imports/${importId}/rows?status=excluded&after=1`,
+      actor,
+    );
+    expect(excludedRows.payload.data.map((row: { rowNumber: number }) => row.rowNumber)).toEqual([
+      2,
+    ]);
+    expect(
+      (await request("GET", `${root}/imports/${importId}/rows?status=invalid`, actor)).payload.data,
+    ).toEqual([]);
+    expect(
+      (await request("GET", `${root}/imports/${importId}/rows?status=unknown`, actor)).response
+        .status,
+    ).toBe(400);
     const confirmed = await request(
       "POST",
       `${root}/imports/${importId}/confirm`,
@@ -853,6 +878,81 @@ describe("Phase 6 contacts and CSV", () => {
     expect(confirmed.response.status).toBe(200);
     const committed = await request("POST", `${root}/imports/${importId}/commit-next`, actor, {});
     expect(committed.payload.data.committed).toBe(1);
+  });
+
+  it("finds review rows beyond the first page and paginates within a status", async () => {
+    const actor = "phase6filteredrows";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Filtered CSV",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const actorId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const category = (await request("GET", `${root}/options/categories`, actor)).payload.data[0].id;
+    const account = (await request("POST", `${root}/options/accounts`, actor, { name: "Checking" }))
+      .payload.data.id;
+    const created = await request("POST", `${root}/imports`, actor, {
+      fileName: "filtered.csv",
+      fileHash: "e".repeat(64),
+      fileSize: 6000,
+      rowCount: 52,
+      headers: [
+        "Date",
+        "Description",
+        "PaidBy",
+        "Category",
+        "Payment Mode",
+        "Bank Account",
+        "Amount",
+      ],
+    });
+    const importId = created.payload.data.id;
+    const staged = await request(
+      "PUT",
+      `${root}/imports/${importId}/chunks/0`,
+      actor,
+      {
+        rows: Array.from({ length: 52 }, (_, index) => ({
+          rowNumber: index + 1,
+          cells: [
+            "03/01/2026",
+            `Purchase ${index + 1}`,
+            actorId,
+            category,
+            "UPI",
+            account,
+            index === 51 ? "" : "100.00",
+          ],
+        })),
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(staged.response.status, JSON.stringify(staged.payload)).toBe(200);
+    const validation = await request("POST", `${root}/imports/${importId}/validate`, actor, {});
+    expect(validation.payload.data.counts).toMatchObject({ ready: 51, invalid: 1 });
+    const invalid = await request("GET", `${root}/imports/${importId}/rows?status=invalid`, actor);
+    expect(invalid.payload.data.map((row: { rowNumber: number }) => row.rowNumber)).toEqual([52]);
+    const readyFirst = await request("GET", `${root}/imports/${importId}/rows?status=ready`, actor);
+    expect(readyFirst.payload.data).toHaveLength(50);
+    expect(readyFirst.payload.meta.nextCursor).toBe("50");
+    const readyNext = await request(
+      "GET",
+      `${root}/imports/${importId}/rows?status=ready&after=50`,
+      actor,
+    );
+    expect(readyNext.payload.data.map((row: { rowNumber: number }) => row.rowNumber)).toEqual([51]);
+    const readyExpanded = await request(
+      "GET",
+      `${root}/imports/${importId}/rows?status=ready&limit=51`,
+      actor,
+    );
+    expect(readyExpanded.payload.data).toHaveLength(51);
+    expect(readyExpanded.payload.meta.nextCursor).toBeNull();
+    expect(
+      (await request("GET", `${root}/imports/${importId}/rows?limit=501`, actor)).response.status,
+    ).toBe(400);
   });
 
   it("imports historical expenses paid by a former bucket member without restoring their access", async () => {
@@ -2059,6 +2159,347 @@ describe("Phase 1 HTTP API flows", () => {
 });
 
 describe("Phase 2 HTTP API flows", () => {
+  it("moves an expense only after destination references and payer are mapped", async () => {
+    const actor = "move-expense-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const source = await request("POST", "buckets", actor, {
+      name: "Move source",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const target = await request("POST", "buckets", actor, {
+      name: "Move target",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const sourceRoot = `buckets/${source.payload.data.id}`;
+    const targetRoot = `buckets/${target.payload.data.id}`;
+    const sourceCategory = (await request("GET", `${sourceRoot}/categories`, actor)).payload
+      .data[0];
+    const targetCategory = (await request("GET", `${targetRoot}/categories`, actor)).payload
+      .data[0];
+    const sourceAccount = (
+      await request("POST", `${sourceRoot}/accounts`, actor, { name: "Old account" })
+    ).payload.data;
+    const targetAccount = (
+      await request("POST", `${targetRoot}/accounts`, actor, { name: "New account" })
+    ).payload.data;
+    const payerId = (await request("GET", "me", actor)).payload.data.id;
+    const created = await request("POST", `${sourceRoot}/expenses`, actor, {
+      expenseDate: "2026-10-12",
+      description: "Move full history",
+      paidByUserId: payerId,
+      categoryId: sourceCategory.id,
+      accountId: sourceAccount.id,
+      paymentMode: "upi",
+      originalAmount: "500.00",
+      originalCurrency: "INR",
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    const id = created.payload.data.id;
+    const linkedIds = [id];
+    for (let depth = 0; depth < 3; depth++) {
+      const refund = await request("POST", `${sourceRoot}/expenses`, actor, {
+        expenseDate: "2026-10-12",
+        description: `Nested refund ${depth + 1}`,
+        paidByUserId: payerId,
+        categoryId: sourceCategory.id,
+        accountId: sourceAccount.id,
+        paymentMode: "upi",
+        originalAmount: "-10.00",
+        originalCurrency: "INR",
+        refundOfExpenseId: linkedIds.at(-1),
+      });
+      expect(refund.response.status, JSON.stringify(refund.payload)).toBe(201);
+      linkedIds.push(refund.payload.data.id);
+    }
+    const endpoint = `${sourceRoot}/moves/expense/${id}`;
+    const preview = await request(
+      "GET",
+      `${endpoint}/preview?targetBucketId=${target.payload.data.id}`,
+      actor,
+    );
+    expect(preview.response.status, JSON.stringify(preview.payload)).toBe(200);
+    expect(preview.payload.data.expenseCount).toBe(4);
+    const incomplete = await request(
+      "POST",
+      endpoint,
+      actor,
+      {
+        targetBucketId: target.payload.data.id,
+        referenceMap: {},
+        payerMap: {},
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(incomplete.response.status).toBe(422);
+    const moved = await request(
+      "POST",
+      endpoint,
+      actor,
+      {
+        targetBucketId: target.payload.data.id,
+        referenceMap: Object.fromEntries(
+          preview.payload.data.references.map(
+            (entry: { sourceId: string; kind: string; choices: { id: string }[] }) => [
+              entry.sourceId,
+              entry.kind === "category"
+                ? targetCategory.id
+                : entry.kind === "account"
+                  ? targetAccount.id
+                  : entry.choices[0].id,
+            ],
+          ),
+        ),
+        payerMap: { [payerId]: payerId },
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(moved.response.status, JSON.stringify(moved.payload)).toBe(200);
+    expect(
+      (await request("GET", `${sourceRoot}/expenses?from=2026-10-01&toExclusive=2026-11-01`, actor))
+        .payload.data,
+    ).toHaveLength(0);
+    const destination = await request("GET", `${targetRoot}/expenses/${id}`, actor);
+    expect(destination.payload.data.categoryId).toBe(targetCategory.id);
+    expect(destination.payload.data.accountId).toBe(targetAccount.id);
+    for (const linkedId of linkedIds)
+      expect(
+        (await request("GET", `${targetRoot}/expenses/${linkedId}`, actor)).response.status,
+      ).toBe(200);
+  });
+
+  it("moves an EMI plan with its generated installments and expenses", async () => {
+    const actor = "move-emi-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const source = await request("POST", "buckets", actor, {
+      name: "EMI source",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const target = await request("POST", "buckets", actor, {
+      name: "EMI target",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const sourceRoot = `buckets/${source.payload.data.id}`;
+    const targetRoot = `buckets/${target.payload.data.id}`;
+    const category = (await request("GET", `${sourceRoot}/categories`, actor)).payload.data[0];
+    const account = (await request("POST", `${sourceRoot}/accounts`, actor, { name: "EMI bank" }))
+      .payload.data;
+    const targetAccount = (
+      await request("POST", `${targetRoot}/accounts`, actor, { name: "New EMI bank" })
+    ).payload.data;
+    const payerId = (await request("GET", "me", actor)).payload.data.id;
+    const created = await request("POST", `${sourceRoot}/emi-plans`, actor, {
+      title: "Move all installments",
+      installmentAmount: "500.00",
+      currency: "INR",
+      totalInstallments: 3,
+      previouslyPaidCount: 0,
+      firstInstallmentDate: "2099-01-15",
+      categoryId: category.id,
+      accountId: account.id,
+      paymentMode: "upi",
+      paidByUserId: payerId,
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    const id = created.payload.data.id;
+    await generateInstallments(id);
+    const preview = await request(
+      "GET",
+      `${sourceRoot}/moves/emi-plan/${id}/preview?targetBucketId=${target.payload.data.id}`,
+      actor,
+    );
+    expect(preview.response.status, JSON.stringify(preview.payload)).toBe(200);
+    expect(preview.payload.data.installmentCount).toBe(3);
+    const referenceMap = Object.fromEntries(
+      preview.payload.data.references.map(
+        (entry: { sourceId: string; kind: string; choices: { id: string }[] }) => [
+          entry.sourceId,
+          entry.kind === "account" ? targetAccount.id : entry.choices[0].id,
+        ],
+      ),
+    );
+    const moved = await request(
+      "POST",
+      `${sourceRoot}/moves/emi-plan/${id}`,
+      actor,
+      {
+        targetBucketId: target.payload.data.id,
+        referenceMap,
+        payerMap: { [payerId]: payerId },
+      },
+      { "If-Match": created.response.headers.get("ETag")! },
+    );
+    expect(moved.response.status, JSON.stringify(moved.payload)).toBe(200);
+    expect((await request("GET", `${sourceRoot}/emi-plans/${id}`, actor)).response.status).toBe(
+      404,
+    );
+    expect((await request("GET", `${targetRoot}/emi-plans/${id}`, actor)).response.status).toBe(
+      200,
+    );
+    expect(
+      (await request("GET", `${targetRoot}/emi-plans/${id}/installments`, actor)).payload.data,
+    ).toHaveLength(3);
+    expect(
+      (await request("GET", `${sourceRoot}/expenses?status=scheduled`, actor)).payload.data,
+    ).toHaveLength(0);
+    expect(
+      (await request("GET", `${targetRoot}/expenses?status=scheduled`, actor)).payload.data,
+    ).toHaveLength(3);
+  });
+
+  it("moves a recurring plan with a previously recorded payment", async () => {
+    const actor = "move-recurring-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const source = await request("POST", "buckets", actor, {
+      name: "Recurring source",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const target = await request("POST", "buckets", actor, {
+      name: "Recurring target",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const sourceRoot = `buckets/${source.payload.data.id}`;
+    const targetRoot = `buckets/${target.payload.data.id}`;
+    const category = (await request("GET", `${sourceRoot}/categories`, actor)).payload.data[0];
+    const account = (await request("POST", `${sourceRoot}/accounts`, actor, { name: "SIP source" }))
+      .payload.data;
+    const targetAccount = (
+      await request("POST", `${targetRoot}/accounts`, actor, { name: "SIP target" })
+    ).payload.data;
+    const payerId = (await request("GET", "me", actor)).payload.data.id;
+    const today = new Date().toISOString().slice(0, 10);
+    const created = await request("POST", `${sourceRoot}/recurring-plans`, actor, {
+      title: "Monthly SIP",
+      amount: "1000.00",
+      currency: "INR",
+      frequency: "monthly",
+      startDate: today,
+      categoryId: category.id,
+      accountId: account.id,
+      paymentMode: "upi",
+      paidByUserId: payerId,
+      recordingMode: "confirm",
+      reminderLeadDays: 0,
+      reminderPurpose: "funds",
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    const id = created.payload.data.id;
+    const confirmed = await request(
+      "POST",
+      `${sourceRoot}/recurring-plans/${id}/confirm`,
+      actor,
+      {
+        paymentDate: today,
+      },
+      { "If-Match": `"r${created.payload.data.revision}"` },
+    );
+    expect(confirmed.response.status, JSON.stringify(confirmed.payload)).toBe(201);
+    const current = (
+      await request("GET", `${sourceRoot}/recurring-plans`, actor)
+    ).payload.data.find((plan: { id: string }) => plan.id === id);
+    const preview = await request(
+      "GET",
+      `${sourceRoot}/moves/recurring-plan/${id}/preview?targetBucketId=${target.payload.data.id}`,
+      actor,
+    );
+    expect(preview.payload.data.expenseCount).toBe(1);
+    const referenceMap = Object.fromEntries(
+      preview.payload.data.references.map(
+        (entry: { sourceId: string; kind: string; choices: { id: string }[] }) => [
+          entry.sourceId,
+          entry.kind === "account" ? targetAccount.id : entry.choices[0].id,
+        ],
+      ),
+    );
+    const moved = await request(
+      "POST",
+      `${sourceRoot}/moves/recurring-plan/${id}`,
+      actor,
+      {
+        targetBucketId: target.payload.data.id,
+        referenceMap,
+        payerMap: { [payerId]: payerId },
+      },
+      { "If-Match": `"r${current.revision}"` },
+    );
+    expect(moved.response.status, JSON.stringify(moved.payload)).toBe(200);
+    expect(
+      (await request("GET", `${sourceRoot}/recurring-plans`, actor)).payload.data.some(
+        (plan: { id: string }) => plan.id === id,
+      ),
+    ).toBe(false);
+    expect(
+      (await request("GET", `${targetRoot}/recurring-plans`, actor)).payload.data.some(
+        (plan: { id: string }) => plan.id === id,
+      ),
+    ).toBe(true);
+    expect(
+      (await request("GET", `${targetRoot}/expenses/${confirmed.payload.data.id}`, actor)).response
+        .status,
+    ).toBe(200);
+  });
+
+  it("keeps search and date boundaries across expense pages", async () => {
+    const actor = "phase2searchpages";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Search page test",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const account = await request("POST", `${root}/accounts`, actor, { name: "Bank" });
+    const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
+    const payer = (await request("GET", "me", actor)).payload.data.id;
+    for (const [expenseDate, description] of [
+      ["2026-03-15", "Didi outside range"],
+      ["2026-06-15", "Didi June"],
+      ["2026-07-15", "Didi July"],
+      ["2026-08-15", "Didi August"],
+      ["2026-09-15", "Another payment"],
+    ]) {
+      const created = await request("POST", `${root}/expenses`, actor, {
+        expenseDate,
+        description,
+        paidByUserId: payer,
+        categoryId: category.id,
+        accountId: account.payload.data.id,
+        paymentMode: "upi",
+        originalAmount: "100",
+        originalCurrency: "INR",
+      });
+      expect(created.response.status).toBe(201);
+    }
+    const filters = "from=2026-04-01&toExclusive=2026-10-21&q=didi&limit=1";
+    const descriptions: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const page = await request(
+        "GET",
+        `${root}/expenses?${filters}${cursor ? `&cursor=${cursor}` : ""}`,
+        actor,
+      );
+      expect(page.response.status).toBe(200);
+      descriptions.push(
+        ...page.payload.data.map((expense: { description: string }) => expense.description),
+      );
+      cursor = page.payload.meta.nextCursor;
+    } while (cursor);
+    expect(descriptions.sort()).toEqual(["Didi August", "Didi July", "Didi June"]);
+    const summary = await request(
+      "GET",
+      `${root}/expenses/summary?from=2026-04-01&toExclusive=2026-10-21`,
+      actor,
+    );
+    expect(summary.payload.data.actualCount).toBe(4);
+    expect(Number(summary.payload.data.actualTotal)).toBe(400);
+  });
+
   it("handles reference options, expenses, comments, deletion, restoration, members, and invitations", async () => {
     const actor = "phase2owner";
     expect((await request("POST", "me/bootstrap", actor, {})).response.status).toBe(201);
