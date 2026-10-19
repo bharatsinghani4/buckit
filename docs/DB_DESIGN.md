@@ -266,7 +266,7 @@ Start account/platform/payment filters with the bucket/date range index and add 
 
 Fields: `bucketId`, `actualCreatorUserId`, `creatorMembershipId`, `title`, positive `installmentAmount`, `currency`, `totalInstallments`, `previouslyPaidCount`, `firstInstallmentDate`, `anchorDay`, default category/account/platform/payment-mode/payer, `state` (`active`, `ended`, `completed`, `owner_departed`), `generatedThroughNumber`, `generationVersion`, `endedAt?`, `revision`.
 
-For an existing plan, `firstInstallmentDate` describes the original schedule and `previouslyPaidCount` identifies the leading paid installments. Preview the remaining dates before saving. Generate obligations only for numbers after the previously paid count. Do not create synthetic prior expenses.
+For an existing plan, `firstInstallmentDate` describes the original schedule and `previouslyPaidCount` identifies the leading paid installments. Preview the remaining dates before saving. Generate obligations only for numbers after the paid count. If all installments were paid, create the plan in `completed` state without obligations or synthetic prior expenses.
 
 Indexes: `{ bucketId: 1, state: 1, createdAt: -1 }`; `{ creatorMembershipId: 1, state: 1 }`.
 

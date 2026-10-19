@@ -1,4 +1,5 @@
 import "server-only";
+import type mongoose from "mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { ApiError } from "@/lib/api/errors";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/lib/db/models";
 import { activeUser, bucketForUser } from "@/features/identity/service";
 import { fromMinor } from "@/features/expenses/money";
+import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
 import { listBudgets } from "./budget-service";
 import { periodRange, priorElapsedRange, todayInZone, units } from "./calculations";
 
@@ -52,12 +54,14 @@ async function spending(
   today: string,
   groupBy: GroupBy,
   filters: URLSearchParams,
+  livePlanIds: mongoose.Types.ObjectId[],
 ) {
   const match: Record<string, unknown> = {
     bucketId,
     deletedAt: null,
     postingState: { $ne: "canceled" },
     expenseDate: { $gte: from, $lt: toExclusive },
+    $and: [visibleExpenseFilter(livePlanIds)],
   };
   for (const [parameter, field] of [
     ["categoryId", "categoryId"],
@@ -178,6 +182,7 @@ async function spendingReportOnce(
   const groupBy = params.get("groupBy") ?? "category";
   if (!groupFields.includes(groupBy as GroupBy))
     throw new ApiError(422, "INVALID_GROUP", "Choose a valid report grouping.");
+  const planIds = await liveEmiPlanIds(bucketId);
   return spending(
     bucketId,
     bucket.primaryCurrency,
@@ -187,6 +192,7 @@ async function spendingReportOnce(
     today,
     groupBy as GroupBy,
     params,
+    planIds,
   );
 }
 
@@ -210,6 +216,10 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
   const range = parseRange(params, today);
   const previousRange = priorElapsedRange(range.from, range.toExclusive, today, range.period);
   const empty = new URLSearchParams();
+  const [planIds, existingPlanIds] = await Promise.all([
+    liveEmiPlanIds(bucketId),
+    EmiPlanModel.distinct("_id", { bucketId }),
+  ]);
   const [
     category,
     member,
@@ -231,6 +241,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       today,
       "category",
       empty,
+      planIds,
     ),
     spending(
       bucketId,
@@ -241,6 +252,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       today,
       "member",
       empty,
+      planIds,
     ),
     spending(
       bucketId,
@@ -251,6 +263,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       today,
       "day",
       empty,
+      planIds,
     ),
     spending(
       bucketId,
@@ -261,16 +274,26 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       today,
       "category",
       empty,
+      planIds,
     ),
     listBudgets(identity, bucketId, range.anchor.slice(0, 7)),
-    ExpenseModel.find({ bucketId, deletedAt: null, postingState: { $ne: "canceled" } })
+    ExpenseModel.find({
+      bucketId,
+      deletedAt: null,
+      postingState: { $ne: "canceled" },
+      $and: [visibleExpenseFilter(planIds)],
+    })
       .sort({ expenseDate: -1, _id: -1 })
       .limit(5)
       .lean(),
     EmiPlanModel.countDocuments({ bucketId, state: "active" }),
-    EmiInstallmentModel.countDocuments({ bucketId, state: "scheduled" }),
-    EmiInstallmentModel.countDocuments({ bucketId, state: { $in: ["skipped", "unpaid"] } }),
-    EmiInstallmentModel.findOne({ bucketId, state: "scheduled" })
+    EmiInstallmentModel.countDocuments({ bucketId, planId: { $in: planIds }, state: "scheduled" }),
+    EmiInstallmentModel.countDocuments({
+      bucketId,
+      planId: { $in: existingPlanIds },
+      state: { $in: ["skipped", "unpaid"] },
+    }),
+    EmiInstallmentModel.findOne({ bucketId, planId: { $in: planIds }, state: "scheduled" })
       .sort({ scheduledDate: 1 })
       .select("scheduledDate"),
   ]);

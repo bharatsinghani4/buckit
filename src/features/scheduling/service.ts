@@ -19,6 +19,7 @@ import { minorUnits } from "@/features/expenses/money";
 import { z } from "zod";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { dueInstant, installmentDate, localDate } from "./dates";
+import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
 import { recurringDate, type RecurringFrequency } from "./recurring-dates";
 import { planEditInput, planInput, type PlanInput } from "./contracts";
 import { requireConfig } from "@/lib/config/required";
@@ -479,6 +480,7 @@ export async function createPlan(
               account: refs.account.name,
               platform: refs.platform?.name ?? "Other",
             },
+            state: input.previouslyPaidCount === input.totalInstallments ? "completed" : "active",
             generatedThroughNumber: input.previouslyPaidCount,
           },
         ],
@@ -881,10 +883,12 @@ export async function listScheduled(identity: DecodedIdToken, bucketId: string) 
   const bucket = await bucketForUser(bucketId, user);
   const today = localDate(new Date(), bucket.timezone);
   const membership = await MembershipModel.findOne({ bucketId, userId: user._id, state: "active" });
+  const planIds = await liveEmiPlanIds(bucketId);
   const expenses = await ExpenseModel.find({
     bucketId,
     postingState: "unposted",
     deletedAt: null,
+    $and: [visibleExpenseFilter(planIds)],
   })
     .sort({ expenseDate: 1 })
     .limit(100);

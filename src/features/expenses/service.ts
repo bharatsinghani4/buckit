@@ -27,6 +27,7 @@ import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insigh
 import { z } from "zod";
 import { dueInstant } from "@/features/scheduling/dates";
 import { recordDomainEvent } from "@/features/notifications/event-service";
+import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
 
 const missing = () => new ApiError(404, "RESOURCE_NOT_FOUND", "This expense is not available.");
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
@@ -363,6 +364,7 @@ export async function listExpenses(
   } else {
     query.deletedAt = null;
     query.postingState = { $ne: "canceled" };
+    query.$and = [visibleExpenseFilter(await liveEmiPlanIds(bucketId))];
   }
   for (const [param, field] of [
     ["categoryId", "categoryId"],
@@ -433,6 +435,7 @@ export async function expenseSummary(
     bucketId: new mongoose.Types.ObjectId(bucketId),
     deletedAt: null,
     postingState: { $ne: "canceled" },
+    $and: [visibleExpenseFilter(await liveEmiPlanIds(bucketId))],
   };
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [year, number] = month.split("-").map(Number);

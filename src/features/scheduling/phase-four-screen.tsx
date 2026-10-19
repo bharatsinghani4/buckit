@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  Info,
   Layers3,
   Plus,
   RotateCcw,
@@ -98,6 +99,55 @@ function statusStyle(status: string) {
       : "bg-[var(--surface-2)] text-[var(--muted)]";
 }
 
+function PaidInstallmentsHelp() {
+  const [open, setOpen] = useState(false);
+  const tooltipId = useId();
+  const container = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!container.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [open]);
+
+  return (
+    <span ref={container} className="relative inline-flex">
+      <button
+        type="button"
+        className="inline-flex size-5 items-center justify-center rounded-full text-[var(--muted)] hover:text-[var(--green)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--green)]"
+        aria-label="About paid installments"
+        aria-describedby={open ? tooltipId : undefined}
+        aria-expanded={open}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpen(false);
+            event.currentTarget.blur();
+          }
+        }}
+      >
+        <Info size={14} />
+      </button>
+      {open && (
+        <span
+          id={tooltipId}
+          role="tooltip"
+          className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-64 max-w-[calc(100vw-48px)] rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 text-[11px] font-normal leading-relaxed text-[var(--ink)] shadow-lg"
+        >
+          Already paid before adding this plan. These payments will not be added to Expenses.
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function PhaseFourScreen({
   bucket,
   view,
@@ -123,6 +173,7 @@ export function PhaseFourScreen({
     members: Member[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState<
@@ -151,6 +202,10 @@ export function PhaseFourScreen({
     paidByUserId: "",
   });
   const mutationKey = useRef<string | null>(null);
+  const categoryId = form.categoryId || options?.categories[0]?.id || "";
+  const accountId = form.accountId || options?.accounts[0]?.id || "";
+  const platformId = form.platformId || options?.platforms[0]?.id || "";
+  const paidByUserId = form.paidByUserId || options?.members[0]?.id || "";
 
   function chooseScheduledTab(tab: "upcoming" | "recurring") {
     router.replace(
@@ -214,6 +269,37 @@ export function PhaseFourScreen({
     setError("");
     setPreview([]);
     setCorrectionPreview(null);
+    setLoadingOptions(true);
+    setOptions(null);
+    if (editing && selected)
+      setForm({
+        title: selected.title,
+        installmentAmount: selected.installmentAmount,
+        currency: selected.currency,
+        totalInstallments: String(selected.totalInstallments),
+        previouslyPaidCount: String(selected.previouslyPaidCount),
+        firstInstallmentDate: selected.firstInstallmentDate,
+        categoryId: selected.categoryId,
+        accountId: selected.accountId,
+        platformId: selected.platformId,
+        paymentMode: selected.paymentMode,
+        paidByUserId: selected.paidByUserId,
+      });
+    else
+      setForm({
+        title: "",
+        installmentAmount: "",
+        currency: bucket.primaryCurrency,
+        totalInstallments: "12",
+        previouslyPaidCount: "0",
+        firstInstallmentDate: new Date().toISOString().slice(0, 10),
+        categoryId: "",
+        accountId: "",
+        platformId: "",
+        paymentMode: "upi",
+        paidByUserId: "",
+      });
+    setDialog(editing ? "edit" : "add");
     try {
       const [categories, accounts, platforms, members] = await Promise.all([
         read<Option[]>(`buckets/${bucket.id}/options/categories`),
@@ -227,37 +313,10 @@ export function PhaseFourScreen({
         platforms: platforms.data.filter((item) => item.state === "active"),
         members: members.data,
       });
-      if (editing && selected)
-        setForm({
-          title: selected.title,
-          installmentAmount: selected.installmentAmount,
-          currency: selected.currency,
-          totalInstallments: String(selected.totalInstallments),
-          previouslyPaidCount: String(selected.previouslyPaidCount),
-          firstInstallmentDate: selected.firstInstallmentDate,
-          categoryId: selected.categoryId,
-          accountId: selected.accountId,
-          platformId: selected.platformId,
-          paymentMode: selected.paymentMode,
-          paidByUserId: selected.paidByUserId,
-        });
-      else
-        setForm({
-          title: "",
-          installmentAmount: "",
-          currency: bucket.primaryCurrency,
-          totalInstallments: "12",
-          previouslyPaidCount: "0",
-          firstInstallmentDate: new Date().toISOString().slice(0, 10),
-          categoryId: categories.data.find((item) => item.state === "active")?.id ?? "",
-          accountId: accounts.data.find((item) => item.state === "active")?.id ?? "",
-          platformId: platforms.data.find((item) => item.state === "active")?.id ?? "",
-          paymentMode: "upi",
-          paidByUserId: members.data[0]?.id ?? "",
-        });
-      setDialog(editing ? "edit" : "add");
     } catch (cause) {
       setError(friendlyError(cause));
+    } finally {
+      setLoadingOptions(false);
     }
   }
 
@@ -271,19 +330,23 @@ export function PhaseFourScreen({
       title: form.title,
       installmentAmount: form.installmentAmount,
       currency: form.currency,
-      categoryId: form.categoryId,
-      accountId: form.accountId,
-      platformId: form.platformId || undefined,
+      categoryId,
+      accountId,
+      platformId: platformId || undefined,
       paymentMode: form.paymentMode,
-      paidByUserId: form.paidByUserId,
+      paidByUserId,
     };
   }
   function planBody() {
     return {
       ...form,
+      categoryId,
+      accountId,
+      platformId,
+      paidByUserId,
       totalInstallments: Number(form.totalInstallments),
       previouslyPaidCount: Number(form.previouslyPaidCount),
-      ...(form.platformId ? {} : { platformId: undefined }),
+      ...(platformId ? {} : { platformId: undefined }),
     };
   }
   async function showPreview() {
@@ -678,17 +741,25 @@ export function PhaseFourScreen({
                     </p>
                     <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-[var(--line)] pt-3 text-xs">
                       <span>
-                        {plan.recordedCount} of {plan.totalInstallments} recorded
+                        {plan.recordedCount} of {plan.totalInstallments} paid
                       </span>
                       <strong>{money(plan.installmentAmount, plan.currency)} / month</strong>
                     </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
-                      <div
-                        className="h-full rounded-full bg-[var(--green)]"
-                        style={{
-                          width: `${Math.min(100, (plan.recordedCount / plan.totalInstallments) * 100)}%`,
-                        }}
-                      />
+                    <div
+                      role="img"
+                      aria-label={`${plan.recordedCount} of ${plan.totalInstallments} installments paid`}
+                      className={`mt-2 grid ${plan.totalInstallments <= 24 ? "gap-1" : "gap-px"}`}
+                      style={{
+                        gridTemplateColumns: `repeat(${plan.totalInstallments}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {Array.from({ length: plan.totalInstallments }, (_, index) => (
+                        <span
+                          key={index}
+                          aria-hidden="true"
+                          className={`h-1.5 min-w-0 rounded-full ${index < plan.recordedCount ? "bg-[var(--mint)]" : "bg-[var(--line)]"}`}
+                        />
+                      ))}
                     </div>
                     <p className="mt-3 text-[11px] text-[var(--muted)]">
                       {plan.nextDate
@@ -713,9 +784,9 @@ export function PhaseFourScreen({
           <div className="grid gap-3 sm:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
             <Summary
               icon={<CheckCircle2 size={18} />}
-              label="Recorded"
+              label="Paid"
               value={`${selected.recordedCount} / ${selected.totalInstallments}`}
-              detail="Includes previously paid count"
+              detail="Includes payments made before adding the plan"
             />
             <Summary
               icon={<CalendarDays size={18} />}
@@ -846,6 +917,9 @@ export function PhaseFourScreen({
                   </div>
                 ))}
               </div>
+            ) : selected.state === "completed" &&
+              selected.previouslyPaidCount === selected.totalInstallments ? (
+              <Empty text="All installments were paid before this plan was added. No expenses were created." />
             ) : (
               <Empty text="Installment setup is processing. The daily worker resumes remaining dates." />
             )}
@@ -922,17 +996,27 @@ export function PhaseFourScreen({
                     onChange={(event) => update("totalInstallments", event.target.value)}
                   />
                 </Field>
-                <Field label="Previously paid">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <label
+                      htmlFor="paid-installments"
+                      className="text-xs font-semibold text-[var(--ink)]"
+                    >
+                      Paid Installments
+                    </label>
+                    <PaidInstallmentsHelp />
+                  </div>
                   <input
+                    id="paid-installments"
                     required
                     type="number"
                     min={0}
-                    max={119}
+                    max={Number(form.totalInstallments) || 120}
                     className={field}
                     value={form.previouslyPaidCount}
                     onChange={(event) => update("previouslyPaidCount", event.target.value)}
                   />
-                </Field>
+                </div>
                 <Field label="First installment">
                   <CalendarField
                     required
@@ -945,7 +1029,7 @@ export function PhaseFourScreen({
             <div className="grid gap-3 sm:grid-cols-2 min-[768px]:max-[1024px]:!grid-cols-1">
               <Field label="Category">
                 <Dropdown
-                  value={form.categoryId}
+                  value={categoryId}
                   onValueChange={(value) => update("categoryId", value)}
                   options={(options?.categories ?? []).map((item) => ({
                     value: item.id,
@@ -955,7 +1039,7 @@ export function PhaseFourScreen({
               </Field>
               <Field label="Payment account">
                 <Dropdown
-                  value={form.accountId}
+                  value={accountId}
                   onValueChange={(value) => update("accountId", value)}
                   options={(options?.accounts ?? []).map((item) => ({
                     value: item.id,
@@ -965,7 +1049,7 @@ export function PhaseFourScreen({
               </Field>
               <Field label="Platform">
                 <Dropdown
-                  value={form.platformId}
+                  value={platformId}
                   onValueChange={(value) => update("platformId", value)}
                   options={(options?.platforms ?? []).map((item) => ({
                     value: item.id,
@@ -982,7 +1066,7 @@ export function PhaseFourScreen({
               </Field>
               <Field label="Paid by">
                 <Dropdown
-                  value={form.paidByUserId}
+                  value={paidByUserId}
                   onValueChange={(value) => update("paidByUserId", value)}
                   options={(options?.members ?? []).map((item) => ({
                     value: item.id,
@@ -991,6 +1075,19 @@ export function PhaseFourScreen({
                 />
               </Field>
             </div>
+            {loadingOptions && (
+              <p role="status" className="text-xs text-[var(--muted)]">
+                Loading categories, accounts, and members…
+              </p>
+            )}
+            {dialog === "add" &&
+              Number(form.totalInstallments) > 0 &&
+              Number(form.previouslyPaidCount) === Number(form.totalInstallments) && (
+                <p className="rounded-lg bg-[var(--soft)] p-3 text-xs text-[var(--muted)]">
+                  This plan is fully paid. It will appear as completed, with no new scheduled
+                  expenses.
+                </p>
+              )}
             {(dialog === "add" || dialog === "edit") && (
               <div className="rounded-lg bg-[var(--soft)] p-3">
                 <button
@@ -1049,7 +1146,15 @@ export function PhaseFourScreen({
               <button
                 type="submit"
                 className={primary}
-                disabled={busy || !options?.categories.length || !options.accounts.length}
+                disabled={
+                  busy ||
+                  loadingOptions ||
+                  !options?.categories.length ||
+                  !options.accounts.length ||
+                  !categoryId ||
+                  !accountId ||
+                  !paidByUserId
+                }
               >
                 {busy ? "Saving…" : dialog === "edit" ? "Save changes" : "Create EMI plan"}{" "}
                 <ArrowRight size={14} />

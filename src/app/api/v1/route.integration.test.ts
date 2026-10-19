@@ -5,6 +5,7 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import {
   AuditModel,
   ExpenseModel,
+  EmiPlanModel,
   ReminderModel,
   UserModel,
   phaseSevenModels,
@@ -1276,6 +1277,98 @@ describe("Phase 5 notification preferences", () => {
 });
 
 describe("Phase 4 scheduled spending and EMI flows", () => {
+  it("accepts a fully paid plan without creating expenses and hides orphaned future entries", async () => {
+    const actor = "phase4historical";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Historical EMI plans",
+      primaryCurrency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const profile = (await request("GET", "me", actor)).payload.data;
+    const account = await request("POST", `${root}/accounts`, actor, { name: "Card" });
+    const category = (await request("GET", `${root}/categories`, actor)).payload.data[0];
+    const platform = (await request("GET", `${root}/platforms`, actor)).payload.data[0];
+    const definition = {
+      title: "Past appliance EMI",
+      installmentAmount: "100.00",
+      currency: "INR",
+      totalInstallments: 6,
+      previouslyPaidCount: 6,
+      firstInstallmentDate: "2026-01-06",
+      categoryId: category.id,
+      accountId: account.payload.data.id,
+      platformId: platform.id,
+      paymentMode: "credit_card",
+      paidByUserId: profile.id,
+    };
+    const preview = await request("POST", `${root}/emi-plans/preview`, actor, definition);
+    expect(preview.payload.data.dates).toEqual([]);
+    const completed = await request("POST", `${root}/emi-plans`, actor, definition);
+    expect(completed.response.status, JSON.stringify(completed.payload)).toBe(201);
+    expect(completed.payload.data).toMatchObject({
+      state: "completed",
+      recordedCount: 6,
+      upcomingCount: 0,
+      nextDate: null,
+    });
+    expect(
+      (await request("GET", `${root}/emi-plans/${completed.payload.data.id}/installments`, actor))
+        .payload.data,
+    ).toEqual([]);
+    expect(
+      await ExpenseModel.countDocuments({ "source.emiPlanId": completed.payload.data.id }),
+    ).toBe(0);
+
+    const future = await request("POST", `${root}/emi-plans`, actor, {
+      ...definition,
+      title: "Deleted outside Buckit",
+      totalInstallments: 1,
+      previouslyPaidCount: 0,
+      firstInstallmentDate: "2099-01-15",
+    });
+    expect(future.response.status, JSON.stringify(future.payload)).toBe(201);
+    const before = await request(
+      "GET",
+      `${root}/dashboard?period=month&anchorDate=2099-01-15`,
+      actor,
+    );
+    expect(before.payload.data.scheduledCount).toBe(1);
+    await EmiPlanModel.updateOne(
+      { _id: future.payload.data.id },
+      { $set: { state: "owner_departed" } },
+    );
+    const departed = await request(
+      "GET",
+      `${root}/dashboard?period=month&anchorDate=2099-01-15`,
+      actor,
+    );
+    expect(departed.payload.data.emi.activePlans).toBe(0);
+    expect(departed.payload.data.scheduledCount).toBe(1);
+    await EmiPlanModel.deleteOne({ _id: future.payload.data.id });
+
+    const overview = await request(
+      "GET",
+      `${root}/dashboard?period=month&anchorDate=2099-01-15`,
+      actor,
+    );
+    expect(overview.payload.data.scheduledCount).toBe(0);
+    expect(overview.payload.data.emi.upcomingInstallments).toBe(0);
+    expect((await request("GET", `${root}/scheduled-expenses`, actor)).payload.data).toEqual([]);
+    expect((await request("GET", `${root}/expenses?status=scheduled`, actor)).payload.data).toEqual(
+      [],
+    );
+    const summary = await request("GET", `${root}/expenses/summary?month=2099-01`, actor);
+    expect(summary.payload.data.scheduledCount).toBe(0);
+    const exported = await request("POST", `${root}/exports/preview`, actor, {
+      scope: "all",
+      filters: {},
+      includeScheduled: true,
+    });
+    expect(exported.payload.data.count).toBe(0);
+  });
+
   it("paginates installment history and requires an exact correction preview", async () => {
     const actor = "phase4pagination";
     await request("POST", "me/bootstrap", actor, {});
