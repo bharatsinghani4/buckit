@@ -770,17 +770,27 @@ export async function listImportRows(
   const after = Number(search.get("after") ?? 0);
   if (!Number.isInteger(after) || after < 0 || after > 5000)
     throw new ApiError(400, "INVALID_CURSOR", "Refresh the import rows.");
-  const rows = await ImportRowModel.find({ sessionId, rowNumber: { $gt: after } })
+  const limit = Number(search.get("limit") ?? 50);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500)
+    throw new ApiError(400, "INVALID_LIMIT", "Choose between 1 and 500 import rows.");
+  const status = search.get("status");
+  if (status && !["ready", "invalid", "excluded"].includes(status))
+    throw new ApiError(400, "INVALID_STATUS", "Choose a valid import row status.");
+  const rows = await ImportRowModel.find({
+    sessionId,
+    rowNumber: { $gt: after },
+    ...(status ? { state: status } : {}),
+  })
     .sort({ rowNumber: 1 })
-    .limit(51);
+    .limit(limit + 1);
   const ctx = await context(bucketId, String(user._id), item.proposedOptions ?? []);
   const data = [];
-  for (const row of rows.slice(0, 50))
+  for (const row of rows.slice(0, limit))
     data.push(await rowPreview(row, item, ctx, row.duplicateCandidates ?? []));
   return {
     data,
-    hasMore: rows.length > 50,
-    nextCursor: rows.length > 50 ? String(data.at(-1)?.rowNumber) : null,
+    hasMore: rows.length > limit,
+    nextCursor: rows.length > limit ? String(data.at(-1)?.rowNumber) : null,
   };
 }
 export async function confirmImport(

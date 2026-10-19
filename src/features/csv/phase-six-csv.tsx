@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -79,6 +79,31 @@ type ImportPreview = {
   warnings: string[];
   proposedOptions: { kind: string; name: string }[];
 };
+type RowFilter = "all" | "ready" | "invalid" | "excluded";
+type ReviewRows = { rows: ImportRow[]; cursor: string | null };
+
+async function readReviewRows(
+  endpoint: string,
+  filter: RowFilter,
+  atLeast: number,
+  firstPage?: ReviewRows,
+): Promise<ReviewRows> {
+  const rows = [...(firstPage?.rows ?? [])];
+  let cursor = firstPage?.cursor ?? null;
+  let needsFirstPage = !firstPage;
+  while (needsFirstPage || (cursor && rows.length < atLeast)) {
+    const params = new URLSearchParams();
+    if (filter !== "all") params.set("status", filter);
+    if (cursor) params.set("after", cursor);
+    const limit = Math.min(500, Math.max(50, atLeast - rows.length));
+    if (limit !== 50) params.set("limit", String(limit));
+    const result = await api<ImportRow[]>(`${endpoint}${params.size ? `?${params}` : ""}`);
+    rows.push(...result.data);
+    cursor = result.meta.nextCursor ?? null;
+    needsFirstPage = false;
+  }
+  return { rows, cursor };
+}
 type ExportPreview = {
   columns: string[];
   count: number;
@@ -146,6 +171,15 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [rowCursor, setRowCursor] = useState<string | null>(null);
+  const [rowFilter, setRowFilter] = useState<RowFilter>("all");
+  const [loadingRows, setLoadingRows] = useState(false);
+  const loadedRowsByFilter = useRef<Record<RowFilter, number>>({
+    all: 50,
+    ready: 50,
+    invalid: 50,
+    excluded: 50,
+  });
+  const reviewScrollPosition = useRef<number | null>(null);
   const [mapping, setMapping] = useState<Record<string, number>>({});
   const [guidance, setGuidance] = useState<ImportGuidance | null>(null);
   const [proposalKind, setProposalKind] = useState("category");
@@ -161,6 +195,14 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
   const [notice, setNotice] = useState("");
   const [step, setStep] = useState(0);
   const base = `buckets/${bucket.id}/imports`;
+  useLayoutEffect(() => {
+    if (busy || reviewScrollPosition.current === null) return;
+    window.scrollTo(0, reviewScrollPosition.current);
+    reviewScrollPosition.current = null;
+  }, [rows, busy]);
+  function rememberReviewScroll() {
+    reviewScrollPosition.current = document.scrollingElement?.scrollTop ?? window.scrollY;
+  }
   function begin(message: string, target: string) {
     setBusy(true);
     setBusyMessage(message);
@@ -185,6 +227,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
         if (active) {
           setRows(page.data);
           setRowCursor(page.meta.nextCursor ?? null);
+          loadedRowsByFilter.current.all = Math.max(50, page.data.length);
         }
       })
       .catch((cause) => {
@@ -373,6 +416,8 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       setSession(current);
       setMapping(current.mapping);
       setFileName(file.name);
+      setRowFilter("all");
+      loadedRowsByFilter.current = { all: 50, ready: 50, invalid: 50, excluded: 50 };
       setStep(1);
       setNotice(
         `${dataRows.length} expense rows staged. ${parsed.length - dataRows.length} blank/total rows ignored. Check column mapping before validation.`,
@@ -443,16 +488,28 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       const result = (
         await api<ImportPreview>(`${base}/${current.id}/validate`, { method: "POST", body: {} })
       ).data;
+      const refreshed = await readReviewRows(
+        `${base}/${current.id}/rows`,
+        rowFilter,
+        loadedRowsByFilter.current[rowFilter],
+        rowFilter === "all"
+          ? {
+              rows: result.rows,
+              cursor: result.hasMore ? String(result.rows.at(-1)?.rowNumber) : null,
+            }
+          : undefined,
+      );
       setPreview(result);
       setSession((previous) =>
         previous?.id === current.id
           ? { ...previous, proposedOptions: result.proposedOptions }
           : previous,
       );
-      setRows(result.rows);
-      setRowCursor(result.hasMore ? "50" : null);
+      setRows(refreshed.rows);
+      setRowCursor(refreshed.cursor);
       setStep(2);
     } catch (cause) {
+      reviewScrollPosition.current = null;
       setError(friendlyError(cause));
     } finally {
       finish();
@@ -460,6 +517,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
   }
   async function correct(row: ImportRow, field: Column, value: string) {
     if (!session) return;
+    rememberReviewScroll();
     begin(`Saving correction for row ${row.rowNumber}…`, `correct:${row.rowNumber}`);
     setError("");
     try {
@@ -473,6 +531,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       setPreview(null);
       await validate(result.data);
     } catch (cause) {
+      reviewScrollPosition.current = null;
       setError(friendlyError(cause));
     } finally {
       finish();
@@ -480,6 +539,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
   }
   async function decide(row: ImportRow, decision: "include" | "skip" | "exclude") {
     if (!session) return;
+    rememberReviewScroll();
     begin(`Updating row ${row.rowNumber}…`, `decide:${row.rowNumber}:${decision}`);
     setError("");
     try {
@@ -503,6 +563,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       setPreview(null);
       await validate(result.data);
     } catch (cause) {
+      reviewScrollPosition.current = null;
       setError(friendlyError(cause));
     } finally {
       finish();
@@ -512,13 +573,37 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     if (!session || !rowCursor) return;
     begin("Loading more import rows…", "more");
     try {
-      const result = await api<ImportRow[]>(`${base}/${session.id}/rows?after=${rowCursor}`);
+      const params = new URLSearchParams({ after: rowCursor });
+      if (rowFilter !== "all") params.set("status", rowFilter);
+      const result = await api<ImportRow[]>(`${base}/${session.id}/rows?${params}`);
       setRows((old) => [...old, ...result.data]);
       setRowCursor(result.meta.nextCursor ?? null);
+      loadedRowsByFilter.current[rowFilter] = rows.length + result.data.length;
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
       finish();
+    }
+  }
+  async function selectRowFilter(filter: RowFilter) {
+    if (!session || busy || loadingRows) return;
+    const next = rowFilter === filter ? "all" : filter;
+    if (next === rowFilter) return;
+    setLoadingRows(true);
+    setError("");
+    try {
+      const refreshed = await readReviewRows(
+        `${base}/${session.id}/rows`,
+        next,
+        loadedRowsByFilter.current[next],
+      );
+      setRows(refreshed.rows);
+      setRowCursor(refreshed.cursor);
+      setRowFilter(next);
+    } catch (cause) {
+      setError(friendlyError(cause));
+    } finally {
+      setLoadingRows(false);
     }
   }
   async function confirm() {
@@ -862,20 +947,64 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                   </p>
                 </div>
                 {preview && (
-                  <div className="flex gap-2 text-xs font-semibold">
-                    <span className="rounded-full bg-[var(--sage)] px-3 py-1.5 text-[var(--green)]">
-                      {preview.counts.ready ?? 0} ready
-                    </span>
-                    <span className="rounded-full bg-[var(--error-bg)] px-3 py-1.5 text-[var(--error)]">
-                      {preview.counts.invalid ?? 0} needs review
-                    </span>
-                    <span className="rounded-full bg-[var(--soft)] px-3 py-1.5 text-[var(--muted)]">
-                      {preview.counts.excluded ?? 0} excluded
-                    </span>
+                  <div
+                    className="flex flex-wrap items-center gap-2 text-xs font-semibold"
+                    aria-label="Filter import rows"
+                  >
+                    {(
+                      [
+                        {
+                          filter: "ready",
+                          label: "ready",
+                          color: "bg-[var(--sage)] text-[var(--green)]",
+                        },
+                        {
+                          filter: "invalid",
+                          label: "needs review",
+                          color: "bg-[var(--error-bg)] text-[var(--error)]",
+                        },
+                        {
+                          filter: "excluded",
+                          label: "excluded",
+                          color: "bg-[var(--soft)] text-[var(--muted)]",
+                        },
+                      ] as const
+                    ).map(({ filter, label, color }) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        aria-pressed={rowFilter === filter}
+                        className={`rounded-full px-3 py-1.5 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 ${color} ${rowFilter === filter ? "outline-2 outline-offset-2 outline-current" : "hover:opacity-75"}`}
+                        disabled={busy || loadingRows}
+                        onClick={() => void selectRowFilter(filter)}
+                      >
+                        {preview.counts[filter] ?? 0} {label}
+                      </button>
+                    ))}
+                    {rowFilter !== "all" && (
+                      <button
+                        type="button"
+                        className="px-1 text-[var(--green)] underline-offset-2 hover:underline"
+                        disabled={busy || loadingRows}
+                        onClick={() => void selectRowFilter("all")}
+                      >
+                        Show all
+                      </button>
+                    )}
+                    {loadingRows && (
+                      <LoaderCircle
+                        size={14}
+                        className="animate-spin text-[var(--green)]"
+                        aria-hidden
+                      />
+                    )}
                   </div>
                 )}
               </div>
-              <div className="divide-y divide-[var(--line)]">
+              <div className="divide-y divide-[var(--line)]" aria-busy={loadingRows}>
+                {!loadingRows && rows.length === 0 && (
+                  <p className="p-5 text-xs text-[var(--muted)]">No rows match this filter.</p>
+                )}
                 {rows.map((row) => (
                   <div key={row.rowNumber} className="p-4 sm:p-5">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -890,7 +1019,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                         </p>
                       </div>
                       <span
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${row.state === "ready" || row.state === "committed" ? "bg-[var(--sage)] text-[var(--green)]" : "bg-[var(--error-bg)] text-[var(--error)]"}`}
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${row.state === "ready" || row.state === "committed" ? "bg-[var(--sage)] text-[var(--green)]" : row.state === "excluded" ? "bg-[var(--soft)] text-[var(--muted)]" : "bg-[var(--error-bg)] text-[var(--error)]"}`}
                       >
                         {row.state}
                       </span>
@@ -954,7 +1083,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                             )}
                             <button
                               className={controls.secondary}
-                              disabled={busy || !fixes[row.rowNumber]?.value}
+                              disabled={busy || loadingRows || !fixes[row.rowNumber]?.value}
                               onClick={() =>
                                 void correct(
                                   row,
@@ -974,7 +1103,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                           <>
                             <button
                               className={controls.secondary}
-                              disabled={busy}
+                              disabled={busy || loadingRows}
                               onClick={() => void decide(row, "include")}
                             >
                               {busyTarget === `decide:${row.rowNumber}:include` && (
@@ -984,7 +1113,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                             </button>
                             <button
                               className={controls.secondary}
-                              disabled={busy}
+                              disabled={busy || loadingRows}
                               onClick={() => void decide(row, "skip")}
                             >
                               {busyTarget === `decide:${row.rowNumber}:skip` && (
@@ -997,7 +1126,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
                         {!row.excluded && (
                           <button
                             className={controls.quietAction}
-                            disabled={busy}
+                            disabled={busy || loadingRows}
                             onClick={() => void decide(row, "exclude")}
                           >
                             {busyTarget === `decide:${row.rowNumber}:exclude` && (
@@ -1014,7 +1143,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
               {rowCursor && (
                 <button
                   className={`${controls.quietAction} m-4`}
-                  disabled={busy}
+                  disabled={busy || loadingRows}
                   onClick={() => void loadMore()}
                 >
                   {busyTarget === "more" && (
@@ -1048,7 +1177,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
               </label>
               <button
                 className={`${controls.primary} mt-4`}
-                disabled={busy || !ack || Boolean(preview.counts.invalid)}
+                disabled={busy || loadingRows || !ack || Boolean(preview.counts.invalid)}
                 onClick={() => void confirm()}
               >
                 {busyTarget === "confirm" ? (

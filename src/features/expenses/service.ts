@@ -427,6 +427,8 @@ export async function expenseSummary(
   identity: DecodedIdToken,
   bucketId: string,
   month?: string | null,
+  from?: string | null,
+  toExclusive?: string | null,
 ) {
   const user = await activeUser(identity);
   const bucket = await bucketForUser(bucketId, user);
@@ -437,7 +439,17 @@ export async function expenseSummary(
     postingState: { $ne: "canceled" },
     $and: [visibleExpenseFilter(await liveEmiPlanIds(bucketId))],
   };
-  if (month && /^\d{4}-\d{2}$/.test(month)) {
+  if (from || toExclusive) {
+    if (
+      !from ||
+      !toExclusive ||
+      !z.iso.date().safeParse(from).success ||
+      !z.iso.date().safeParse(toExclusive).success ||
+      from >= toExclusive
+    )
+      throw new ApiError(422, "INVALID_DATE_RANGE", "Choose a valid date range.");
+    match.expenseDate = { $gte: from, $lt: toExclusive };
+  } else if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [year, number] = month.split("-").map(Number);
     if (number >= 1 && number <= 12) {
       const next = new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 10);

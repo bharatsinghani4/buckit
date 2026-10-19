@@ -11,6 +11,7 @@ import type { Bucket } from "@/features/identity/contracts";
 import { currencies } from "@/features/identity/contracts";
 import type { Member, Option } from "@/features/expenses/contracts";
 import { api, friendlyError, operationKey } from "@/lib/api/client";
+import { MoveRecordDialog } from "@/features/buckets/move-record-dialog";
 
 type Plan = {
   id: string;
@@ -93,6 +94,7 @@ export function RecurringPlans({ bucket }: { bucket: Bucket }) {
   const [panel, setPanel] = useState<"list" | "form" | "confirm">("list");
   const [editing, setEditing] = useState<Plan | null>(null);
   const [confirming, setConfirming] = useState<Plan | null>(null);
+  const [moveTarget, setMoveTarget] = useState<Plan | null>(null);
   const [paymentDate, setPaymentDate] = useState(todayIn(bucket.timezone));
   const [form, setForm] = useState<Form>(() => initial(bucket));
   const [references, setReferences] = useState<{
@@ -356,6 +358,9 @@ export function RecurringPlans({ bucket }: { bucket: Bucket }) {
                           </button>
                         </>
                       )}
+                      <button className={controls.secondary} onClick={() => setMoveTarget(plan)}>
+                        Move to another bucket
+                      </button>
                     </div>
                   )}
                 </article>
@@ -593,6 +598,23 @@ export function RecurringPlans({ bucket }: { bucket: Bucket }) {
             </div>
           </form>
         </>
+      )}
+      {moveTarget && (
+        <MoveRecordDialog
+          bucket={bucket}
+          kind="recurring-plan"
+          id={moveTarget.id}
+          revision={moveTarget.revision}
+          onClose={() => setMoveTarget(null)}
+          onMoved={(targetId) => {
+            setMoveTarget(null);
+            window.history.pushState(
+              null,
+              "",
+              `/workspace?bucket=${targetId}&view=scheduled&tab=recurring`,
+            );
+          }}
+        />
       )}
     </section>
   );

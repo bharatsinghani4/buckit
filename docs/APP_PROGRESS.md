@@ -1,10 +1,16 @@
 # Buckit progress
 
-Updated: 19 October 2026.
+Updated: 20 October 2026.
 
 Update this file with each development phase or significant fix. Record what changed, the checks actually run, and any work still unverified before finishing the task. Keep prior verification distinct from checks run for the latest change.
 
 ## Completed
+
+- Cross-bucket move review corrections (20 October 2026): reviewed the uncommitted move, CSV, ledger, and reporting changes. Moving an expense or plan now follows refund links through every depth, so nested refunds stay with their parent; the expense-move integration test covers a three-level refund chain. Bulk expense deletion now refreshes the displayed ledger totals. Prettier, ESLint, TypeScript, all 95 tests, and the Webpack production build passed. The first sandboxed test/build attempts were blocked by temporary-file and loopback/write permissions; reruns with the required access passed. Authenticated visual verification remains unperformed.
+
+- Cross-bucket move and ledger continuity (20 October 2026): expenses, EMI plans, and recurring plans can move between active buckets of the same base currency. The move dialog requires explicit category, account, platform, and payer mapping. Linked expenses, refunds, comments, installments, and audit history move in one transaction; a generated expense must move with its parent plan. Budgets stay put as requested. Expense lists retain search, date filters, loaded pages, and scroll when opening a record or switching Active/Deleted. Server-side search and cursor pages now keep the requested date bounds; the selected workspace period carries across Overview, Reports, Budgets, and Expenses until page reload. Ledger summaries use that same range. The Overview trajectory is a full-width monthly line chart with 1/3/6/12-month choices. Expense checkboxes support bulk restore and confirmed bulk delete. The Overview alert, budget tabs/picker, and header alignment were adjusted. Full Prettier, ESLint, TypeScript, and 95-test checks passed, including temporary-database coverage for expense, EMI, and recurring-plan moves and multi-page date-filtered search. The Webpack production build passed. Authenticated visual verification remains pending; production data was not changed and code was not pushed.
+
+- CSV import review filters and position retention (19 October 2026): the Ready, Needs review, and Excluded count pills now filter the full import session, including rows beyond the first page, and Show all clears the selection. The rows API supports status-filtered cursor pagination. Corrections, duplicate decisions, and exclusions revalidate the import while restoring the previously loaded row count and scroll position, so reviewers can continue where they were instead of reopening pages. The filtered rows integration test passed; no production import data was changed.
 
 - EMI plan grouping production release (19 October 2026): reviewed the two uncommitted files and found no actionable issues. Committed the grouping on `dev` as `97e9bd5`, merged into `main` as `e82e666`, and pushed both branches. Vercel reported deployment success. Live read-only checks returned HTTP 200 for the homepage, sign-in page, and JavaScript messaging worker; unauthenticated `/api/v1/me` returned Buckit JSON 401. The authenticated Financing schedule layout was not visually rechecked in production, and no financial records were changed.
 

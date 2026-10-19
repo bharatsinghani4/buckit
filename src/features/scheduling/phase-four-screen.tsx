@@ -28,6 +28,7 @@ import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
 import { api, friendlyError } from "@/lib/api/client";
 import type { Installment, Plan } from "./contracts";
 import { RecurringPlans } from "./recurring-plans";
+import { MoveRecordDialog } from "@/features/buckets/move-record-dialog";
 
 type View = "emis" | "emi-plan" | "scheduled";
 type Scheduled = {
@@ -179,6 +180,7 @@ export function PhaseFourScreen({
   const [dialog, setDialog] = useState<
     "add" | "edit" | "end" | "skip" | "reschedule" | "review" | null
   >(null);
+  const [moveSelected, setMoveSelected] = useState(false);
   const [target, setTarget] = useState<Installment | null>(null);
   const [reviewTarget, setReviewTarget] = useState<Scheduled | null>(null);
   const [preview, setPreview] = useState<{ number: number; date: string }[]>([]);
@@ -871,6 +873,11 @@ export function PhaseFourScreen({
                 </button>
               </div>
             )}
+            {selected.isCreator && bucket.status === "active" && (
+              <button className={`${secondary} mt-3`} onClick={() => setMoveSelected(true)}>
+                Move to another bucket
+              </button>
+            )}
           </section>
           <section className={card}>
             <div className="mb-3">
@@ -1204,6 +1211,19 @@ export function PhaseFourScreen({
             </button>
           </div>
         </Dialog>
+      )}
+      {moveSelected && selected && (
+        <MoveRecordDialog
+          bucket={bucket}
+          kind="emi-plan"
+          id={selected.id}
+          revision={selected.revision}
+          onClose={() => setMoveSelected(false)}
+          onMoved={(targetId) => {
+            setMoveSelected(false);
+            router.push(`${page(targetId, "emi-plan")}&plan=${selected.id}`);
+          }}
+        />
       )}
       {dialog === "skip" && target && (
         <Dialog
