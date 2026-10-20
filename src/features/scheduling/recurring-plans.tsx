@@ -12,6 +12,7 @@ import { currencies } from "@/features/identity/contracts";
 import type { Member, Option } from "@/features/expenses/contracts";
 import { api, friendlyError, operationKey } from "@/lib/api/client";
 import { MoveRecordDialog } from "@/features/buckets/move-record-dialog";
+import { usePaymentModes } from "@/features/expenses/use-payment-modes";
 
 type Plan = {
   id: string;
@@ -43,14 +44,6 @@ type Form = Omit<
 >;
 const card =
   "rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)]";
-const modes = [
-  { value: "upi", label: "UPI" },
-  { value: "cash", label: "Cash" },
-  { value: "neft", label: "NEFT" },
-  { value: "imps", label: "IMPS" },
-  { value: "credit_card", label: "Credit card" },
-  { value: "auto_debit", label: "Auto debit" },
-];
 
 function todayIn(zone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -87,6 +80,7 @@ function initial(bucket: Bucket): Form {
 
 export function RecurringPlans({ bucket }: { bucket: Bucket }) {
   const { read, invalidate } = useWorkspaceData();
+  const modes = usePaymentModes(bucket.id).settings.modes;
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);

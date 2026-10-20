@@ -3,6 +3,7 @@ import type { DecodedIdToken } from "firebase-admin/auth";
 import { ApiError, assertRevision } from "@/lib/api/errors";
 import {
   AuditModel,
+  BucketModel,
   BudgetModel,
   EmiPlanModel,
   ExpenseModel,
@@ -208,6 +209,21 @@ export async function changeOption(
         } else option.state = action === "archive" ? "archived" : "active";
         option.revision += 1;
         await option.save({ session });
+        if (action === "edit" && "name" in input && input.name) {
+          const field = `referenceLabels.${option.kind}`;
+          for (const model of [ExpenseModel, EmiPlanModel, RecurringPlanModel]) {
+            await model.updateMany(
+              { bucketId, [`${option.kind}Id`]: option._id },
+              { $set: { [field]: option.name } },
+              { session },
+            );
+          }
+          await BucketModel.updateOne(
+            { _id: bucketId },
+            { $inc: { exportRevision: 1 } },
+            { session },
+          );
+        }
       }
       await AuditModel.create(
         [

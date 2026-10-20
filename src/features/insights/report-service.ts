@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/models";
 import { activeUser, bucketForUser } from "@/features/identity/service";
 import { fromMinor } from "@/features/expenses/money";
+import { paymentModeOptions, type PaymentMode } from "@/features/expenses/payment-modes";
 import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
 import {
   recurringCommitments,
@@ -60,6 +61,7 @@ async function spending(
   filters: URLSearchParams,
   livePlanIds: mongoose.Types.ObjectId[],
   projected?: RecurringCommitments,
+  modeLabels: Partial<Record<PaymentMode, string>> = {},
 ) {
   const match: Record<string, unknown> = {
     bucketId,
@@ -88,6 +90,9 @@ async function spending(
     match.paymentMode = paymentMode;
   }
   const memberNames = new Map<string, string>();
+  const displayModes = new Map(
+    paymentModeOptions(modeLabels).map((mode) => [mode.value, mode.label]),
+  );
   const groups = new Map<string, { id: string; name: string; amount: bigint; count: number }>();
   let total = 0n;
   let scheduled = 0n;
@@ -136,7 +141,7 @@ async function spending(
       name = memberNames.get(id)!;
     } else if (groupBy === "payment_mode") {
       id = String(row.paymentMode);
-      name = id.replaceAll("_", " ").toUpperCase();
+      name = displayModes.get(id as PaymentMode) ?? id;
     } else {
       id = groupBy === "month" ? date.slice(0, 7) : date;
       name = id;
@@ -202,6 +207,8 @@ async function spendingReportOnce(
     groupBy as GroupBy,
     params,
     planIds,
+    undefined,
+    Object.fromEntries(bucket.paymentModeLabels ?? []) as Partial<Record<PaymentMode, string>>,
   );
 }
 

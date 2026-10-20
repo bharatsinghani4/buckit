@@ -36,6 +36,8 @@ import { useWorkspacePeriod } from "@/features/buckets/workspace-period-context"
 import { MoveRecordDialog } from "@/features/buckets/move-record-dialog";
 import type { Comment, Expense, Member, Option, OptionKind } from "./contracts";
 import { ReferenceGlyph } from "./reference-icon";
+import { usePaymentModes } from "./use-payment-modes";
+import type { PaymentMode, PaymentModeSettings } from "./payment-modes";
 
 type View = "expenses" | "deleted" | "add-expense" | "expense" | "references" | "members";
 type LedgerSummary = {
@@ -52,14 +54,6 @@ const groups: { key: OptionKind; title: string }[] = [
   { key: "accounts", title: "Accounts" },
   { key: "categories", title: "Categories" },
   { key: "platforms", title: "Platforms" },
-];
-const paymentModes = [
-  { value: "upi", label: "UPI" },
-  { value: "cash", label: "Cash" },
-  { value: "neft", label: "NEFT" },
-  { value: "imps", label: "IMPS" },
-  { value: "credit_card", label: "Credit card" },
-  { value: "auto_debit", label: "Auto debit" },
 ];
 const card =
   "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow)] min-[768px]:max-[1199px]:p-4";
@@ -247,6 +241,13 @@ export function PhaseTwoScreen({
   refundMode?: boolean;
 }) {
   const { read, peek, invalidate } = useWorkspaceData();
+  const { settings: paymentModeSettings, setSettings: setPaymentModeSettings } = usePaymentModes(
+    bucket.id,
+    view !== "members",
+  );
+  const paymentModes = paymentModeSettings.modes;
+  const [editingPaymentMode, setEditingPaymentMode] = useState<PaymentMode | null>(null);
+  const [editingPaymentModeName, setEditingPaymentModeName] = useState("");
   const { range, period, ledgerAllDates, ledgerSnapshots } = useWorkspacePeriod();
   const listRange = ledgerAllDates ? undefined : range;
   const snapshots = ledgerSnapshots.current;
@@ -807,11 +808,38 @@ export function PhaseTwoScreen({
       "PATCH",
       { name },
       option.revision,
-      `buckets/${bucket.id}/${kind}`,
+      `buckets/${bucket.id}/`,
     );
     if (renamed) {
       setEditingOptionId(null);
       setOptions((current) => applyOptionResult(current, kind, renamed));
+      const stem = { accounts: "account", categories: "category", platforms: "platform" }[kind];
+      const field = `${stem}Name` as "categoryName" | "accountName" | "platformName";
+      const idField = `${stem}Id` as "categoryId" | "accountId" | "platformId";
+      const update = (item: Expense) =>
+        item[idField] === option.id ? { ...item, [field]: renamed.name } : item;
+      setExpenses((current) => current.map(update));
+      setRefunds((current) => current.map(update));
+      setExpense((current) => (current ? update(current) : current));
+    }
+  }
+
+  async function renameMode(mode: PaymentMode, nextName: string) {
+    const name = nextName.trim();
+    if (!name) return;
+    if (name === paymentModes.find((item) => item.value === mode)?.label) {
+      setEditingPaymentMode(null);
+      return;
+    }
+    const renamed = await mutation<PaymentModeSettings>(
+      `buckets/${bucket.id}/payment-modes/${mode}`,
+      "PATCH",
+      { name },
+      paymentModeSettings.revision,
+    );
+    if (renamed) {
+      setPaymentModeSettings(renamed);
+      setEditingPaymentMode(null);
     }
   }
 
@@ -2357,6 +2385,7 @@ export function PhaseTwoScreen({
                     expense={expense}
                     options={options}
                     members={members}
+                    paymentModes={paymentModes}
                     onSaved={async () => {
                       setEditing(false);
                       setExpense(
@@ -2583,7 +2612,7 @@ export function PhaseTwoScreen({
                 <div>
                   <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Reference settings</h1>
                   <p className="!mt-1 max-w-2xl text-sm">
-                    Manage your bucket’s payment accounts, categories, and merchants.
+                    Manage your bucket’s payment accounts, categories, merchants, and modes.
                   </p>
                 </div>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--soft)] px-3 py-2 text-xs font-semibold">
@@ -2820,6 +2849,71 @@ export function PhaseTwoScreen({
                   )}
                 </section>
               ))}
+              <section className={card}>
+                <div className="pb-4">
+                  <h2>Payment modes</h2>
+                  <p className="mt-1 text-xs">
+                    Rename how payment modes appear across this bucket, including existing entries.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {paymentModes.map((mode) => (
+                    <div
+                      key={mode.value}
+                      className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] p-3"
+                    >
+                      {editingPaymentMode === mode.value ? (
+                        <input
+                          className={field}
+                          value={editingPaymentModeName}
+                          maxLength={40}
+                          aria-label={`Name for ${mode.label}`}
+                          onChange={(event) => setEditingPaymentModeName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter")
+                              void renameMode(mode.value, editingPaymentModeName);
+                            if (event.key === "Escape") setEditingPaymentMode(null);
+                          }}
+                        />
+                      ) : (
+                        <span className="min-w-0 truncate text-sm font-medium">{mode.label}</span>
+                      )}
+                      {bucket.isOwner &&
+                        bucket.status === "active" &&
+                        (editingPaymentMode === mode.value ? (
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              className={referencePrimaryAction}
+                              disabled={busy || !editingPaymentModeName.trim()}
+                              onClick={() => void renameMode(mode.value, editingPaymentModeName)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className={referenceMutedAction}
+                              onClick={() => setEditingPaymentMode(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className={referenceRowAction}
+                            onClick={() => {
+                              setEditingPaymentMode(mode.value);
+                              setEditingPaymentModeName(mode.label);
+                            }}
+                          >
+                            <Pencil size={14} aria-hidden="true" /> Rename
+                          </button>
+                        ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
             </>
           )}
           {view === "members" && (
@@ -3320,12 +3414,14 @@ function ExpenseEditor({
   expense,
   options,
   members,
+  paymentModes,
   onSaved,
 }: {
   bucket: Bucket;
   expense: Expense;
   options: Record<OptionKind, Option[]>;
   members: Member[];
+  paymentModes: PaymentModeSettings["modes"];
   onSaved: () => Promise<void>;
 }) {
   const { invalidate } = useWorkspaceData();

@@ -1366,12 +1366,17 @@ function Workspace() {
                   name="theme"
                   defaultValue={auth.theme}
                   options={[
+                    { value: "auto", label: "Auto · sunrise & sunset" },
                     { value: "system", label: "Match device" },
                     { value: "light", label: "Light" },
                     { value: "dark", label: "Dark" },
                   ]}
                   placeholder="Appearance"
                 />
+                <span className="text-[11px] font-normal text-[var(--muted)]">
+                  Auto uses this device’s location. If location is unavailable, it matches your
+                  device’s appearance setting.
+                </span>
               </label>
               <button
                 className={`${controls.primary} button w-full`}

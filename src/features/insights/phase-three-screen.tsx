@@ -27,6 +27,7 @@ import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
 import { useWorkspacePeriod } from "@/features/buckets/workspace-period-context";
 import type { Bucket } from "@/features/identity/contracts";
 import type { Expense, Member, Option } from "@/features/expenses/contracts";
+import { usePaymentModes } from "@/features/expenses/use-payment-modes";
 import { api, friendlyError } from "@/lib/api/client";
 import type { Budget, BudgetUsage, SpendingGroup, SpendingReport } from "./contracts";
 
@@ -459,6 +460,7 @@ export function PhaseThreeScreen({
   budgetId: string | null;
 }) {
   const { read, peek, invalidate } = useWorkspaceData();
+  const paymentModes = usePaymentModes(bucket.id, view === "reports").settings.modes;
   const { period, setPeriod, anchor, setAnchor, customFrom, setCustomFrom, customTo, setCustomTo } =
     useWorkspacePeriod();
   const [groupBy, setGroupBy] = useState("category");
@@ -1180,15 +1182,7 @@ export function PhaseThreeScreen({
                     onValueChange={(value) =>
                       setReportFilters((current) => ({ ...current, paymentMode: value }))
                     }
-                    options={[
-                      { value: "all", label: "All modes" },
-                      { value: "upi", label: "UPI" },
-                      { value: "cash", label: "Cash" },
-                      { value: "neft", label: "NEFT" },
-                      { value: "imps", label: "IMPS" },
-                      { value: "credit_card", label: "Credit card" },
-                      { value: "auto_debit", label: "Auto debit" },
-                    ]}
+                    options={[{ value: "all", label: "All modes" }, ...paymentModes]}
                   />
                 </div>
               </label>
