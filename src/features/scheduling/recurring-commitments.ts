@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { RecurringPlanModel } from "@/lib/db/models";
+import { currentReferenceName, currentReferenceNames } from "@/features/expenses/reference-labels";
 import { fromMinor, minorUnits } from "@/features/expenses/money";
 import { recurringDate, type RecurringFrequency } from "./recurring-dates";
 
@@ -71,6 +72,9 @@ export async function recurringCommitments(
       "title amount currency frequency startDate endDate nextIndex skippedDates categoryId accountId platformId referenceLabels paidByUserId actualCreatorUserId paymentMode revision",
     )
     .lean();
+  const referenceNames = includeEntries
+    ? await currentReferenceNames(bucketId, plans)
+    : new Map<string, string>();
   let count = 0;
   let amount = 0n;
   let unconvertedCount = 0;
@@ -97,11 +101,26 @@ export async function recurringCommitments(
           amount: plan.amount.toString(),
           currency: plan.currency,
           categoryId: String(plan.categoryId),
-          categoryName: plan.referenceLabels?.category ?? "Category",
+          categoryName: currentReferenceName(
+            referenceNames,
+            plan.categoryId,
+            plan.referenceLabels?.category,
+            "Category",
+          ),
           accountId: String(plan.accountId),
-          accountName: plan.referenceLabels?.account ?? "Account",
+          accountName: currentReferenceName(
+            referenceNames,
+            plan.accountId,
+            plan.referenceLabels?.account,
+            "Account",
+          ),
           platformId: plan.platformId ? String(plan.platformId) : "",
-          platformName: plan.referenceLabels?.platform ?? "Other",
+          platformName: currentReferenceName(
+            referenceNames,
+            plan.platformId,
+            plan.referenceLabels?.platform,
+            "Other",
+          ),
           paidByUserId: String(plan.paidByUserId),
           actualCreatorUserId: String(plan.actualCreatorUserId),
           paymentMode: plan.paymentMode,

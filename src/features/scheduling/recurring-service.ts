@@ -14,7 +14,7 @@ import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
 import {
   amountSchema,
   objectId,
-  paymentModes,
+  paymentModeSchema,
   type ExpenseInput,
 } from "@/features/expenses/contracts";
 import { conversionFor, validateReferences } from "@/features/expenses/service";
@@ -39,7 +39,7 @@ const planBase = z
     categoryId: objectId,
     accountId: objectId,
     platformId: objectId.optional(),
-    paymentMode: z.enum(paymentModes),
+    paymentMode: paymentModeSchema,
     paidByUserId: objectId,
     recordingMode: z.enum(["confirm", "automatic"]).default("confirm"),
     reminderLeadDays: z.union([z.literal(0), z.literal(1), z.literal(3), z.literal(7)]).default(1),

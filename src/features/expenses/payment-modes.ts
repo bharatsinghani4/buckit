@@ -1,9 +1,9 @@
-import { paymentModes, type Expense } from "./contracts";
+import { paymentModes } from "./contracts";
 
-export type PaymentMode = Expense["paymentMode"];
-export type PaymentModeOption = { value: PaymentMode; label: string };
+export type PaymentMode = string;
+export type PaymentModeOption = { value: PaymentMode; label: string; usageCount?: number };
 
-const labels: Record<PaymentMode, string> = {
+const labels: Record<(typeof paymentModes)[number], string> = {
   upi: "UPI",
   cash: "Cash",
   neft: "NEFT",
@@ -22,9 +22,13 @@ export type PaymentModeSettings = {
   revision: number;
 };
 
-export function paymentModeOptions(overrides: Partial<Record<PaymentMode, string>>) {
-  return defaultPaymentModes.map((mode) => ({
+export function paymentModeOptions(overrides: Record<string, string>) {
+  const builtIn = defaultPaymentModes.map((mode) => ({
     ...mode,
     label: overrides[mode.value] || mode.label,
   }));
+  const custom = Object.entries(overrides)
+    .filter(([value]) => /^custom_[a-f\d]{24}$/i.test(value))
+    .map(([value, label]) => ({ value, label }));
+  return [...builtIn, ...custom.sort((a, b) => a.label.localeCompare(b.label))];
 }

@@ -12,6 +12,11 @@ import {
 import { activeUser, bucketForUser } from "@/features/identity/service";
 import { fromMinor } from "@/features/expenses/money";
 import { paymentModeOptions, type PaymentMode } from "@/features/expenses/payment-modes";
+import {
+  allCurrentReferenceNames,
+  currentReferenceName,
+  currentReferenceNames,
+} from "@/features/expenses/reference-labels";
 import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
 import {
   recurringCommitments,
@@ -61,7 +66,7 @@ async function spending(
   filters: URLSearchParams,
   livePlanIds: mongoose.Types.ObjectId[],
   projected?: RecurringCommitments,
-  modeLabels: Partial<Record<PaymentMode, string>> = {},
+  modeLabels: Record<PaymentMode, string> = {},
 ) {
   const match: Record<string, unknown> = {
     bucketId,
@@ -85,7 +90,7 @@ async function spending(
   }
   const paymentMode = filters.get("paymentMode");
   if (paymentMode) {
-    if (!["upi", "cash", "neft", "imps", "credit_card", "auto_debit"].includes(paymentMode))
+    if (!paymentModeOptions(modeLabels).some((mode) => mode.value === paymentMode))
       throw new ApiError(422, "INVALID_FILTER", "Choose a valid payment mode.");
     match.paymentMode = paymentMode;
   }
@@ -93,6 +98,9 @@ async function spending(
   const displayModes = new Map(
     paymentModeOptions(modeLabels).map((mode) => [mode.value, mode.label]),
   );
+  const referenceNames = ["category", "account", "platform"].includes(groupBy)
+    ? await allCurrentReferenceNames(bucketId)
+    : new Map<string, string>();
   const groups = new Map<string, { id: string; name: string; amount: bigint; count: number }>();
   let total = 0n;
   let scheduled = 0n;
@@ -131,7 +139,12 @@ async function spending(
     let name = "";
     if (groupBy === "category" || groupBy === "account" || groupBy === "platform") {
       id = String(row[`${groupBy}Id` as keyof typeof row] ?? "other");
-      name = labels?.[groupBy] ?? "Other";
+      name = currentReferenceName(
+        referenceNames,
+        row[`${groupBy}Id` as keyof typeof row],
+        labels?.[groupBy],
+        "Other",
+      );
     } else if (groupBy === "member") {
       id = String(row.paidByUserId);
       if (!memberNames.has(id)) {
@@ -208,7 +221,7 @@ async function spendingReportOnce(
     params,
     planIds,
     undefined,
-    Object.fromEntries(bucket.paymentModeLabels ?? []) as Partial<Record<PaymentMode, string>>,
+    Object.fromEntries(bucket.paymentModeLabels ?? []) as Record<PaymentMode, string>,
   );
 }
 
@@ -318,6 +331,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       .select("scheduledDate"),
   ]);
   const latest = await BucketModel.findById(bucketId).select("financialRevision writeRevision");
+  const recentReferenceNames = await currentReferenceNames(bucketId, recent);
   return {
     ...category,
     period: range.period,
@@ -341,7 +355,12 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       id: String(row._id),
       description: row.description,
       date: row.expenseDate,
-      category: row.referenceLabels?.category ?? "Other",
+      category: currentReferenceName(
+        recentReferenceNames,
+        row.categoryId,
+        row.referenceLabels?.category,
+        "Other",
+      ),
       amount: row.conversion?.convertedAmount?.toString() ?? null,
       status:
         row.expenseDate > today

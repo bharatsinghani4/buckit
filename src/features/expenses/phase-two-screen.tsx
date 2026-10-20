@@ -248,6 +248,7 @@ export function PhaseTwoScreen({
   const paymentModes = paymentModeSettings.modes;
   const [editingPaymentMode, setEditingPaymentMode] = useState<PaymentMode | null>(null);
   const [editingPaymentModeName, setEditingPaymentModeName] = useState("");
+  const [addingPaymentMode, setAddingPaymentMode] = useState(false);
   const { range, period, ledgerAllDates, ledgerSnapshots } = useWorkspacePeriod();
   const listRange = ledgerAllDates ? undefined : range;
   const snapshots = ledgerSnapshots.current;
@@ -818,6 +819,13 @@ export function PhaseTwoScreen({
       const idField = `${stem}Id` as "categoryId" | "accountId" | "platformId";
       const update = (item: Expense) =>
         item[idField] === option.id ? { ...item, [field]: renamed.name } : item;
+      for (const [key, snapshot] of ledgerSnapshots.current) {
+        if (key.startsWith(`${bucket.id}:`))
+          ledgerSnapshots.current.set(key, {
+            ...snapshot,
+            expenses: snapshot.expenses.map(update),
+          });
+      }
       setExpenses((current) => current.map(update));
       setRefunds((current) => current.map(update));
       setExpense((current) => (current ? update(current) : current));
@@ -838,8 +846,38 @@ export function PhaseTwoScreen({
       paymentModeSettings.revision,
     );
     if (renamed) {
-      setPaymentModeSettings(renamed);
+      setPaymentModeSettings({
+        ...renamed,
+        modes: renamed.modes.map((item) => ({
+          ...item,
+          usageCount:
+            paymentModes.find((previous) => previous.value === item.value)?.usageCount ?? 0,
+        })),
+      });
       setEditingPaymentMode(null);
+    }
+  }
+
+  async function addPaymentMode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
+    if (!name) return;
+    const created = await mutation<PaymentModeSettings>(
+      `buckets/${bucket.id}/payment-modes`,
+      "POST",
+      { name },
+      paymentModeSettings.revision,
+    );
+    if (created) {
+      setPaymentModeSettings({
+        ...created,
+        modes: created.modes.map((item) => ({
+          ...item,
+          usageCount:
+            paymentModes.find((previous) => previous.value === item.value)?.usageCount ?? 0,
+        })),
+      });
+      setAddingPaymentMode(false);
     }
   }
 
@@ -2689,9 +2727,9 @@ export function PhaseTwoScreen({
                       options[group.key].map((item) => (
                         <div
                           key={item.id}
-                          className="relative flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--line)] bg-[var(--soft)] p-3"
+                          className="relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 rounded-lg border border-[var(--line)] bg-[var(--soft)] p-3"
                         >
-                          <div className="flex min-w-0 items-center gap-3 max-[767px]:w-full">
+                          <div className="flex min-w-0 items-start gap-3">
                             <span className="grid size-10 shrink-0 place-items-center rounded-xl text-[var(--sage)] bg-[var(--green)]">
                               <ReferenceGlyph
                                 kind={group.key}
@@ -2699,8 +2737,8 @@ export function PhaseTwoScreen({
                                 iconKey={item.iconKey}
                               />
                             </span>
-                            <div className="min-w-0">
-                              <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold">
                                 {editingOptionId === item.id ? (
                                   <input
                                     className={`${field} max-w-56`}
@@ -2710,27 +2748,34 @@ export function PhaseTwoScreen({
                                     aria-label={`Rename ${item.name}`}
                                   />
                                 ) : (
-                                  <span className="truncate">{item.name}</span>
+                                  <span className="min-w-0 break-words" title={item.name}>
+                                    {item.name}
+                                  </span>
                                 )}
-                                {group.key !== "categories" && (
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${item.state === "active" ? "bg-[var(--sage)] text-[var(--green)]" : "bg-[var(--soft)] text-[var(--muted)]"}`}
-                                  >
-                                    {item.systemKey === "other"
-                                      ? "Permanent fallback"
-                                      : item.state === "active"
-                                        ? "Active"
-                                        : "Archived"}
+                                {item.state !== "active" && (
+                                  <span className="shrink-0 rounded-full bg-[var(--surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted)]">
+                                    Inactive
+                                  </span>
+                                )}
+                                {item.systemKey === "other" && (
+                                  <span className="shrink-0 rounded-full bg-[var(--surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted)]">
+                                    Permanent fallback
                                   </span>
                                 )}
                               </div>
-                              <div className={muted}>
-                                {item.usageCount === 0
-                                  ? "No expenses yet"
-                                  : `${item.usageCount} expenses logged`}
-                                {item.ownerLabel ? ` · ${item.ownerLabel}` : ""}
-                                {item.budgetCount ? ` · ${item.budgetCount} budgets` : ""}
+                              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className={`${muted} min-w-0`}>
+                                  {item.usageCount === 0
+                                    ? "No expenses yet"
+                                    : `${item.usageCount} expenses logged`}
+                                  {item.budgetCount ? ` · ${item.budgetCount} budgets` : ""}
+                                </span>
                               </div>
+                              {item.ownerLabel && (
+                                <span className={`${muted} mt-1 block break-words`}>
+                                  {item.ownerLabel}
+                                </span>
+                              )}
                             </div>
                           </div>
                           {bucket.isOwner &&
@@ -2798,7 +2843,7 @@ export function PhaseTwoScreen({
                           {bucket.isOwner &&
                             bucket.status === "active" &&
                             editingOptionId === item.id && (
-                              <div className="flex flex-wrap justify-end gap-1">
+                              <div className="col-span-2 flex flex-wrap justify-end gap-1">
                                 <button
                                   className={referencePrimaryAction}
                                   disabled={busy || !editingOptionName.trim()}
@@ -2850,38 +2895,75 @@ export function PhaseTwoScreen({
                 </section>
               ))}
               <section className={card}>
-                <div className="pb-4">
-                  <h2>Payment modes</h2>
-                  <p className="mt-1 text-xs">
-                    Rename how payment modes appear across this bucket, including existing entries.
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 pb-4">
+                  <h2 className="flex min-w-0 flex-wrap items-center gap-2">
+                    Payment modes
+                    <span className="rounded-full bg-[var(--soft)] px-2 py-1 text-xs text-[var(--muted)]">
+                      {paymentModes.length} active
+                    </span>
+                  </h2>
+                  {bucket.isOwner && bucket.status === "active" && (
+                    <button
+                      type="button"
+                      className={`${referencePrimaryAction} justify-self-end whitespace-nowrap`}
+                      aria-label="Add payment mode"
+                      aria-expanded={addingPaymentMode}
+                      onClick={() => setAddingPaymentMode((current) => !current)}
+                    >
+                      <Plus size={15} aria-hidden="true" />
+                      Add<span className="max-[767px]:hidden"> payment mode</span>
+                    </button>
+                  )}
+                  <p className="col-span-2 text-xs">
+                    Use these modes in expenses and plans. Renaming updates their names throughout
+                    this bucket.
                   </p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
                   {paymentModes.map((mode) => (
                     <div
                       key={mode.value}
-                      className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] p-3"
+                      className="relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 rounded-lg border border-[var(--line)] bg-[var(--soft)] p-3"
                     >
-                      {editingPaymentMode === mode.value ? (
-                        <input
-                          className={field}
-                          value={editingPaymentModeName}
-                          maxLength={40}
-                          aria-label={`Name for ${mode.label}`}
-                          onChange={(event) => setEditingPaymentModeName(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter")
-                              void renameMode(mode.value, editingPaymentModeName);
-                            if (event.key === "Escape") setEditingPaymentMode(null);
-                          }}
-                        />
-                      ) : (
-                        <span className="min-w-0 truncate text-sm font-medium">{mode.label}</span>
-                      )}
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--green)] text-[var(--sage)]">
+                          <Wallet size={19} aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          {editingPaymentMode === mode.value ? (
+                            <input
+                              className={field}
+                              value={editingPaymentModeName}
+                              maxLength={40}
+                              aria-label={`Name for ${mode.label}`}
+                              onChange={(event) => setEditingPaymentModeName(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter")
+                                  void renameMode(mode.value, editingPaymentModeName);
+                                if (event.key === "Escape") setEditingPaymentMode(null);
+                              }}
+                            />
+                          ) : (
+                            <span
+                              className="block truncate text-sm font-semibold"
+                              title={mode.label}
+                            >
+                              {mode.label}
+                            </span>
+                          )}
+                          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span className={`${muted} min-w-0 truncate`}>
+                              {mode.usageCount
+                                ? `${mode.usageCount} expenses logged`
+                                : "No expenses yet"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                       {bucket.isOwner &&
                         bucket.status === "active" &&
                         (editingPaymentMode === mode.value ? (
-                          <div className="flex gap-1">
+                          <div className="col-span-2 flex justify-end gap-1">
                             <button
                               type="button"
                               className={referencePrimaryAction}
@@ -2899,20 +2981,49 @@ export function PhaseTwoScreen({
                             </button>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            className={referenceRowAction}
-                            onClick={() => {
-                              setEditingPaymentMode(mode.value);
-                              setEditingPaymentModeName(mode.label);
-                            }}
-                          >
-                            <Pencil size={14} aria-hidden="true" /> Rename
-                          </button>
+                          <details data-reference-menu className="group shrink-0">
+                            <summary
+                              className="grid size-9 cursor-pointer list-none place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--sage)] hover:text-[var(--ink)]"
+                              aria-label={`Actions for ${mode.label}`}
+                            >
+                              <MoreVertical size={17} />
+                            </summary>
+                            <div className="absolute right-2 top-12 z-20 flex min-w-36 flex-col rounded-xl border border-[var(--line)] bg-[var(--surface)] p-1 shadow-lg">
+                              <button
+                                type="button"
+                                className={`${referenceRowAction} justify-start`}
+                                onClick={(event) => {
+                                  event.currentTarget.closest("details")?.removeAttribute("open");
+                                  setEditingPaymentMode(mode.value);
+                                  setEditingPaymentModeName(mode.label);
+                                }}
+                              >
+                                <Pencil size={14} aria-hidden="true" /> Edit
+                              </button>
+                            </div>
+                          </details>
                         ))}
                     </div>
                   ))}
                 </div>
+                {bucket.isOwner && bucket.status === "active" && addingPaymentMode && (
+                  <form
+                    className="mt-5 flex flex-wrap gap-2 border-t border-[var(--line)] pt-4"
+                    onSubmit={addPaymentMode}
+                  >
+                    <input
+                      className={`${field} max-w-64`}
+                      name="name"
+                      required
+                      maxLength={40}
+                      placeholder="New payment mode"
+                      aria-label="New payment mode"
+                    />
+                    <button className={referencePrimaryAction} disabled={busy}>
+                      <Plus size={15} aria-hidden="true" /> Add
+                    </button>
+                  </form>
+                )}
               </section>
             </>
           )}

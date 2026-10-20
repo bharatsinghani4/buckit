@@ -32,6 +32,8 @@ import { z } from "zod";
 import { dueInstant } from "@/features/scheduling/dates";
 import { recordDomainEvent } from "@/features/notifications/event-service";
 import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
+import { paymentModeOptions } from "./payment-modes";
+import { currentReferenceName, currentReferenceNames } from "./reference-labels";
 
 const missing = () => new ApiError(404, "RESOURCE_NOT_FOUND", "This expense is not available.");
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
@@ -84,11 +86,18 @@ const dateInZone = (zone: string) => {
   return `${part("year")}-${part("month")}-${part("day")}`;
 };
 
-async function expenseDto(expense: ExpenseRow, userId: string, session?: ClientSession) {
+async function expenseDto(
+  expense: ExpenseRow,
+  userId: string,
+  session?: ClientSession,
+  referenceNames?: Map<string, string>,
+) {
   const people = await UserModel.find({
     _id: { $in: [expense.paidByUserId, expense.addedByUserId] },
   }).session(session ?? null);
   const names = new Map(people.map((person) => [String(person._id), person.displayName]));
+  const labels =
+    referenceNames ?? (await currentReferenceNames(expense.bucketId, [expense], session));
   const bucket = await BucketModel.findById(expense.bucketId).session(session ?? null);
   const today = dateInZone(bucket?.timezone ?? "UTC");
   const deleted = Boolean(expense.deletedAt);
@@ -122,11 +131,26 @@ async function expenseDto(expense: ExpenseRow, userId: string, session?: ClientS
     addedByName: names.get(String(expense.addedByUserId)) ?? "Former member",
     actualCreatorUserId: String(expense.actualCreatorUserId),
     categoryId: String(expense.categoryId),
-    categoryName: expense.referenceLabels?.category ?? "Category",
+    categoryName: currentReferenceName(
+      labels,
+      expense.categoryId,
+      expense.referenceLabels?.category,
+      "Category",
+    ),
     accountId: String(expense.accountId),
-    accountName: expense.referenceLabels?.account ?? "Account",
+    accountName: currentReferenceName(
+      labels,
+      expense.accountId,
+      expense.referenceLabels?.account,
+      "Account",
+    ),
     platformId: String(expense.platformId),
-    platformName: expense.referenceLabels?.platform ?? "Other",
+    platformName: currentReferenceName(
+      labels,
+      expense.platformId,
+      expense.referenceLabels?.platform,
+      "Other",
+    ),
     paymentMode: expense.paymentMode,
     originalAmount: expense.originalAmount.toString(),
     originalCurrency: expense.originalCurrency,
@@ -318,6 +342,10 @@ export async function validateReferences(
         ? "Choose a current or former bucket member as the payer."
         : "Choose a current bucket member as the payer.",
     );
+  const bucket = await BucketModel.findById(bucketId).select("paymentModeLabels").session(session);
+  const modes = paymentModeOptions(Object.fromEntries(bucket?.paymentModeLabels ?? []));
+  if (!modes.some((mode) => mode.value === input.paymentMode))
+    throw new ApiError(422, "INVALID_PAYMENT_MODE", "Choose a payment mode from this bucket.");
   const references = await OptionModel.find({
     bucketId,
     $or: [
@@ -483,11 +511,15 @@ export async function listExpenses(
     ? await UserModel.find({ _id: { $in: payerIds } }).select("displayName")
     : [];
   const names = new Map(people.map((person) => [String(person._id), person.displayName]));
+  const referenceNames = await currentReferenceNames(
+    bucketId,
+    page.map((item) => item.row),
+  );
   const data = await Promise.all(
     page.map((item) =>
       item.kind === "expense"
-        ? expenseDto(item.row, String(user._id))
-        : projectedExpenseDto(item.row, bucketId, bucket.primaryCurrency, names),
+        ? expenseDto(item.row, String(user._id), undefined, referenceNames)
+        : projectedExpenseDto(item.row, bucketId, bucket.primaryCurrency, names, referenceNames),
     ),
   );
   const last = page.at(-1);
@@ -503,6 +535,7 @@ function projectedExpenseDto(
   bucketId: string,
   bucketCurrency: string,
   names: Map<string, string>,
+  referenceNames: Map<string, string>,
 ): Expense {
   return {
     id: item.id,
@@ -516,11 +549,16 @@ function projectedExpenseDto(
     addedByName: names.get(item.actualCreatorUserId) ?? "Former member",
     actualCreatorUserId: item.actualCreatorUserId,
     categoryId: item.categoryId,
-    categoryName: item.categoryName,
+    categoryName: currentReferenceName(
+      referenceNames,
+      item.categoryId,
+      item.categoryName,
+      "Category",
+    ),
     accountId: item.accountId,
-    accountName: item.accountName,
+    accountName: currentReferenceName(referenceNames, item.accountId, item.accountName, "Account"),
     platformId: item.platformId,
-    platformName: item.platformName,
+    platformName: currentReferenceName(referenceNames, item.platformId, item.platformName, "Other"),
     paymentMode: item.paymentMode as Expense["paymentMode"],
     originalAmount: item.amount,
     originalCurrency: item.currency,

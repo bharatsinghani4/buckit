@@ -24,6 +24,7 @@ type Preview = {
   installmentCount: number;
   references: Mapping[];
   payers: Mapping[];
+  paymentModes: Mapping[];
 };
 
 export function MoveRecordDialog({
@@ -49,6 +50,7 @@ export function MoveRecordDialog({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [referenceMap, setReferenceMap] = useState<Record<string, string>>({});
   const [payerMap, setPayerMap] = useState<Record<string, string>>({});
+  const [paymentModeMap, setPaymentModeMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -113,6 +115,13 @@ export function MoveRecordDialog({
                 .map((entry) => [entry.sourceId, entry]),
             ).values(),
           ];
+          const paymentModes = [
+            ...new Map(
+              results
+                .flatMap((result) => result.data.paymentModes ?? [])
+                .map((entry) => [entry.sourceId, entry]),
+            ).values(),
+          ];
           setPreview({
             ...results[0].data,
             expenseCount: results.reduce((sum, result) => sum + result.data.expenseCount, 0),
@@ -122,9 +131,11 @@ export function MoveRecordDialog({
             ),
             references,
             payers,
+            paymentModes,
           });
           setReferenceMap(Object.fromEntries(references.map((entry) => [entry.sourceId, ""])));
           setPayerMap(Object.fromEntries(payers.map((entry) => [entry.sourceId, ""])));
+          setPaymentModeMap(Object.fromEntries(paymentModes.map((entry) => [entry.sourceId, ""])));
         } catch (cause) {
           if (!canceled) setError(friendlyError(cause));
         } finally {
@@ -141,7 +152,8 @@ export function MoveRecordDialog({
     preview &&
     preview.targetBucketId === targetId &&
     preview.references.every((entry) => referenceMap[entry.sourceId]) &&
-    preview.payers.every((entry) => payerMap[entry.sourceId]);
+    preview.payers.every((entry) => payerMap[entry.sourceId]) &&
+    preview.paymentModes.every((entry) => paymentModeMap[entry.sourceId]);
 
   async function move() {
     if (!preview || !mapped || saving) return;
@@ -158,7 +170,7 @@ export function MoveRecordDialog({
             method: "POST",
             revision: record.revision,
             key: crypto.randomUUID(),
-            body: { targetBucketId: targetId, referenceMap, payerMap },
+            body: { targetBucketId: targetId, referenceMap, payerMap, paymentModeMap },
           });
           movedIds.push(record.id);
         } catch (cause) {
@@ -251,6 +263,22 @@ export function MoveRecordDialog({
                     setPayerMap((current) => ({ ...current, [entry.sourceId]: value }))
                   }
                   placeholder="Choose destination member"
+                  options={entry.choices.map((choice) => ({
+                    value: choice.id,
+                    label: choice.name,
+                  }))}
+                />
+              </label>
+            ))}
+            {preview.paymentModes.map((entry) => (
+              <label key={entry.sourceId} className="block text-xs font-semibold">
+                Payment mode: {entry.name}
+                <Dropdown
+                  value={paymentModeMap[entry.sourceId] ?? ""}
+                  onValueChange={(value) =>
+                    setPaymentModeMap((current) => ({ ...current, [entry.sourceId]: value }))
+                  }
+                  placeholder="Choose destination payment mode"
                   options={entry.choices.map((choice) => ({
                     value: choice.id,
                     label: choice.name,

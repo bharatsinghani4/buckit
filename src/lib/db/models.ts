@@ -142,11 +142,7 @@ const expenseSchema = new Schema(
       account: String,
       platform: String,
     },
-    paymentMode: {
-      type: String,
-      enum: ["upi", "cash", "neft", "imps", "credit_card", "auto_debit"],
-      required: true,
-    },
+    paymentMode: { type: String, required: true },
     originalAmount: { type: Schema.Types.Decimal128, required: true },
     originalCurrency: { type: String, required: true },
     bucketCurrency: { type: String, required: true },
@@ -633,6 +629,18 @@ lifecycleOperationSchema.index({ state: 1, createdAt: 1 });
 lifecycleOperationSchema.index({ state: 1, nextAttemptAt: 1 });
 lifecycleOperationSchema.index({ bucketId: 1, kind: 1 });
 lifecycleOperationSchema.index({ userId: 1, kind: 1 });
+
+// Next dev keeps Mongoose models across hot reloads. Recompile models whose
+// validators changed, otherwise an old validator rejects newly supported values.
+if (process.env.NODE_ENV === "development") {
+  const cachedUser = mongoose.models.BuckitUser;
+  const themeValues = cachedUser?.schema.path("theme") as { enumValues?: string[] } | undefined;
+  if (themeValues && !themeValues.enumValues?.includes("auto")) mongoose.deleteModel("BuckitUser");
+  const cachedExpense = mongoose.models.BuckitExpense;
+  const paymentMode = cachedExpense?.schema.path("paymentMode") as
+    { enumValues?: string[] } | undefined;
+  if (paymentMode?.enumValues?.length) mongoose.deleteModel("BuckitExpense");
+}
 
 export const UserModel =
   mongoose.models.BuckitUser || mongoose.model("BuckitUser", userSchema, "users");

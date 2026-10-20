@@ -9,6 +9,12 @@ export const optionKinds = {
 } as const;
 export type OptionKind = keyof typeof optionKinds;
 export const paymentModes = ["upi", "cash", "neft", "imps", "credit_card", "auto_debit"] as const;
+export const paymentModeSchema = z
+  .string()
+  .regex(
+    /^(?:upi|cash|neft|imps|credit_card|auto_debit|custom_[a-f\d]{24})$/,
+    "Choose a valid payment mode.",
+  );
 export const amountSchema = z.string().regex(/^-?(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/);
 export const expenseInput = z
   .object({
@@ -18,7 +24,7 @@ export const expenseInput = z
     categoryId: objectId,
     accountId: objectId,
     platformId: objectId.optional(),
-    paymentMode: z.enum(paymentModes),
+    paymentMode: paymentModeSchema,
     originalAmount: amountSchema,
     originalCurrency: z
       .string()
@@ -82,7 +88,7 @@ export type Expense = {
   accountName: string;
   platformId: string;
   platformName: string;
-  paymentMode: (typeof paymentModes)[number];
+  paymentMode: string;
   originalAmount: string;
   originalCurrency: string;
   bucketCurrency: string;

@@ -19,6 +19,7 @@ import {
 import { currencies } from "@/features/identity/contracts";
 import { changeOption, createOption, listOptions } from "@/features/expenses/reference-service";
 import {
+  createPaymentMode,
   listPaymentModes,
   paymentModePath,
   renamePaymentMode,
@@ -634,6 +635,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         (method === "POST" &&
           (path === "me/bootstrap" ||
             path === "buckets" ||
+            /^buckets\/[a-f\d]{24}\/payment-modes$/i.test(path) ||
             path === "invitations/join" ||
             /^buckets\/[a-f\d]{24}\/(invitations|expenses|budgets|emi-plans|recurring-plans|options\/(accounts|categories|platforms))$/i.test(
               path,
@@ -694,6 +696,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         );
       else if (method === "POST" && path === "buckets")
         result = await createBucket(identity, body, key);
+      else if (method === "POST" && /^buckets\/[a-f\d]{24}\/payment-modes$/i.test(path))
+        result = await createPaymentMode(identity, bucketId, body, key, revision);
       else if (method === "POST" && /^buckets\/[a-f\d]{24}\/invitations$/i.test(path))
         result = await createInvitation(identity, path.split("/")[1], body, key, url.origin);
       else if (method === "POST" && path === "invitations/join")

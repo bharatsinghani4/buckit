@@ -9,6 +9,8 @@ import { CommentModel, ExpenseModel, UserModel } from "@/lib/db/models";
 import { activeUser, bucketForUser } from "@/features/identity/service";
 import { localDate } from "@/features/scheduling/dates";
 import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
+import { paymentModeSchema } from "@/features/expenses/contracts";
+import { currentReferenceName, currentReferenceNames } from "@/features/expenses/reference-labels";
 
 export const csvColumns = [
   "Date",
@@ -35,7 +37,7 @@ const filters = z
     accountId: objectId.optional(),
     platformId: objectId.optional(),
     paidByUserId: objectId.optional(),
-    paymentMode: z.enum(["upi", "cash", "neft", "imps", "credit_card", "auto_debit"]).optional(),
+    paymentMode: paymentModeSchema.optional(),
     q: z.string().trim().max(100).optional(),
     status: z
       .enum(["scheduled", "conversion_needed", "archive_review", "actual", "pending_processing"])
@@ -230,6 +232,7 @@ export async function exportPage(identity: DecodedIdToken, bucketId: string, raw
     },
   }).select("displayName");
   const names = new Map(people.map((row) => [String(row._id), row.displayName]));
+  const referenceNames = await currentReferenceNames(bucketId, page);
   const byExpense = new Map<string, string[]>();
   for (const comment of comments) {
     const expenseId = String(comment.expenseId);
@@ -245,10 +248,15 @@ export async function exportPage(identity: DecodedIdToken, bucketId: string, raw
       `${row.expenseDate.slice(8, 10)}/${row.expenseDate.slice(5, 7)}/${row.expenseDate.slice(0, 4)}`,
       row.description,
       names.get(String(row.paidByUserId)) ?? "Former member",
-      row.referenceLabels?.category ?? "Category",
-      row.referenceLabels?.platform ?? "Other",
+      currentReferenceName(
+        referenceNames,
+        row.categoryId,
+        row.referenceLabels?.category,
+        "Category",
+      ),
+      currentReferenceName(referenceNames, row.platformId, row.referenceLabels?.platform, "Other"),
       row.paymentMode,
-      row.referenceLabels?.account ?? "Account",
+      currentReferenceName(referenceNames, row.accountId, row.referenceLabels?.account, "Account"),
       row.originalAmount.toString(),
       row.originalCurrency,
       names.get(String(row.addedByUserId)) ?? "Former member",

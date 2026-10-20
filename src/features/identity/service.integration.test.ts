@@ -224,6 +224,13 @@ describe("Phase 1 transactional workflows", () => {
       `"r${user.revision}"`,
     );
     expect(result.data as Profile).toMatchObject({ theme: "dark", tour: { state: "skipped" } });
+    const automatic = await updateProfile(
+      owner,
+      { theme: "auto" },
+      randomUUID(),
+      `"r${(result.data as Profile).revision}"`,
+    );
+    expect(automatic.data as Profile).toMatchObject({ theme: "auto" });
   });
   it("coordinates rate limits in the database", async () => {
     await limit(owner, "test", 1);

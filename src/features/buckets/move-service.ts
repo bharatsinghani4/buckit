@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
 import { dueInstant } from "@/features/scheduling/dates";
+import { paymentModeOptions } from "@/features/expenses/payment-modes";
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 const kinds = ["expense", "emi-plan", "recurring-plan"] as const;
@@ -25,6 +26,7 @@ const moveInput = z
     targetBucketId: objectId,
     referenceMap: z.record(objectId, objectId),
     payerMap: z.record(objectId, objectId),
+    paymentModeMap: z.record(z.string(), z.string()).optional(),
   })
   .strict();
 
@@ -103,6 +105,13 @@ function payerIds(bundle: MoveBundle) {
   return payers;
 }
 
+function customPaymentModes(bundle: MoveBundle) {
+  const root = bundle.root as InstanceType<typeof ExpenseModel>;
+  return [
+    ...new Set([root.paymentMode, ...bundle.expenses.map((expense) => expense.paymentMode)]),
+  ].filter((mode): mode is string => typeof mode === "string" && mode.startsWith("custom_"));
+}
+
 async function authorize(
   identity: DecodedIdToken,
   sourceBucketId: string,
@@ -175,7 +184,13 @@ export async function previewMove(
   objectId.parse(targetBucketId);
   if (!kinds.includes(kind)) throw missing();
   const bundle = await loadBundle(sourceBucketId, kind, id);
-  const { target } = await authorize(identity, sourceBucketId, targetBucketId, kind, bundle);
+  const { source, target } = await authorize(
+    identity,
+    sourceBucketId,
+    targetBucketId,
+    kind,
+    bundle,
+  );
   const refs = referenceIds(bundle);
   const payers = payerIds(bundle);
   const [sourceOptions, targetOptions, users, members] = await Promise.all([
@@ -208,6 +223,16 @@ export async function previewMove(
       sourceId,
       name: users.find((user) => String(user._id) === sourceId)?.displayName ?? "Former member",
       choices: targetUsers.map((user) => ({ id: String(user._id), name: user.displayName })),
+    })),
+    paymentModes: customPaymentModes(bundle).map((sourceId) => ({
+      sourceId,
+      name:
+        paymentModeOptions(Object.fromEntries(source.paymentModeLabels ?? [])).find(
+          (mode) => mode.value === sourceId,
+        )?.label ?? "Former payment mode",
+      choices: paymentModeOptions(Object.fromEntries(target.paymentModeLabels ?? [])).map(
+        (mode) => ({ id: mode.value, name: mode.label }),
+      ),
     })),
   };
 }
@@ -244,6 +269,16 @@ export async function moveRecord(
       );
       const refs = referenceIds(bundle);
       const payers = payerIds(bundle);
+      const modes = customPaymentModes(bundle);
+      const targetModes = paymentModeOptions(Object.fromEntries(target.paymentModeLabels ?? []));
+      for (const sourceMode of modes) {
+        if (!targetModes.some((mode) => mode.value === input.paymentModeMap?.[sourceMode]))
+          throw new ApiError(
+            422,
+            "MAPPING_REQUIRED",
+            "Map every custom payment mode before moving.",
+          );
+      }
       if (
         Object.keys(input.referenceMap).length !== refs.size ||
         Object.keys(input.payerMap).length !== payers.size
@@ -282,6 +317,7 @@ export async function moveRecord(
         destinationOptions.find((option) => String(option._id) === String(id))?.name ?? "Other";
       const mapRef = (id: unknown) => (id ? input.referenceMap[String(id)] : id);
       const mapPayer = (id: unknown) => (id ? input.payerMap[String(id)] : id);
+      const mapMode = (mode: string) => input.paymentModeMap?.[mode] ?? mode;
       const targetId = input.targetBucketId;
       const expenseIds = bundle.expenses.map((expense) => expense._id);
       for (const expense of bundle.expenses) {
@@ -292,6 +328,7 @@ export async function moveRecord(
               bucketId: targetId,
               creatorMembershipId: targetMembership._id,
               paidByUserId: mapPayer(expense.paidByUserId),
+              paymentMode: mapMode(expense.paymentMode),
               categoryId: mapRef(expense.categoryId),
               accountId: mapRef(expense.accountId),
               platformId: mapRef(expense.platformId),
@@ -337,6 +374,7 @@ export async function moveRecord(
               bucketId: targetId,
               creatorMembershipId: targetMembership._id,
               paidByUserId: mapPayer(plan.paidByUserId),
+              paymentMode: mapMode(plan.paymentMode),
               categoryId: mapRef(plan.categoryId),
               accountId: mapRef(plan.accountId),
               platformId: mapRef(plan.platformId),

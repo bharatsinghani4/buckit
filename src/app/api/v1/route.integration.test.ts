@@ -124,6 +124,23 @@ describe("Reference renames", () => {
       platformName: "New shop",
       paymentMode: "upi",
     });
+    // Legacy rows can carry an old snapshot even after the option has a new name.
+    await ExpenseModel.updateOne(
+      { _id: expense.payload.data.id },
+      { $set: { "referenceLabels.category": "Old food" } },
+    );
+    const ledger = await request("GET", `${root}/expenses`, actor);
+    expect(ledger.payload.data).toContainEqual(
+      expect.objectContaining({ id: expense.payload.data.id, categoryName: "New food" }),
+    );
+    expect(
+      (await request("GET", `${root}/expenses/${expense.payload.data.id}`, actor)).payload.data
+        .categoryName,
+    ).toBe("New food");
+    const overview = await request("GET", `${root}/dashboard`, actor);
+    expect(overview.payload.data.recentExpenses).toContainEqual(
+      expect.objectContaining({ id: expense.payload.data.id, category: "New food" }),
+    );
     const settings = await request("GET", `${root}/payment-modes`, actor);
     expect(settings.payload.data.revision).toBe(0);
     const renamed = await request(
@@ -152,6 +169,33 @@ describe("Reference renames", () => {
         )
       ).response.status,
     ).toBe(412);
+    const custom = await request(
+      "POST",
+      `${root}/payment-modes`,
+      actor,
+      { name: "Wallet balance" },
+      { "If-Match": '"r1"' },
+    );
+    expect(custom.response.status, JSON.stringify(custom.payload)).toBe(201);
+    const customMode = custom.payload.data.modes.find(
+      (mode: { label: string }) => mode.label === "Wallet balance",
+    );
+    expect(customMode.value).toMatch(/^custom_[a-f\d]{24}$/);
+    const customExpense = await request("POST", `${root}/expenses`, actor, {
+      expenseDate: new Date().toISOString().slice(0, 10),
+      description: "Wallet purchase",
+      paidByUserId: userId,
+      categoryId: category.payload.data.id,
+      accountId: account.payload.data.id,
+      paymentMode: customMode.value,
+      originalAmount: "12.00",
+    });
+    expect(customExpense.response.status, JSON.stringify(customExpense.payload)).toBe(201);
+    expect(
+      (await request("GET", `${root}/payment-modes`, actor)).payload.data.modes.find(
+        (mode: { value: string }) => mode.value === customMode.value,
+      ).usageCount,
+    ).toBe(1);
   });
 });
 
@@ -2433,13 +2477,26 @@ describe("Phase 2 HTTP API flows", () => {
       await request("POST", `${targetRoot}/accounts`, actor, { name: "New account" })
     ).payload.data;
     const payerId = (await request("GET", "me", actor)).payload.data.id;
+    const sourceMode = await request(
+      "POST",
+      `${sourceRoot}/payment-modes`,
+      actor,
+      {
+        name: "Source wallet",
+      },
+      { "If-Match": '"r0"' },
+    );
+    expect(sourceMode.response.status, JSON.stringify(sourceMode.payload)).toBe(201);
+    const customMode = sourceMode.payload.data.modes.find(
+      (mode: { label: string }) => mode.label === "Source wallet",
+    ).value;
     const created = await request("POST", `${sourceRoot}/expenses`, actor, {
       expenseDate: "2026-10-12",
       description: "Move full history",
       paidByUserId: payerId,
       categoryId: sourceCategory.id,
       accountId: sourceAccount.id,
-      paymentMode: "upi",
+      paymentMode: customMode,
       originalAmount: "500.00",
       originalCurrency: "INR",
     });
@@ -2469,6 +2526,7 @@ describe("Phase 2 HTTP API flows", () => {
     );
     expect(preview.response.status, JSON.stringify(preview.payload)).toBe(200);
     expect(preview.payload.data.expenseCount).toBe(4);
+    expect(preview.payload.data.paymentModes).toHaveLength(1);
     const incomplete = await request(
       "POST",
       endpoint,
@@ -2500,6 +2558,7 @@ describe("Phase 2 HTTP API flows", () => {
           ),
         ),
         payerMap: { [payerId]: payerId },
+        paymentModeMap: { [customMode]: "upi" },
       },
       { "If-Match": created.response.headers.get("ETag")! },
     );
@@ -2511,6 +2570,7 @@ describe("Phase 2 HTTP API flows", () => {
     const destination = await request("GET", `${targetRoot}/expenses/${id}`, actor);
     expect(destination.payload.data.categoryId).toBe(targetCategory.id);
     expect(destination.payload.data.accountId).toBe(targetAccount.id);
+    expect(destination.payload.data.paymentMode).toBe("upi");
     for (const linkedId of linkedIds)
       expect(
         (await request("GET", `${targetRoot}/expenses/${linkedId}`, actor)).response.status,

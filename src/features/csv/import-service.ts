@@ -15,7 +15,8 @@ import {
   UserModel,
 } from "@/lib/db/models";
 import { activeUser, bucketForUser, mutate } from "@/features/identity/service";
-import { expenseInput, paymentModes, type ExpenseInput } from "@/features/expenses/contracts";
+import { expenseInput, type ExpenseInput } from "@/features/expenses/contracts";
+import { paymentModeOptions } from "@/features/expenses/payment-modes";
 import { conversionFor, validateReferences } from "@/features/expenses/service";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { dueInstant, localDate } from "@/features/scheduling/dates";
@@ -373,6 +374,7 @@ type ValidationContext = {
   userId: string;
   isOwner: boolean;
   bucketCurrency: string;
+  paymentModes: { value: string; label: string }[];
   members: { id: string; name: string }[];
   formerMembers: { id: string; name: string }[];
   options: { id: string; kind: string; name: string; systemKey?: string }[];
@@ -395,6 +397,7 @@ async function context(
     userId,
     isOwner: String(bucket.ownerUserId) === userId,
     bucketCurrency: bucket.primaryCurrency,
+    paymentModes: paymentModeOptions(Object.fromEntries(bucket.paymentModeLabels ?? [])),
     members: people
       .filter((person) =>
         memberships.some(
@@ -479,9 +482,14 @@ function normalize(
   const categoryId = reference("category", "Category");
   const accountId = reference("account", "Bank Account");
   const platformId = reference("platform", "Platform", "Other");
-  const mode = cell("Payment Mode").toLowerCase().replace(/[ -]/g, "_");
-  if (!(paymentModes as readonly string[]).includes(mode))
-    errors.push("Choose a valid Payment Mode.");
+  const rawMode = cell("Payment Mode").toLowerCase().trim();
+  const mode =
+    ctx.paymentModes.find(
+      (item) =>
+        item.value.toLowerCase() === rawMode.replace(/[ -]/g, "_") ||
+        item.label.toLowerCase() === rawMode,
+    )?.value ?? "";
+  if (!mode) errors.push("Choose a valid Payment Mode.");
   const addedBy = cell("Added By");
   const addedByMatches = addedBy ? memberMatches(addedBy, ctx.formerMembers) : [];
   if (!addedBy) defaults.push("Added By");

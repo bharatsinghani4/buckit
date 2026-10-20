@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { currencies } from "@/features/identity/contracts";
-import { amountSchema, objectId, paymentModes } from "@/features/expenses/contracts";
+import { amountSchema, objectId, paymentModeSchema } from "@/features/expenses/contracts";
 
 const planBase = z
   .object({
@@ -13,7 +13,7 @@ const planBase = z
     categoryId: objectId,
     accountId: objectId,
     platformId: objectId.optional(),
-    paymentMode: z.enum(paymentModes),
+    paymentMode: paymentModeSchema,
     paidByUserId: objectId,
   })
   .strict();
@@ -52,7 +52,7 @@ export type Plan = {
   categoryName: string;
   accountName: string;
   platformName: string;
-  paymentMode: (typeof paymentModes)[number];
+  paymentMode: string;
   paidByUserId: string;
   recordedCount: number;
   upcomingCount: number;
