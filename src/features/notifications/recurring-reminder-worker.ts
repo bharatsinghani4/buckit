@@ -9,7 +9,7 @@ import {
 import { localDate } from "@/features/scheduling/dates";
 import {
   daysBefore,
-  recurringDate,
+  nextRecurringOccurrence,
   type RecurringFrequency,
 } from "@/features/scheduling/recurring-dates";
 
@@ -29,8 +29,14 @@ export async function processRecurringReminders(limit = 1_000, deadline = Date.n
       MembershipModel.exists({ _id: plan.creatorMembershipId, state: "active" }),
     ]);
     if (!bucket || !user || !membership) continue;
-    const due = recurringDate(plan.startDate, plan.frequency as RecurringFrequency, plan.nextIndex);
-    if (plan.endDate && due > plan.endDate) continue;
+    const due = nextRecurringOccurrence(
+      plan.startDate,
+      plan.frequency as RecurringFrequency,
+      plan.nextIndex,
+      plan.endDate,
+      plan.skippedDates,
+    )?.date;
+    if (!due) continue;
     const reminderDate = daysBefore(due, plan.reminderLeadDays ?? 1);
     if (reminderDate !== localDate(new Date(), bucket.timezone)) continue;
     const dueLabel = new Intl.DateTimeFormat("en-IN", {

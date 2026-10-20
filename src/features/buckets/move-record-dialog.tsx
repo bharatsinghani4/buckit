@@ -31,6 +31,7 @@ export function MoveRecordDialog({
   kind,
   id,
   revision,
+  records,
   onClose,
   onMoved,
 }: {
@@ -38,8 +39,9 @@ export function MoveRecordDialog({
   kind: MoveKind;
   id: string;
   revision: number;
+  records?: { id: string; revision: number }[];
   onClose: () => void;
-  onMoved: (targetBucketId: string) => void;
+  onMoved: (targetBucketId: string, movedIds: string[], failedCount: number) => void;
 }) {
   const { invalidate, read } = useWorkspaceData();
   const [buckets, setBuckets] = useState<Bucket[]>([]);
@@ -50,6 +52,7 @@ export function MoveRecordDialog({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     let canceled = false;
@@ -87,15 +90,41 @@ export function MoveRecordDialog({
         setError("");
         setPreview(null);
         try {
-          const result = await api<Preview>(
-            `buckets/${bucket.id}/moves/${kind}/${id}/preview?targetBucketId=${targetId}`,
+          const selected = records ?? [{ id, revision }];
+          const results = await Promise.all(
+            selected.map((record) =>
+              api<Preview>(
+                `buckets/${bucket.id}/moves/${kind}/${record.id}/preview?targetBucketId=${targetId}`,
+              ),
+            ),
           );
           if (canceled) return;
-          setPreview(result.data);
-          setReferenceMap(
-            Object.fromEntries(result.data.references.map((entry) => [entry.sourceId, ""])),
-          );
-          setPayerMap(Object.fromEntries(result.data.payers.map((entry) => [entry.sourceId, ""])));
+          const references = [
+            ...new Map(
+              results
+                .flatMap((result) => result.data.references)
+                .map((entry) => [entry.sourceId, entry]),
+            ).values(),
+          ];
+          const payers = [
+            ...new Map(
+              results
+                .flatMap((result) => result.data.payers)
+                .map((entry) => [entry.sourceId, entry]),
+            ).values(),
+          ];
+          setPreview({
+            ...results[0].data,
+            expenseCount: results.reduce((sum, result) => sum + result.data.expenseCount, 0),
+            installmentCount: results.reduce(
+              (sum, result) => sum + result.data.installmentCount,
+              0,
+            ),
+            references,
+            payers,
+          });
+          setReferenceMap(Object.fromEntries(references.map((entry) => [entry.sourceId, ""])));
+          setPayerMap(Object.fromEntries(payers.map((entry) => [entry.sourceId, ""])));
         } catch (cause) {
           if (!canceled) setError(friendlyError(cause));
         } finally {
@@ -106,7 +135,7 @@ export function MoveRecordDialog({
     return () => {
       canceled = true;
     };
-  }, [bucket.id, id, kind, targetId]);
+  }, [bucket.id, id, kind, records, revision, targetId]);
 
   const mapped =
     preview &&
@@ -119,15 +148,29 @@ export function MoveRecordDialog({
     setSaving(true);
     setError("");
     try {
-      await api(`buckets/${bucket.id}/moves/${kind}/${id}`, {
-        method: "POST",
-        revision,
-        key: crypto.randomUUID(),
-        body: { targetBucketId: targetId, referenceMap, payerMap },
-      });
+      const selected = records ?? [{ id, revision }];
+      const movedIds: string[] = [];
+      let failedCount = 0;
+      let firstError = "";
+      for (const [index, record] of selected.entries()) {
+        try {
+          await api(`buckets/${bucket.id}/moves/${kind}/${record.id}`, {
+            method: "POST",
+            revision: record.revision,
+            key: crypto.randomUUID(),
+            body: { targetBucketId: targetId, referenceMap, payerMap },
+          });
+          movedIds.push(record.id);
+        } catch (cause) {
+          failedCount++;
+          if (!firstError) firstError = friendlyError(cause);
+        }
+        setProgress(index + 1);
+      }
       invalidate(`buckets/${bucket.id}/`);
       invalidate(`buckets/${targetId}/`);
-      onMoved(targetId);
+      if (movedIds.length) onMoved(targetId, movedIds, failedCount);
+      else setError(firstError || "No records could be moved.");
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {
@@ -138,11 +181,20 @@ export function MoveRecordDialog({
   return (
     <Dialog
       title="Move to another bucket"
-      subtitle="Choose the destination and match its references before moving the full record history."
+      subtitle={
+        records
+          ? `Move ${records.length} selected expenses and their linked history.`
+          : "Choose the destination and match its references before moving the full record history."
+      }
       onClose={onClose}
     >
       <div className="space-y-4">
         {error && <Notice>{error}</Notice>}
+        {saving && records && (
+          <p className="text-xs text-[var(--muted)]">
+            Moving {progress} of {records.length}…
+          </p>
+        )}
         <label className="block text-xs font-semibold">
           Destination bucket
           <Dropdown
@@ -223,7 +275,7 @@ export function MoveRecordDialog({
             ) : (
               <ArrowRight size={15} />
             )}
-            {saving ? "Moving…" : "Move record"}
+            {saving ? "Moving…" : records ? `Move ${records.length} expenses` : "Move record"}
           </button>
         </div>
       </div>

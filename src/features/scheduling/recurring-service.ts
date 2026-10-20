@@ -23,7 +23,7 @@ import { currencies } from "@/features/identity/contracts";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { recordDomainEvent } from "@/features/notifications/event-service";
 import { dueInstant, localDate } from "./dates";
-import { recurringDate, type RecurringFrequency } from "./recurring-dates";
+import { nextRecurringOccurrence, recurringDate, type RecurringFrequency } from "./recurring-dates";
 
 const decimal = (value: string) => mongoose.Types.Decimal128.fromString(value);
 const missing = () =>
@@ -63,8 +63,15 @@ const planChanges = planBase
 const recordInput = z.object({ paymentDate: z.iso.date().optional() }).strict();
 
 function nextDate(plan: InstanceType<typeof RecurringPlanModel>) {
-  const date = recurringDate(plan.startDate, plan.frequency as RecurringFrequency, plan.nextIndex);
-  return plan.endDate && date > plan.endDate ? null : date;
+  return (
+    nextRecurringOccurrence(
+      plan.startDate,
+      plan.frequency as RecurringFrequency,
+      plan.nextIndex,
+      plan.endDate,
+      plan.skippedDates,
+    )?.date ?? null
+  );
 }
 
 function firstUpcomingIndex(startDate: string, frequency: RecurringFrequency, today: string) {
@@ -285,6 +292,7 @@ export async function changeRecurringPlan(
           : {}),
         ...(scheduleChanged
           ? {
+              skippedDates: [],
               nextIndex: firstUpcomingIndex(
                 merged.startDate,
                 merged.frequency,
@@ -305,6 +313,63 @@ export async function changeRecurringPlan(
       }
       if (!nextDate(plan)) plan.state = "ended";
       plan.revision += 1;
+      await plan.save({ session });
+      return { resourceId: planId, status: 200, data: dto(plan, String(user._id)) };
+    },
+    async (id, session) => {
+      const user = await activeUser(identity, session);
+      const plan = await RecurringPlanModel.findOne({ _id: id, bucketId }).session(session);
+      if (!plan) throw missing();
+      return dto(plan, String(user._id));
+    },
+  );
+}
+
+export async function skipRecurringPayment(
+  identity: DecodedIdToken,
+  bucketId: string,
+  planId: string,
+  dueDate: string,
+  key: string,
+  revision: string | null,
+) {
+  return mutate(
+    identity,
+    `recurring:${bucketId}:${planId}:${dueDate}:skip`,
+    key,
+    { dueDate, revision },
+    async (session) => {
+      const user = await activeUser(identity, session);
+      const bucket = await bucketForUser(bucketId, user, session, true);
+      const plan = await RecurringPlanModel.findOne({
+        _id: planId,
+        bucketId,
+        actualCreatorUserId: user._id,
+      }).session(session);
+      if (!plan) throw missing();
+      assertRevision(revision, plan.revision);
+      if (plan.state !== "active")
+        throw new ApiError(409, "PLAN_NOT_ACTIVE", "Only active plans have payments to skip.");
+      const today = localDate(new Date(), bucket.timezone);
+      if (dueDate <= today)
+        throw new ApiError(409, "PAYMENT_NOT_FUTURE", "Only future payments can be skipped.");
+      let scheduled = false;
+      for (let index = plan.nextIndex; index < plan.nextIndex + 5_000; index++) {
+        const date = recurringDate(plan.startDate, plan.frequency as RecurringFrequency, index);
+        if (date >= dueDate) {
+          scheduled = date === dueDate;
+          break;
+        }
+      }
+      if (
+        !scheduled ||
+        (plan.endDate && dueDate > plan.endDate) ||
+        plan.skippedDates.includes(dueDate)
+      )
+        throw new ApiError(409, "PAYMENT_UNAVAILABLE", "This payment is no longer scheduled.");
+      plan.skippedDates.push(dueDate);
+      plan.revision += 1;
+      if (!nextDate(plan)) plan.state = "ended";
       await plan.save({ session });
       return { resourceId: planId, status: 200, data: dto(plan, String(user._id)) };
     },
@@ -397,7 +462,14 @@ async function recordOccurrence(
       ],
       { session },
     );
-    plan.nextIndex += 1;
+    const occurrence = nextRecurringOccurrence(
+      plan.startDate,
+      plan.frequency as RecurringFrequency,
+      plan.nextIndex,
+      plan.endDate,
+      plan.skippedDates,
+    );
+    plan.nextIndex = (occurrence?.index ?? plan.nextIndex) + 1;
     plan.revision += 1;
     if (!nextDate(plan)) plan.state = "ended";
     await plan.save({ session });

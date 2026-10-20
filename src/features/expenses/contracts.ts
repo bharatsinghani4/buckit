@@ -104,7 +104,8 @@ export type Expense = {
   source?:
     | { kind: "manual" }
     | { kind: "emi"; planId: string; installmentId: string }
-    | { kind: "recurring"; planId: string; dueDate: string };
+    | { kind: "recurring"; planId: string; dueDate: string }
+    | { kind: "recurring_projection"; planId: string; dueDate: string };
   permissions: { canEdit: boolean; canDelete: boolean; canRestore: boolean; canComment: boolean };
 };
 export type Option = {

@@ -21,6 +21,7 @@ import { generateInstallments, processDaily } from "@/features/scheduling/servic
 import { processDueReminders } from "@/features/notifications/reminder-worker";
 import { processAutomaticRecurring } from "@/features/scheduling/recurring-service";
 import { processRecurringReminders } from "@/features/notifications/recurring-reminder-worker";
+import { recurringDate } from "@/features/scheduling/recurring-dates";
 import { fanoutPendingEvents } from "@/features/notifications/inbox-service";
 import { localDate } from "@/features/scheduling/dates";
 import { continuePendingImports } from "@/features/csv/import-service";
@@ -1916,6 +1917,77 @@ async function request(
 }
 
 describe("Open-ended recurring payments and reminder messages", () => {
+  it("skips one future payment without ending the plan, then ends remaining projections", async () => {
+    const actor = "recurring-skip-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const bucket = await request("POST", "buckets", actor, {
+      name: "Skip Test",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${bucket.payload.data.id}`;
+    const category = (await request("GET", `${root}/options/categories`, actor)).payload.data[0].id;
+    const account = (await request("POST", `${root}/options/accounts`, actor, { name: "Account" }))
+      .payload.data.id;
+    const userId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const today = new Date().toISOString().slice(0, 10);
+    const second = recurringDate(today, "monthly", 1);
+    const third = recurringDate(today, "monthly", 2);
+    const created = await request("POST", `${root}/recurring-plans`, actor, {
+      title: "Investment",
+      amount: "500.00",
+      currency: "INR",
+      frequency: "monthly",
+      startDate: today,
+      endDate: third,
+      categoryId: category,
+      accountId: account,
+      paymentMode: "upi",
+      paidByUserId: userId,
+      recordingMode: "confirm",
+    });
+    expect(created.response.status, JSON.stringify(created.payload)).toBe(201);
+    const planId = created.payload.data.id;
+    const skipped = await request(
+      "POST",
+      `${root}/recurring-plans/${planId}/occurrences/${second}/skip`,
+      actor,
+      {},
+      { "If-Match": `"r${created.payload.data.revision}"` },
+    );
+    expect(skipped.response.status, JSON.stringify(skipped.payload)).toBe(200);
+    expect(skipped.payload.data.state).toBe("active");
+    const confirmed = await request(
+      "POST",
+      `${root}/recurring-plans/${planId}/confirm`,
+      actor,
+      { paymentDate: today },
+      { "If-Match": `"r${skipped.payload.data.revision}"` },
+    );
+    expect(confirmed.response.status, JSON.stringify(confirmed.payload)).toBe(201);
+    const current = (await request("GET", `${root}/recurring-plans`, actor)).payload.data[0];
+    expect(current.nextDate).toBe(third);
+    const range = `from=${second}&toExclusive=${recurringDate(today, "monthly", 3)}`;
+    const ledger = await request("GET", `${root}/expenses?status=scheduled&${range}`, actor);
+    expect(ledger.payload.data.map((item: { expenseDate: string }) => item.expenseDate)).toEqual([
+      third,
+    ]);
+    const summary = await request("GET", `${root}/expenses/summary?${range}`, actor);
+    expect(summary.payload.data.scheduledCount).toBe(1);
+    const ended = await request(
+      "PATCH",
+      `${root}/recurring-plans/${planId}`,
+      actor,
+      { state: "ended" },
+      { "If-Match": `"r${current.revision}"` },
+    );
+    expect(ended.response.status, JSON.stringify(ended.payload)).toBe(200);
+    expect(
+      (await request("GET", `${root}/expenses?status=scheduled&${range}`, actor)).payload.data,
+    ).toHaveLength(0);
+    expect(await ExpenseModel.countDocuments({ "source.recurringPlanId": planId })).toBe(1);
+  });
+
   it("records a confirmed SIP once and keeps future occurrences available", async () => {
     const actor = "recurring-confirm-owner";
     await request("POST", "me/bootstrap", actor, {});
@@ -1967,10 +2039,91 @@ describe("Open-ended recurring payments and reminder messages", () => {
     const expense = await ExpenseModel.findById(confirmed.payload.data.id);
     expect(expense?.postingState).toBe("posted");
     expect(expense?.source?.kind).toBe("recurring");
-    expect(
-      (await request("GET", `${root}/recurring-plans`, actor)).payload.data[0].nextDate,
-    ).not.toBe(today);
+    const nextDate = (await request("GET", `${root}/recurring-plans`, actor)).payload.data[0]
+      .nextDate as string;
+    expect(nextDate).not.toBe(today);
     expect(await ExpenseModel.countDocuments({ "source.recurringPlanId": planId })).toBe(1);
+    const nextMonth = new Date(
+      Date.UTC(Number(nextDate.slice(0, 4)), Number(nextDate.slice(5, 7)), 1),
+    )
+      .toISOString()
+      .slice(0, 10);
+    const summary = await request(
+      "GET",
+      `${root}/expenses/summary?from=${nextDate}&toExclusive=${nextMonth}`,
+      actor,
+    );
+    expect(summary.payload.data.scheduledCount).toBe(1);
+    expect(summary.payload.data.scheduledTotal).toBe("1250.00");
+    const dashboard = await request(
+      "GET",
+      `${root}/dashboard?period=month&anchorDate=${nextDate}`,
+      actor,
+    );
+    expect(dashboard.payload.data.scheduledCount).toBe(1);
+    expect(dashboard.payload.data.scheduledAmount).toBe("1250.00");
+    const report = await request(
+      "GET",
+      `${root}/reports/spending?period=custom&from=${nextDate}&toExclusive=${nextMonth}`,
+      actor,
+    );
+    expect(report.payload.data.scheduledCount).toBe(1);
+    expect(report.payload.data.scheduledAmount).toBe("1250.00");
+    const ledger = await request(
+      "GET",
+      `${root}/expenses?status=scheduled&from=${nextDate}&toExclusive=${nextMonth}`,
+      actor,
+    );
+    expect(ledger.payload.data).toHaveLength(1);
+    expect(ledger.payload.data[0].source).toEqual({
+      kind: "recurring_projection",
+      planId,
+      dueDate: nextDate,
+    });
+    expect(ledger.payload.data[0].permissions.canDelete).toBe(false);
+    const searched = await request(
+      "GET",
+      `${root}/expenses?status=scheduled&from=${nextDate}&toExclusive=${nextMonth}&q=SIP`,
+      actor,
+    );
+    expect(searched.payload.data).toHaveLength(1);
+    const hidden = await request(
+      "GET",
+      `${root}/expenses?status=scheduled&from=${nextDate}&toExclusive=${nextMonth}&q=unrelated`,
+      actor,
+    );
+    expect(hidden.payload.data).toHaveLength(0);
+    const savedFuture = await request("POST", `${root}/expenses`, actor, {
+      expenseDate: nextDate,
+      description: "Other future expense",
+      paidByUserId: userId,
+      categoryId: category,
+      accountId: account,
+      paymentMode: "upi",
+      originalAmount: "50.00",
+    });
+    expect(savedFuture.response.status).toBe(201);
+    const firstPage = await request(
+      "GET",
+      `${root}/expenses?status=scheduled&from=${nextDate}&toExclusive=${nextMonth}&limit=1`,
+      actor,
+    );
+    const secondPage = await request(
+      "GET",
+      `${root}/expenses?status=scheduled&from=${nextDate}&toExclusive=${nextMonth}&limit=1&cursor=${firstPage.payload.meta.nextCursor}`,
+      actor,
+    );
+    expect([firstPage.payload.data[0].id, secondPage.payload.data[0].id].sort()).toEqual(
+      [ledger.payload.data[0].id, savedFuture.payload.data.id].sort(),
+    );
+    expect(secondPage.payload.meta.nextCursor).toBeNull();
+    const combinedSummary = await request(
+      "GET",
+      `${root}/expenses/summary?from=${nextDate}&toExclusive=${nextMonth}`,
+      actor,
+    );
+    expect(combinedSummary.payload.data.scheduledCount).toBe(2);
+    expect(combinedSummary.payload.data.scheduledTotal).toBe("1300.00");
   });
 
   it("automatically records a due premium only once", async () => {
@@ -2462,6 +2615,7 @@ describe("Phase 2 HTTP API flows", () => {
       ["2026-07-15", "Didi July"],
       ["2026-08-15", "Didi August"],
       ["2026-09-15", "Another payment"],
+      ["2026-05-15", "Didi May"],
     ]) {
       const created = await request("POST", `${root}/expenses`, actor, {
         expenseDate,
@@ -2475,6 +2629,27 @@ describe("Phase 2 HTTP API flows", () => {
       });
       expect(created.response.status).toBe(201);
     }
+    const allDates = await request("GET", `${root}/expenses?limit=100`, actor);
+    expect(allDates.response.status).toBe(200);
+    expect(
+      allDates.payload.data.map((expense: { description: string }) => expense.description),
+    ).toEqual([
+      "Another payment",
+      "Didi August",
+      "Didi July",
+      "Didi June",
+      "Didi May",
+      "Didi outside range",
+    ]);
+    const firstPage = await request("GET", `${root}/expenses?limit=2`, actor);
+    const secondPage = await request(
+      "GET",
+      `${root}/expenses?limit=2&cursor=${encodeURIComponent(firstPage.payload.meta.nextCursor)}`,
+      actor,
+    );
+    expect(
+      secondPage.payload.data.map((expense: { description: string }) => expense.description),
+    ).toEqual(["Didi July", "Didi June"]);
     const filters = "from=2026-04-01&toExclusive=2026-10-21&q=didi&limit=1";
     const descriptions: string[] = [];
     let cursor: string | null = null;
@@ -2490,14 +2665,28 @@ describe("Phase 2 HTTP API flows", () => {
       );
       cursor = page.payload.meta.nextCursor;
     } while (cursor);
-    expect(descriptions.sort()).toEqual(["Didi August", "Didi July", "Didi June"]);
+    expect(descriptions.sort()).toEqual(["Didi August", "Didi July", "Didi June", "Didi May"]);
+    const categoryRows = await request(
+      "GET",
+      `${root}/expenses?from=2026-04-01&toExclusive=2026-10-21&categoryIds=${category.id}&q=didi`,
+      actor,
+    );
+    expect(categoryRows.response.status).toBe(200);
+    expect(categoryRows.payload.data).toHaveLength(4);
+    const otherCategoryRows = await request(
+      "GET",
+      `${root}/expenses?categoryIds=000000000000000000000001`,
+      actor,
+    );
+    expect(otherCategoryRows.response.status).toBe(200);
+    expect(otherCategoryRows.payload.data).toHaveLength(0);
     const summary = await request(
       "GET",
       `${root}/expenses/summary?from=2026-04-01&toExclusive=2026-10-21`,
       actor,
     );
-    expect(summary.payload.data.actualCount).toBe(4);
-    expect(Number(summary.payload.data.actualTotal)).toBe(400);
+    expect(summary.payload.data.actualCount).toBe(5);
+    expect(Number(summary.payload.data.actualTotal)).toBe(500);
   });
 
   it("handles reference options, expenses, comments, deletion, restoration, members, and invitations", async () => {

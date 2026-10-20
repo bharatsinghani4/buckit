@@ -19,6 +19,7 @@ type CalendarFieldProps = {
   required?: boolean;
   min?: string;
   max?: string;
+  placeholder?: string;
 };
 
 function displayValue(value: string, mode: CalendarMode) {
@@ -47,6 +48,7 @@ export function CalendarField({
   required,
   min,
   max,
+  placeholder,
 }: CalendarFieldProps) {
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -202,7 +204,7 @@ export function CalendarField({
             }
           }}
           className={`${controls.date} cursor-pointer pr-10 ${className}`}
-          placeholder={displayValue("", mode)}
+          placeholder={placeholder ?? displayValue("", mode)}
           title={displayValue(currentValue, mode)}
         />
         <CalendarDays

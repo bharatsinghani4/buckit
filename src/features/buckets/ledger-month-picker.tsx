@@ -21,6 +21,7 @@ export function LedgerMonthPicker({
         value={value}
         onValueChange={onChange}
         aria-label="Ledger month"
+        placeholder="All dates"
         containerClassName={fullWidth ? "flex-1" : ""}
         className={fullWidth ? "!w-full" : "w-40 max-[900px]:w-32"}
       />
@@ -28,8 +29,8 @@ export function LedgerMonthPicker({
         <button
           type="button"
           className="grid size-9 shrink-0 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--soft)]"
-          aria-label="Reset to current month"
-          title="Reset to current month"
+          aria-label="Clear month and show all dates"
+          title="Show all dates"
           onClick={() => (onClear ? onClear() : onChange(""))}
         >
           <X size={15} aria-hidden="true" />

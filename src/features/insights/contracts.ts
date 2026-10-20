@@ -40,6 +40,7 @@ export type Budget = {
   id: string;
   name: string;
   scope: "shared" | "member";
+  memberUserId: string | null;
   categoryIds: string[];
   categoryNames: string[];
   limitAmount: string;
@@ -79,6 +80,7 @@ export type SpendingReport = {
   pendingCount: number;
   scheduledCount: number;
   scheduledAmount: string;
+  scheduledUnconvertedCount: number;
   groups: SpendingGroup[];
   financialRevision: number;
 };

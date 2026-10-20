@@ -240,7 +240,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] pb-12">
+    <div className="mx-auto w-full max-w-[1440px] pb-12">
       <div
         className={`mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 ${mode !== "read" || selectedId ? "max-[767px]:hidden" : ""}`}
       >
@@ -251,7 +251,7 @@ export function PhaseSixContacts({ contactId }: { contactId: string | null }) {
           <ArrowLeft size={15} aria-hidden="true" /> Back to Overview
         </Link>
         <div className="min-w-0">
-          <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--ink)]">
             Contacts & Directory
           </h1>
         </div>

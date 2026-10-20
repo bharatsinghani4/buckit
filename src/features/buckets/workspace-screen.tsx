@@ -8,6 +8,7 @@ import {
   ArrowRight,
   ArrowLeft,
   BookOpen,
+  CirclePlay,
   FolderOpen,
   Home,
   HelpCircle,
@@ -37,6 +38,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
+import { TutorialVideo } from "@/components/tutorial-video";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Dropdown } from "@/components/dropdown";
 import { Dialog, Notice, Pending } from "@/components/ui";
@@ -219,7 +221,10 @@ function Workspace() {
   const [step, setStep] = useState(profile.tour.lastStep);
   const tourPrompted = useRef(false);
   const [cursor, setCursor] = useState<string | null>(null);
-  const ledgerMonth = workspacePeriod.period === "month" ? workspacePeriod.month : "";
+  const ledgerMonth =
+    !workspacePeriod.ledgerAllDates && workspacePeriod.period === "month"
+      ? workspacePeriod.month
+      : "";
   const setLedgerMonth = workspacePeriod.setMonth;
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -778,29 +783,31 @@ function Workspace() {
                       ? "Reference settings"
                       : phaseView === "members"
                         ? "Members & invitations"
-                        : phaseView === "reports"
-                          ? "Reports"
-                          : ["budgets", "budget", "budget-form"].includes(phaseView)
-                            ? "Budgets"
-                            : ["emis", "emi-plan"].includes(phaseView)
-                              ? "EMIs"
-                              : phaseView === "scheduled"
-                                ? "Scheduled expenses"
-                                : phaseView === "notifications"
-                                  ? "Notifications & channels"
-                                  : phaseView === "reminders"
-                                    ? "Reminders & cadence"
-                                    : phaseView === "contacts"
-                                      ? "Contacts & directory"
-                                      : phaseView === "csv-import"
-                                        ? "Import CSV"
-                                        : phaseView === "csv-export"
-                                          ? "Export CSV"
-                                          : phaseView === "bucket-settings"
-                                            ? "Bucket settings"
-                                            : phaseView === "account-settings"
-                                              ? "Account settings"
-                                              : "Expenses"}
+                        : phaseView === "tutorial"
+                          ? "Tutorial"
+                          : phaseView === "reports"
+                            ? "Reports"
+                            : ["budgets", "budget", "budget-form"].includes(phaseView)
+                              ? "Budgets"
+                              : ["emis", "emi-plan"].includes(phaseView)
+                                ? "EMIs"
+                                : phaseView === "scheduled"
+                                  ? "Scheduled expenses"
+                                  : phaseView === "notifications"
+                                    ? "Notifications & channels"
+                                    : phaseView === "reminders"
+                                      ? "Reminders & cadence"
+                                      : phaseView === "contacts"
+                                        ? "Contacts & directory"
+                                        : phaseView === "csv-import"
+                                          ? "Import CSV"
+                                          : phaseView === "csv-export"
+                                            ? "Export CSV"
+                                            : phaseView === "bucket-settings"
+                                              ? "Bucket settings"
+                                              : phaseView === "account-settings"
+                                                ? "Account settings"
+                                                : "Expenses"}
                   </span>
                 </>
               )}
@@ -865,6 +872,21 @@ function Workspace() {
                       </div>
                     </div>
                     <div className="py-1">
+                      <Link
+                        role="menuitem"
+                        href={
+                          selected
+                            ? `/workspace?bucket=${selected.id}&view=tutorial`
+                            : "/workspace?view=tutorial"
+                        }
+                        onClick={(event) => {
+                          navigateWithinWorkspace(event);
+                          setProfileMenuOpen(false);
+                        }}
+                        className={profileMenuItem}
+                      >
+                        <CirclePlay size={17} /> Watch Tutorial
+                      </Link>
                       <button
                         type="button"
                         role="menuitem"
@@ -963,6 +985,16 @@ function Workspace() {
           )}
           {loading ? (
             <Pending layout="workspace" />
+          ) : phaseView === "tutorial" ? (
+            <section className="mx-auto flex w-full max-w-[1100px] flex-col gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-[var(--ink)]">Tutorial</h1>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  A complete walkthrough of Buckit’s features, including how to install the app.
+                </p>
+              </div>
+              <TutorialVideo />
+            </section>
           ) : phaseView === "account-settings" || (phaseView === "bucket-settings" && selected) ? (
             <PhaseSevenScreen
               bucket={selected}
@@ -987,7 +1019,7 @@ function Workspace() {
               phaseView ?? "",
             ) ? (
             <PhaseTwoScreen
-              key={`${selected.id}:${phaseView}:${params.get("expense") ?? ""}:${workspacePeriod.range.from}:${workspacePeriod.range.toExclusive}`}
+              key={`${selected.id}:${phaseView}:${params.get("expense") ?? ""}:${params.get("status") ?? ""}:${workspacePeriod.ledgerAllDates ? "all" : `${workspacePeriod.range.from}:${workspacePeriod.range.toExclusive}`}`}
               bucket={selected}
               profile={profile}
               view={
@@ -999,6 +1031,9 @@ function Workspace() {
               month={ledgerMonth}
               onMonthChange={setLedgerMonth}
               onClearMonth={workspacePeriod.clearMonth}
+              initialStatus={
+                params.get("status") === "conversion_needed" ? "conversion_needed" : undefined
+              }
               resolveRequested={params.get("resolve") === "1"}
               refundMode={params.get("mode") === "refund"}
             />

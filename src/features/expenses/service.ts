@@ -22,7 +22,11 @@ import {
   objectId,
   type ExpenseInput,
 } from "./contracts";
-import { convertAmount, minorUnits, precision } from "./money";
+import { convertAmount, fromMinor, minorUnits, precision } from "./money";
+import { units } from "@/features/insights/calculations";
+import { recurringCommitments } from "@/features/scheduling/recurring-commitments";
+import type { RecurringCommitmentEntry } from "@/features/scheduling/recurring-commitments";
+import type { Expense } from "./contracts";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { z } from "zod";
 import { dueInstant } from "@/features/scheduling/dates";
@@ -348,7 +352,7 @@ export async function listExpenses(
   params: URLSearchParams,
 ) {
   const user = await activeUser(identity);
-  await bucketForUser(bucketId, user);
+  const bucket = await bucketForUser(bucketId, user);
   const query: Record<string, unknown> = { bucketId };
   const deleted = params.get("deleted") === "only";
   if (deleted) {
@@ -378,6 +382,13 @@ export async function listExpenses(
       query[field] = value;
     }
   }
+  const categoryIds = params.get("categoryIds");
+  if (categoryIds) {
+    const ids = categoryIds.split(",");
+    if (ids.length > 30) throw new ApiError(422, "INVALID_FILTER", "Choose at most 30 categories.");
+    ids.forEach((id) => objectId.parse(id));
+    query.categoryId = { $in: ids };
+  }
   const mode = params.get("paymentMode");
   if (mode) query.paymentMode = mode;
   const from = params.get("from");
@@ -385,7 +396,7 @@ export async function listExpenses(
   if (from || to)
     query.expenseDate = { ...(from ? { $gte: from } : {}), ...(to ? { $lt: to } : {}) };
   const status = params.get("status");
-  const today = dateInZone((await BucketModel.findById(bucketId))?.timezone ?? "UTC");
+  const today = dateInZone(bucket.timezone);
   if (status === "scheduled") query.expenseDate = { ...(query.expenseDate as object), $gt: today };
   if (status === "conversion_needed") query["conversion.status"] = "missing";
   if (status === "archive_review") query.reviewState = "archive_review_required";
@@ -407,19 +418,124 @@ export async function listExpenses(
   }
   const cursor = params.get("cursor");
   if (cursor) {
-    objectId.parse(cursor);
-    query._id = { $lt: cursor };
+    const after = /^(\d{4}-\d{2}-\d{2}):([a-f\d]{24})$/i.exec(cursor);
+    if (!after || !z.iso.date().safeParse(after[1]).success)
+      throw new ApiError(422, "INVALID_CURSOR", "Choose a valid expense page.");
+    const clauses = (query.$and as Record<string, unknown>[] | undefined) ?? [];
+    query.$and = [
+      ...clauses,
+      {
+        $or: [
+          { expenseDate: { $lt: after[1] } },
+          { expenseDate: after[1], _id: { $lt: new mongoose.Types.ObjectId(after[2]) } },
+        ],
+      },
+    ];
   }
   const limit = Math.min(Math.max(Number(params.get("limit")) || 25, 1), 100);
   const found = await ExpenseModel.find(query)
-    .sort({ _id: -1 })
+    .sort({ expenseDate: -1, _id: -1 })
     .limit(limit + 1);
-  const page = found.slice(0, limit);
-  const data = await Promise.all(page.map((item) => expenseDto(item, String(user._id))));
+  const projectsRecurring = !deleted && (!status || status === "scheduled");
+  const horizon =
+    to ?? new Date(Date.parse(`${today}T00:00:00Z`) + 366 * 86_400_000).toISOString().slice(0, 10);
+  const projected = projectsRecurring
+    ? ((
+        await recurringCommitments(
+          bucketId,
+          bucket.primaryCurrency,
+          from ?? today,
+          horizon,
+          today,
+          params,
+          true,
+        )
+      ).entries ?? [])
+    : [];
+  const cursorDate = cursor?.slice(0, 10);
+  const cursorId = cursor?.slice(11);
+  const visibleProjections = projected.filter(
+    (item) =>
+      !cursorDate ||
+      item.expenseDate < cursorDate ||
+      (item.expenseDate === cursorDate && !!cursorId && item.id < cursorId),
+  );
+  const combined = [
+    ...found.map((item) => ({
+      kind: "expense" as const,
+      id: String(item._id),
+      expenseDate: item.expenseDate,
+      row: item,
+    })),
+    ...visibleProjections.map((item) => ({
+      kind: "projection" as const,
+      id: item.id,
+      expenseDate: item.expenseDate,
+      row: item,
+    })),
+  ].sort((a, b) => b.expenseDate.localeCompare(a.expenseDate) || b.id.localeCompare(a.id));
+  const page = combined.slice(0, limit);
+  const projectedPage = page.filter((item) => item.kind === "projection").map((item) => item.row);
+  const payerIds = [
+    ...new Set(projectedPage.flatMap((item) => [item.paidByUserId, item.actualCreatorUserId])),
+  ];
+  const people = payerIds.length
+    ? await UserModel.find({ _id: { $in: payerIds } }).select("displayName")
+    : [];
+  const names = new Map(people.map((person) => [String(person._id), person.displayName]));
+  const data = await Promise.all(
+    page.map((item) =>
+      item.kind === "expense"
+        ? expenseDto(item.row, String(user._id))
+        : projectedExpenseDto(item.row, bucketId, bucket.primaryCurrency, names),
+    ),
+  );
+  const last = page.at(-1);
   return {
     data,
-    nextCursor: found.length > limit ? String(page.at(-1)?._id) : null,
-    hasMore: found.length > limit,
+    nextCursor: combined.length > limit && last ? `${last.expenseDate}:${last.id}` : null,
+    hasMore: combined.length > limit,
+  };
+}
+
+function projectedExpenseDto(
+  item: RecurringCommitmentEntry,
+  bucketId: string,
+  bucketCurrency: string,
+  names: Map<string, string>,
+): Expense {
+  return {
+    id: item.id,
+    bucketId,
+    expenseDate: item.expenseDate,
+    description: item.description,
+    notes: "",
+    paidByUserId: item.paidByUserId,
+    paidByName: names.get(item.paidByUserId) ?? "Former member",
+    addedByUserId: item.actualCreatorUserId,
+    addedByName: names.get(item.actualCreatorUserId) ?? "Former member",
+    actualCreatorUserId: item.actualCreatorUserId,
+    categoryId: item.categoryId,
+    categoryName: item.categoryName,
+    accountId: item.accountId,
+    accountName: item.accountName,
+    platformId: item.platformId,
+    platformName: item.platformName,
+    paymentMode: item.paymentMode as Expense["paymentMode"],
+    originalAmount: item.amount,
+    originalCurrency: item.currency,
+    bucketCurrency,
+    convertedAmount: item.currency === bucketCurrency ? item.amount : null,
+    conversionStatus: item.currency === bucketCurrency ? "estimated" : "missing",
+    rate: null,
+    rateDate: null,
+    displayStatus: "scheduled",
+    refundOfExpenseId: null,
+    deletedAt: null,
+    restoreUntil: null,
+    revision: item.revision,
+    source: { kind: "recurring_projection", planId: item.planId, dueDate: item.expenseDate },
+    permissions: { canEdit: false, canDelete: false, canRestore: false, canComment: false },
   };
 }
 
@@ -510,12 +626,31 @@ export async function expenseSummary(
       },
     },
   ]);
+  const horizon =
+    toExclusive ??
+    (month && /^\d{4}-\d{2}$/.test(month)
+      ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1))
+          .toISOString()
+          .slice(0, 10)
+      : new Date(Date.parse(`${today}T00:00:00Z`) + 366 * 86_400_000).toISOString().slice(0, 10));
+  const recurring = await recurringCommitments(
+    bucketId,
+    bucket.primaryCurrency,
+    from ?? (month ? `${month}-01` : today),
+    horizon,
+    today,
+  );
   return {
     currency: bucket.primaryCurrency,
     actualTotal: result?.actualTotal?.toString() ?? "0",
     actualCount: result?.actualCount ?? 0,
-    scheduledTotal: result?.scheduledTotal?.toString() ?? "0",
-    scheduledCount: result?.scheduledCount ?? 0,
+    scheduledTotal: fromMinor(
+      units(result?.scheduledTotal?.toString() ?? "0", bucket.primaryCurrency) +
+        units(recurring.amount, bucket.primaryCurrency),
+      bucket.primaryCurrency,
+    ),
+    scheduledCount: (result?.scheduledCount ?? 0) + recurring.count,
+    scheduledUnconvertedCount: recurring.unconvertedCount,
     conversionNeededCount: result?.conversionNeededCount ?? 0,
     incomplete: (result?.conversionNeededCount ?? 0) > 0,
   };

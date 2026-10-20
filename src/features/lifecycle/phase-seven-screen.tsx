@@ -281,9 +281,9 @@ export function PhaseSevenScreen({
   if (loading) return <Pending layout="workspace" />;
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 pb-12">
       <div>
-        <h1 className="text-[29px] font-semibold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
+        <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--ink)]">
           {view === "bucket-settings" ? "Bucket Settings" : "Account Settings"}
         </h1>
         <p className={`mt-1 ${muted}`}>

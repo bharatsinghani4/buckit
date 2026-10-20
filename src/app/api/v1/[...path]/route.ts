@@ -62,6 +62,7 @@ import {
   confirmRecurringPayment,
   createRecurringPlan,
   listRecurringPlans,
+  skipRecurringPayment,
 } from "@/features/scheduling/recurring-service";
 import {
   getNotificationPreferences,
@@ -630,6 +631,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
               path,
             ) ||
             /^buckets\/[a-f\d]{24}\/recurring-plans\/[a-f\d]{24}\/confirm$/i.test(path) ||
+            /^buckets\/[a-f\d]{24}\/recurring-plans\/[a-f\d]{24}\/occurrences\/\d{4}-\d{2}-\d{2}\/skip$/i.test(
+              path,
+            ) ||
             /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/end$/i.test(path) ||
             /^buckets\/[a-f\d]{24}\/emi-plans\/[a-f\d]{24}\/installments\/[a-f\d]{24}\/(skip|reschedule)$/i.test(
               path,
@@ -706,6 +710,13 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         result = await changeRecurringPlan(identity, bucketId, parts[3], body, key, revision);
       else if (parts[2] === "recurring-plans" && parts[4] === "confirm" && method === "POST")
         result = await confirmRecurringPayment(identity, bucketId, parts[3], body, key, revision);
+      else if (
+        parts[2] === "recurring-plans" &&
+        parts[4] === "occurrences" &&
+        parts[6] === "skip" &&
+        method === "POST"
+      )
+        result = await skipRecurringPayment(identity, bucketId, parts[3], parts[5], key, revision);
       else if (parts[2] === "emi-plans" && parts.length === 4 && method === "PATCH")
         result = await changePlan(identity, bucketId, parts[3], "edit", body, key, revision);
       else if (parts[2] === "emi-plans" && parts[4] === "end")

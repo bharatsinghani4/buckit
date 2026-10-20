@@ -20,7 +20,7 @@ import { z } from "zod";
 import { captureBudgetUsage, reconcileBudgetThresholds } from "@/features/insights/budget-service";
 import { dueInstant, installmentDate, localDate } from "./dates";
 import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
-import { recurringDate, type RecurringFrequency } from "./recurring-dates";
+import { nextRecurringOccurrence, type RecurringFrequency } from "./recurring-dates";
 import { planEditInput, planInput, type PlanInput } from "./contracts";
 import { requireConfig } from "@/lib/config/required";
 import { recordDomainEvent } from "@/features/notifications/event-service";
@@ -894,12 +894,14 @@ export async function listScheduled(identity: DecodedIdToken, bucketId: string) 
     .limit(100);
   const recurringPlans = await RecurringPlanModel.find({ bucketId, state: "active" }).limit(100);
   const recurring = recurringPlans.flatMap((plan) => {
-    const date = recurringDate(
+    const date = nextRecurringOccurrence(
       plan.startDate,
       plan.frequency as RecurringFrequency,
       plan.nextIndex,
-    );
-    if (plan.endDate && date > plan.endDate) return [];
+      plan.endDate,
+      plan.skippedDates,
+    )?.date;
+    if (!date) return [];
     return [
       {
         id: String(plan._id),

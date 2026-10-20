@@ -126,9 +126,7 @@ const csvError = (cause: unknown) =>
 function heading(_eyebrow: string, title: string, description: string) {
   return (
     <div className="mb-6">
-      <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
-        {title}
-      </h1>
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--ink)]">{title}</h1>
       <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--muted)]">{description}</p>
     </div>
   );
@@ -706,7 +704,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
     }
   }
   return (
-    <div className="mx-auto max-w-[1400px] pb-12">
+    <div className="mx-auto w-full max-w-[1440px] pb-12">
       {heading(
         "Bring your history together",
         "Import CSV",
@@ -1334,7 +1332,7 @@ function ExportScreen({ bucket, initialFilters }: { bucket: Bucket; initialFilte
     }
   }
   return (
-    <div className="mx-auto max-w-[1200px] pb-12">
+    <div className="mx-auto w-full max-w-[1440px] pb-12">
       {heading(
         "Your data, ready to go",
         "Export CSV",

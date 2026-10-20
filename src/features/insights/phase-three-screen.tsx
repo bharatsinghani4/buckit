@@ -26,7 +26,7 @@ import { CalendarField } from "@/components/calendar-field";
 import { useWorkspaceData } from "@/features/buckets/workspace-data-context";
 import { useWorkspacePeriod } from "@/features/buckets/workspace-period-context";
 import type { Bucket } from "@/features/identity/contracts";
-import type { Member, Option } from "@/features/expenses/contracts";
+import type { Expense, Member, Option } from "@/features/expenses/contracts";
 import { api, friendlyError } from "@/lib/api/client";
 import type { Budget, BudgetUsage, SpendingGroup, SpendingReport } from "./contracts";
 
@@ -141,19 +141,43 @@ function MonthlySpendingChart({
   bucketId,
   currency,
   anchor,
+  timezone,
 }: {
   bucketId: string;
   currency: string;
   anchor: string;
+  timezone: string;
 }) {
   const { read } = useWorkspaceData();
-  const [months, setMonths] = useState(3);
+  const [selection, setSelection] = useState("3");
   const [groups, setGroups] = useState<SpendingGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [width, setWidth] = useState(800);
+  const [active, setActive] = useState<number | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const selectedMonth = anchor.slice(0, 7);
+  const daily = selection === "current";
+  const months = daily ? 1 : Number(selection);
   const [year, number] = anchor.slice(0, 7).split("-").map(Number);
-  const start = new Date(Date.UTC(year, number - months, 1)).toISOString().slice(0, 7);
-  const end = new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 7);
+  const start = daily
+    ? selectedMonth
+    : new Date(Date.UTC(year, number - months, 1)).toISOString().slice(0, 7);
+  const end = daily
+    ? new Date(Date.UTC(Number(selectedMonth.slice(0, 4)), Number(selectedMonth.slice(5, 7)), 1))
+        .toISOString()
+        .slice(0, 7)
+    : new Date(Date.UTC(year, number, 1)).toISOString().slice(0, 7);
+
+  useEffect(() => {
+    const node = chartRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setWidth(Math.max(320, entry.contentRect.width)),
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let canceled = false;
@@ -162,7 +186,7 @@ function MonthlySpendingChart({
       anchorDate: anchor,
       from: `${start}-01`,
       toExclusive: `${end}-01`,
-      groupBy: "month",
+      groupBy: daily ? "day" : "month",
     });
     queueMicrotask(() => {
       if (canceled) return;
@@ -182,39 +206,79 @@ function MonthlySpendingChart({
     return () => {
       canceled = true;
     };
-  }, [anchor, bucketId, end, read, start]);
+  }, [anchor, bucketId, daily, end, read, start]);
 
-  const amounts = Array.from({ length: months }, (_, index) => {
-    const month = new Date(Date.UTC(year, number - months + index, 1)).toISOString().slice(0, 7);
-    return { month, amount: Number(groups.find((group) => group.id === month)?.amount ?? "0") };
-  });
-  const min = Math.min(0, ...amounts.map((point) => point.amount));
-  const max = Math.max(1, ...amounts.map((point) => point.amount));
-  const left = 42;
-  const right = 760;
+  const todayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const today = `${todayParts.find((part) => part.type === "year")?.value}-${todayParts.find((part) => part.type === "month")?.value}-${todayParts.find((part) => part.type === "day")?.value}`;
+  const amounts = daily
+    ? Array.from(
+        {
+          length: new Date(
+            Date.UTC(Number(selectedMonth.slice(0, 4)), Number(selectedMonth.slice(5, 7)), 0),
+          ).getUTCDate(),
+        },
+        (_, index) => {
+          const date = `${selectedMonth}-${String(index + 1).padStart(2, "0")}`;
+          return {
+            id: date,
+            amount:
+              date > today
+                ? null
+                : Number(groups.find((group) => group.id === date)?.amount ?? "0"),
+          };
+        },
+      )
+    : Array.from({ length: months }, (_, index) => {
+        const month = new Date(Date.UTC(year, number - months + index, 1))
+          .toISOString()
+          .slice(0, 7);
+        return {
+          id: month,
+          amount: Number(groups.find((group) => group.id === month)?.amount ?? "0"),
+        };
+      });
+  const max = Math.max(1, ...amounts.map((point) => point.amount ?? 0));
+  const left = 48;
+  const right = width - 18;
   const top = 18;
-  const bottom = 178;
+  const bottom = 184;
   const x = (index: number) =>
-    months === 1 ? (left + right) / 2 : left + (index / (months - 1)) * (right - left);
-  const y = (amount: number) => bottom - ((amount - min) / (max - min)) * (bottom - top);
+    amounts.length === 1
+      ? (left + right) / 2
+      : left + (index / (amounts.length - 1)) * (right - left);
+  const y = (amount: number) => bottom - (amount / max) * (bottom - top);
   const line = amounts
+    .filter((point) => point.amount !== null)
     .map(
-      (point, index) => `${index ? "L" : "M"}${x(index).toFixed(1)} ${y(point.amount).toFixed(1)}`,
+      (point, index) =>
+        `${index ? "L" : "M"}${x(index).toFixed(1)} ${y(point.amount ?? 0).toFixed(1)}`,
     )
     .join(" ");
+  const activePoint = active === null ? null : amounts[active];
 
   return (
     <section className={`${card} col-span-full min-w-0`}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-[var(--ink)]">Spending trajectory</h2>
-          <p className="text-xs text-[var(--muted)]">Posted spending by month</p>
+          <p className="text-xs text-[var(--muted)]">
+            Posted spending by {daily ? `day in ${selectedMonth}` : "month"}
+          </p>
         </div>
         <Dropdown
-          value={String(months)}
-          onValueChange={(value) => setMonths(Number(value))}
+          value={selection}
+          onValueChange={(value) => {
+            setSelection(value);
+            setActive(null);
+          }}
           className="!w-[150px]"
           options={[
+            { value: "current", label: "This month" },
             { value: "1", label: "Last 1 month" },
             { value: "3", label: "Last 3 months" },
             { value: "6", label: "Last 6 months" },
@@ -223,21 +287,20 @@ function MonthlySpendingChart({
         />
       </div>
       {error && <Notice>{error}</Notice>}
-      <div className="relative h-[240px] w-full" aria-busy={loading}>
+      <div ref={chartRef} className="relative h-[240px] w-full min-w-0" aria-busy={loading}>
         {loading ? (
           <div className="grid h-full place-items-center text-xs text-[var(--muted)]">
             Loading spending…
           </div>
         ) : (
           <svg
-            viewBox="0 0 800 220"
-            preserveAspectRatio="none"
-            className="h-full w-full overflow-visible"
+            viewBox={`0 0 ${width} 220`}
+            className="h-[220px] w-full overflow-visible"
             role="img"
-            aria-label={`Monthly spending from ${start} to ${anchor.slice(0, 7)}`}
+            aria-label={`${daily ? "Daily" : "Monthly"} spending from ${start} to ${end}`}
           >
             {[0, 0.5, 1].map((fraction) => {
-              const value = min + (max - min) * fraction;
+              const value = max * fraction;
               const at = y(value);
               return (
                 <g key={fraction}>
@@ -263,28 +326,56 @@ function MonthlySpendingChart({
               vectorEffect="non-scaling-stroke"
             />
             {amounts.map((point, index) => (
-              <g key={point.month}>
-                <circle cx={x(index)} cy={y(point.amount)} r="5" fill="var(--green)">
-                  <title>{`${point.month}: ${money(String(point.amount), currency)}`}</title>
-                </circle>
-                <text
-                  x={x(index)}
-                  y="210"
-                  textAnchor="middle"
-                  fill="var(--muted)"
-                  fontSize="11"
-                  className={
-                    months > 6 && index % 2 && index !== months - 1 ? "hidden sm:block" : ""
-                  }
-                >
-                  {new Date(`${point.month}-01T12:00:00Z`).toLocaleDateString(undefined, {
-                    month: "short",
-                    ...(months > 6 ? { year: "2-digit" } : {}),
-                  })}
-                </text>
+              <g key={point.id}>
+                {point.amount !== null && (
+                  <g
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${point.id}: ${money(String(point.amount), currency)}`}
+                    onMouseEnter={() => setActive(index)}
+                    onMouseLeave={() => setActive(null)}
+                    onFocus={() => setActive(index)}
+                    onBlur={() => setActive(null)}
+                  >
+                    <circle cx={x(index)} cy={y(point.amount)} r="14" fill="transparent" />
+                    <circle
+                      cx={x(index)}
+                      cy={y(point.amount)}
+                      r={active === index ? 6 : 4}
+                      fill="var(--green)"
+                    />
+                  </g>
+                )}
+                {(daily
+                  ? index === 0 || (index + 1) % 5 === 0 || index === amounts.length - 1
+                  : months <= 6 || index % 2 === 0 || index === months - 1) && (
+                  <text x={x(index)} y="212" textAnchor="middle" fill="var(--muted)" fontSize="11">
+                    {daily
+                      ? String(index + 1)
+                      : new Date(`${point.id}-01T12:00:00Z`).toLocaleDateString(undefined, {
+                          month: "short",
+                          ...(months > 6 ? { year: "2-digit" } : {}),
+                        })}
+                  </text>
+                )}
               </g>
             ))}
           </svg>
+        )}
+        {activePoint?.amount !== null && activePoint && (
+          <div
+            role="tooltip"
+            className="pointer-events-none absolute z-10 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs shadow-lg"
+            style={{
+              left: Math.min(Math.max(x(active ?? 0) - 55, 0), width - 125),
+              top: Math.max(0, y(activePoint.amount) - 60),
+            }}
+          >
+            <strong className="block text-[var(--ink)]">{activePoint.id}</strong>
+            <span className="text-[var(--muted)]">
+              {money(String(activePoint.amount), currency)}
+            </span>
+          </div>
         )}
       </div>
     </section>
@@ -384,6 +475,10 @@ export function PhaseThreeScreen({
   const [report, setReport] = useState<SpendingReport | null>(null);
   const [budgets, setBudgets] = useState<BudgetEntry[]>([]);
   const [budgetLoaded, setBudgetLoaded] = useState(false);
+  const [budgetExpenses, setBudgetExpenses] = useState<Expense[]>([]);
+  const [budgetExpenseCursor, setBudgetExpenseCursor] = useState<string | null>(null);
+  const [budgetExpensesLoading, setBudgetExpensesLoading] = useState(false);
+  const [budgetExpensesError, setBudgetExpensesError] = useState("");
   const [categories, setCategories] = useState<Option[]>([]);
   const [categoryFetched, setCategoryFetched] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -398,7 +493,42 @@ export function PhaseThreeScreen({
   const [customThreshold, setCustomThreshold] = useState("");
   const requestToken = useRef(0);
   const selected = budgets.find((entry) => entry.budget.id === budgetId);
+  const budgetExpensesPath = selected
+    ? `buckets/${bucket.id}/expenses?${new URLSearchParams({
+        categoryIds: selected.budget.categoryIds.join(","),
+        from: selected.usage.from,
+        toExclusive: selected.usage.toExclusive,
+        ...(selected.budget.memberUserId ? { paidByUserId: selected.budget.memberUserId } : {}),
+        limit: "100",
+      })}`
+    : "";
   const editing = view === "budget-form" && Boolean(budgetId);
+
+  useEffect(() => {
+    if (view !== "budget" || !budgetExpensesPath) return;
+    let canceled = false;
+    queueMicrotask(() => {
+      setBudgetExpenses([]);
+      setBudgetExpenseCursor(null);
+      setBudgetExpensesLoading(true);
+      setBudgetExpensesError("");
+      void read<Expense[]>(budgetExpensesPath)
+        .then((result) => {
+          if (canceled) return;
+          setBudgetExpenses(result.data);
+          setBudgetExpenseCursor(result.meta.nextCursor ?? null);
+        })
+        .catch((cause) => {
+          if (!canceled) setBudgetExpensesError(friendlyError(cause));
+        })
+        .finally(() => {
+          if (!canceled) setBudgetExpensesLoading(false);
+        });
+    });
+    return () => {
+      canceled = true;
+    };
+  }, [budgetExpensesPath, read, view]);
 
   const month = anchor.slice(0, 7);
   const query = new URLSearchParams({ period, anchorDate: anchor });
@@ -650,8 +780,28 @@ export function PhaseThreeScreen({
               <span className="inline-flex items-start gap-2">
                 <CircleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span>
-                  Totals are incomplete: {dashboard.incompleteCount} need conversion and{" "}
-                  {dashboard.pendingCount} await processing.
+                  {dashboard.incompleteCount > 0 && (
+                    <>
+                      {dashboard.incompleteCount}{" "}
+                      {dashboard.incompleteCount === 1 ? "expense needs" : "expenses need"} currency
+                      conversion before counting toward spending.{" "}
+                      <Link
+                        className="font-semibold underline"
+                        href={`/workspace?bucket=${bucket.id}&view=expenses&status=conversion_needed`}
+                      >
+                        Review expenses
+                      </Link>
+                      {dashboard.pendingCount > 0 ? " · " : ""}
+                    </>
+                  )}
+                  {dashboard.pendingCount > 0 && (
+                    <>
+                      {dashboard.pendingCount}{" "}
+                      {dashboard.pendingCount === 1 ? "dated expense is" : "dated expenses are"}{" "}
+                      awaiting posting or final conversion. Buckit processes these automatically;
+                      they enter totals only when finalized.
+                    </>
+                  )}
                 </span>
               </span>
             </Notice>
@@ -690,6 +840,11 @@ export function PhaseThreeScreen({
               <p className="mt-2 text-xs text-[var(--muted)]">
                 {dashboard.scheduledCount} future entries · estimate
               </p>
+              {!!dashboard.scheduledUnconvertedCount && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  {dashboard.scheduledUnconvertedCount} recurring payment(s) need conversion.
+                </p>
+              )}
             </div>
             <div className={`${card} max-[767px]:hidden`}>
               <p className="text-xs text-[var(--muted)]">Active budgets</p>
@@ -788,7 +943,12 @@ export function PhaseThreeScreen({
                 </p>
               )}
             </section>
-            <MonthlySpendingChart bucketId={bucket.id} currency={currency} anchor={anchor} />
+            <MonthlySpendingChart
+              bucketId={bucket.id}
+              currency={currency}
+              anchor={anchor}
+              timezone={bucket.timezone}
+            />
             <section className={card}>
               <div className="mb-4 flex justify-between">
                 <div>
@@ -1052,6 +1212,11 @@ export function PhaseThreeScreen({
             <div className={card}>
               <p className="text-xs text-[var(--muted)]">Scheduled separately</p>
               <p className="mt-2 text-2xl font-bold">{money(report.scheduledAmount, currency)}</p>
+              {!!report.scheduledUnconvertedCount && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  {report.scheduledUnconvertedCount} recurring payment(s) need conversion.
+                </p>
+              )}
             </div>
           </div>
           <section className={card}>
@@ -1291,6 +1456,75 @@ export function PhaseThreeScreen({
                 </strong>
               </p>
             </div>
+          </section>
+          <section className={card}>
+            <div className="mb-4">
+              <h2 className="text-base font-bold text-[var(--ink)]">Expenses in this budget</h2>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                All selected categories from {selected.usage.from} through{" "}
+                {shiftDay(selected.usage.toExclusive, -1)}.
+                {selected.budget.scope === "member"
+                  ? " Only this member’s expenses are included."
+                  : ""}{" "}
+                Only posted expenses count toward the used amount above.
+              </p>
+            </div>
+            {budgetExpensesError && <Notice>{budgetExpensesError}</Notice>}
+            {budgetExpensesLoading && !budgetExpenses.length ? (
+              <p className="text-xs text-[var(--muted)]">Loading expenses…</p>
+            ) : budgetExpenses.length ? (
+              <div className="divide-y divide-[var(--line)]">
+                {budgetExpenses.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/workspace?bucket=${bucket.id}&view=expense&expense=${item.id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 py-3 text-xs hover:text-[var(--green)]"
+                  >
+                    <span className="min-w-0">
+                      <strong className="block truncate text-sm text-[var(--ink)]">
+                        {item.description}
+                      </strong>
+                      <span className="text-[var(--muted)]">
+                        {item.expenseDate} · {item.categoryName} · {item.paidByName} ·{" "}
+                        {item.displayStatus.replaceAll("_", " ")}
+                      </span>
+                    </span>
+                    <strong className="tabular-nums text-[var(--ink)]">
+                      {money(item.convertedAmount, currency)}
+                    </strong>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--muted)]">
+                No matching expenses in this budget period.
+              </p>
+            )}
+            {budgetExpenseCursor && (
+              <button
+                type="button"
+                className={`${secondary} mt-4`}
+                disabled={budgetExpensesLoading}
+                onClick={async () => {
+                  if (!budgetExpenseCursor) return;
+                  setBudgetExpensesLoading(true);
+                  setBudgetExpensesError("");
+                  try {
+                    const result = await api<Expense[]>(
+                      `${budgetExpensesPath}&cursor=${budgetExpenseCursor}`,
+                    );
+                    setBudgetExpenses((current) => [...current, ...result.data]);
+                    setBudgetExpenseCursor(result.meta.nextCursor ?? null);
+                  } catch (cause) {
+                    setBudgetExpensesError(friendlyError(cause));
+                  } finally {
+                    setBudgetExpensesLoading(false);
+                  }
+                }}
+              >
+                {budgetExpensesLoading ? "Loading…" : "Load more expenses"}
+              </button>
+            )}
           </section>
         </>
       )}

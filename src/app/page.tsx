@@ -4,6 +4,7 @@ import { ArrowRight, BookOpen, FolderOpen, Users, Home, Coffee, Sun, Check } fro
 import { Brand, Wordmark } from "@/components/brand";
 import { GuestHome } from "@/features/identity/guest-home";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TutorialVideo } from "@/components/tutorial-video";
 
 export default function HomePage() {
   return (
@@ -128,6 +129,19 @@ export default function HomePage() {
             </article>
           </div>
           <p className="example-caption">Illustrative examples. Your buckets start fresh.</p>
+        </section>
+        <section
+          id="tutorial"
+          className="mx-auto max-w-[1100px] px-6 py-12 text-center md:px-8 md:py-16"
+        >
+          <h2 className="text-2xl font-semibold text-[var(--ink)] md:text-3xl">
+            See Buckit in action
+          </h2>
+          <p className="mx-auto mb-6 mt-2 max-w-[640px] text-sm text-[var(--muted)]">
+            Watch the complete walkthrough, from your first expense to budgets, recurring payments,
+            reminders, and installing Buckit on your device.
+          </p>
+          <TutorialVideo />
         </section>
         <section
           id="philosophy"

@@ -17,6 +17,22 @@ export function recurringDate(startDate: string, frequency: RecurringFrequency, 
     .slice(0, 10);
 }
 
+export function nextRecurringOccurrence(
+  startDate: string,
+  frequency: RecurringFrequency,
+  nextIndex: number,
+  endDate: string | null | undefined,
+  skippedDates: string[] = [],
+) {
+  const skipped = new Set(skippedDates);
+  for (let index = nextIndex; index < nextIndex + 5_000; index++) {
+    const date = recurringDate(startDate, frequency, index);
+    if (endDate && date > endDate) return null;
+    if (!skipped.has(date)) return { date, index };
+  }
+  return null;
+}
+
 export function daysBefore(date: string, days: number) {
   const instant = Date.parse(`${date}T00:00:00Z`);
   return new Date(instant - days * 86_400_000).toISOString().slice(0, 10);

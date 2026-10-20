@@ -267,6 +267,7 @@ const recurringPlanSchema = new Schema(
     startDate: { type: String, required: true },
     endDate: String,
     nextIndex: { type: Number, default: 0 },
+    skippedDates: { type: [String], default: [] },
     categoryId: ref,
     accountId: ref,
     platformId: ref,

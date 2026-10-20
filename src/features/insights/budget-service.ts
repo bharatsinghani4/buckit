@@ -68,6 +68,7 @@ async function budgetDto(
     id: String(budget._id),
     name: budget.name,
     scope: budget.scope,
+    memberUserId: budget.memberUserId ? String(budget.memberUserId) : null,
     categoryIds: budget.categoryIds.map(String),
     categoryNames: budget.categoryIds.map((id: unknown) => labels.get(String(id)) ?? "Category"),
     limitAmount: budget.limitAmount.toString(),

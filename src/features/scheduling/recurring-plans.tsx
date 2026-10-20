@@ -188,6 +188,12 @@ export function RecurringPlans({ bucket }: { bucket: Bucket }) {
     setPlans(result.data);
   }
 
+  function invalidateCommitmentTotals() {
+    invalidate(`buckets/${bucket.id}/expenses`);
+    invalidate(`buckets/${bucket.id}/dashboard`);
+    invalidate(`buckets/${bucket.id}/reports`);
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -212,6 +218,7 @@ export function RecurringPlans({ bucket }: { bucket: Bucket }) {
           : [result.data, ...current],
       );
       invalidate(endpoint);
+      invalidateCommitmentTotals();
       keySlot.current = null;
       setPanel("list");
       setEditing(null);
@@ -235,6 +242,7 @@ export function RecurringPlans({ bucket }: { bucket: Bucket }) {
       });
       setPlans((current) => current.map((item) => (item.id === plan.id ? result.data : item)));
       invalidate(endpoint);
+      invalidateCommitmentTotals();
     } catch (cause) {
       setError(friendlyError(cause));
     } finally {

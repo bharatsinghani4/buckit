@@ -12,6 +12,10 @@ import {
 import { activeUser, bucketForUser } from "@/features/identity/service";
 import { fromMinor } from "@/features/expenses/money";
 import { liveEmiPlanIds, visibleExpenseFilter } from "@/lib/db/expense-visibility";
+import {
+  recurringCommitments,
+  type RecurringCommitments,
+} from "@/features/scheduling/recurring-commitments";
 import { listBudgets } from "./budget-service";
 import { periodRange, priorElapsedRange, todayInZone, units } from "./calculations";
 
@@ -55,6 +59,7 @@ async function spending(
   groupBy: GroupBy,
   filters: URLSearchParams,
   livePlanIds: mongoose.Types.ObjectId[],
+  projected?: RecurringCommitments,
 ) {
   const match: Record<string, unknown> = {
     bucketId,
@@ -150,6 +155,9 @@ async function spending(
           ? -1
           : 1,
   );
+  const recurring =
+    projected ??
+    (await recurringCommitments(bucketId, currency, from, toExclusive, today, filters));
   return {
     currency,
     from,
@@ -158,8 +166,9 @@ async function spending(
     actualCount,
     incompleteCount,
     pendingCount,
-    scheduledCount,
-    scheduledAmount: fromMinor(scheduled, currency),
+    scheduledCount: scheduledCount + recurring.count,
+    scheduledAmount: fromMinor(scheduled + units(recurring.amount, currency), currency),
+    scheduledUnconvertedCount: recurring.unconvertedCount,
     groups: ordered.map((group) => ({
       id: group.id,
       name: group.name,
@@ -216,9 +225,10 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
   const range = parseRange(params, today);
   const previousRange = priorElapsedRange(range.from, range.toExclusive, today, range.period);
   const empty = new URLSearchParams();
-  const [planIds, existingPlanIds] = await Promise.all([
+  const [planIds, existingPlanIds, projected] = await Promise.all([
     liveEmiPlanIds(bucketId),
     EmiPlanModel.distinct("_id", { bucketId }),
+    recurringCommitments(bucketId, bucket.primaryCurrency, range.from, range.toExclusive, today),
   ]);
   const [
     category,
@@ -242,6 +252,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       "category",
       empty,
       planIds,
+      projected,
     ),
     spending(
       bucketId,
@@ -253,6 +264,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       "member",
       empty,
       planIds,
+      projected,
     ),
     spending(
       bucketId,
@@ -264,6 +276,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
       "day",
       empty,
       planIds,
+      projected,
     ),
     spending(
       bucketId,

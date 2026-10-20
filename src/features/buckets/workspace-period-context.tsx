@@ -6,6 +6,7 @@ import type { Expense } from "@/features/expenses/contracts";
 
 type Period = "month" | "quarter" | "year" | "custom";
 export type LedgerSnapshot = {
+  loadedPath: string;
   query: string;
   status: string;
   appliedFilters: string;
@@ -24,6 +25,7 @@ type WorkspacePeriod = {
   customTo: string;
   setCustomTo: (to: string) => void;
   month: string;
+  ledgerAllDates: boolean;
   setMonth: (month: string) => void;
   clearMonth: () => void;
   range: { from: string; toExclusive: string };
@@ -40,19 +42,34 @@ function nextDay(day: string) {
 
 export function WorkspacePeriodProvider({ children }: { children: ReactNode }) {
   const ledgerSnapshots = useRef(new Map<string, LedgerSnapshot>());
-  const [period, setPeriod] = useState<Period>("month");
-  const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10));
+  const [period, updatePeriod] = useState<Period>("month");
+  const [anchor, updateAnchor] = useState(() => new Date().toISOString().slice(0, 10));
+  const [ledgerAllDates, setLedgerAllDates] = useState(false);
   const [customFrom, setCustomFrom] = useState(() => `${new Date().toISOString().slice(0, 7)}-01`);
   const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
   const month = anchor.slice(0, 7);
+  const setPeriod = (value: Period) => {
+    updatePeriod(value);
+    setLedgerAllDates(false);
+  };
+  const setAnchor = (value: string) => {
+    updateAnchor(value);
+    setLedgerAllDates(false);
+  };
   const setMonth = (value: string) => {
     if (!value) return;
     setAnchor(`${value}-01`);
     setPeriod("month");
   };
   const clearMonth = () => {
-    setAnchor(new Date().toISOString().slice(0, 10));
-    setPeriod("month");
+    for (const snapshot of ledgerSnapshots.current.values()) {
+      const filters = new URLSearchParams(snapshot.appliedFilters);
+      filters.delete("from");
+      filters.delete("toExclusive");
+      snapshot.appliedFilters = filters.toString();
+      snapshot.loadedPath = "";
+    }
+    setLedgerAllDates(true);
   };
   const range = useMemo(() => {
     if (period === "custom" && customFrom > customTo) return periodRange("month", anchor);
@@ -71,6 +88,7 @@ export function WorkspacePeriodProvider({ children }: { children: ReactNode }) {
         customTo,
         setCustomTo,
         month,
+        ledgerAllDates,
         setMonth,
         clearMonth,
         range,

@@ -112,9 +112,7 @@ function Switch({
 function heading(_eyebrow: string, title: string, description: string) {
   return (
     <div className="mb-6">
-      <h1 className="text-[28px] font-bold tracking-tight text-[var(--ink)] max-[767px]:text-2xl">
-        {title}
-      </h1>
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--ink)]">{title}</h1>
       <p className={`${small} mt-1 max-w-2xl`}>{description}</p>
     </div>
   );
@@ -329,7 +327,7 @@ function NotificationSettings({ bucket }: { bucket: Bucket }) {
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-[1440px]">
       {heading(
         "Communication · Your space",
         "Notifications & Channels",
@@ -742,7 +740,7 @@ function ReminderSettings({
     new Set([profile.timezone, bucket.timezone, "UTC", ...Intl.supportedValuesOf("timeZone")]),
   ).map((zone) => ({ value: zone, label: zone.replaceAll("_", " ") }));
   return (
-    <div className="flex flex-col">
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col">
       {heading(
         "Communication · Calendar logic",
         "Reminders",

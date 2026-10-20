@@ -521,7 +521,7 @@ export function PhaseFourScreen({
   ].filter((section) => section.items.length > 0);
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 pb-12 min-[768px]:max-[1199px]:space-y-4">
+    <div className="mx-auto w-full max-w-[1440px] space-y-5 pb-12 min-[768px]:max-[1199px]:space-y-4">
       {view === "emi-plan" && (
         <Link
           href={page(bucket.id, "emis")}

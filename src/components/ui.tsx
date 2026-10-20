@@ -8,7 +8,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
-import { ArrowLeft, Eye, EyeOff, Search, X } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LoaderCircle, Search, X } from "lucide-react";
 import { controls } from "./control-styles";
 export function Notice({
   children,
@@ -76,17 +76,35 @@ export function Pending({
   );
 }
 export function SearchField(
-  props: InputHTMLAttributes<HTMLInputElement> & { containerClassName?: string },
+  props: InputHTMLAttributes<HTMLInputElement> & { containerClassName?: string; loading?: boolean },
 ) {
-  const { className, containerClassName, ...inputProps } = props;
+  const { className, containerClassName, loading, ...inputProps } = props;
   return (
     <label className={`relative block min-w-48 flex-1 ${containerClassName ?? ""}`}>
-      <Search
-        size={16}
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+      {loading ? (
+        <LoaderCircle
+          size={16}
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 animate-spin text-[var(--green)]"
+        />
+      ) : (
+        <Search
+          size={16}
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[var(--muted)]"
+        />
+      )}
+      <input
+        {...inputProps}
+        type="search"
+        aria-busy={loading || undefined}
+        className={`${controls.search} ${className ?? ""}`}
       />
-      <input {...inputProps} type="search" className={`${controls.search} ${className ?? ""}`} />
+      {loading && (
+        <span className="sr-only" role="status">
+          Updating results
+        </span>
+      )}
     </label>
   );
 }

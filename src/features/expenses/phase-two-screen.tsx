@@ -44,6 +44,7 @@ type LedgerSummary = {
   actualCount: number;
   scheduledTotal: string;
   scheduledCount: number;
+  scheduledUnconvertedCount?: number;
   conversionNeededCount: number;
   incomplete: boolean;
 };
@@ -193,8 +194,8 @@ function listPath(
   return `buckets/${bucket}/expenses${filters.size ? `?${filters}` : ""}`;
 }
 
-function summaryPath(bucket: string, range: { from: string; toExclusive: string }) {
-  return `buckets/${bucket}/expenses/summary?from=${range.from}&toExclusive=${range.toExclusive}`;
+function summaryPath(bucket: string, range?: { from: string; toExclusive: string }) {
+  return `buckets/${bucket}/expenses/summary${range ? `?from=${range.from}&toExclusive=${range.toExclusive}` : ""}`;
 }
 
 function inclusiveEnd(toExclusive: string) {
@@ -229,6 +230,7 @@ export function PhaseTwoScreen({
   month,
   onMonthChange,
   onClearMonth,
+  initialStatus,
   resolveRequested = false,
   refundMode = false,
 }: {
@@ -240,14 +242,25 @@ export function PhaseTwoScreen({
   month: string;
   onMonthChange: (month: string) => void;
   onClearMonth: () => void;
+  initialStatus?: "conversion_needed";
   resolveRequested?: boolean;
   refundMode?: boolean;
 }) {
   const { read, peek, invalidate } = useWorkspaceData();
-  const { range, period, ledgerSnapshots } = useWorkspacePeriod();
+  const { range, period, ledgerAllDates, ledgerSnapshots } = useWorkspacePeriod();
+  const listRange = ledgerAllDates ? undefined : range;
   const snapshots = ledgerSnapshots.current;
-  const snapshotKey = `${bucket.id}:${view}:${range.from}:${range.toExclusive}`;
+  const snapshotKey = `${bucket.id}:${view}:${ledgerAllDates ? "all" : `${range.from}:${range.toExclusive}`}:${initialStatus ?? ""}`;
   const savedSnapshot = snapshots.get(snapshotKey);
+  const initialFilters =
+    savedSnapshot?.appliedFilters ?? (initialStatus ? `status=${initialStatus}` : "");
+  const loadedPath = useRef(
+    savedSnapshot?.loadedPath ??
+      (view === "expenses" || view === "deleted"
+        ? listPath(bucket.id, view, month, initialFilters, listRange)
+        : ""),
+  );
+  const requestToken = useRef(0);
   const initialSnapshot = useRef(savedSnapshot);
   const restoredScroll = useRef(false);
   const [error, setError] = useState("");
@@ -256,25 +269,29 @@ export function PhaseTwoScreen({
     if (savedSnapshot) return false;
     if (view === "expenses")
       return (
-        !peek<Expense[]>(listPath(bucket.id, view, month, "", range)) ||
-        !peek<LedgerSummary>(summaryPath(bucket.id, range))
+        !peek<Expense[]>(listPath(bucket.id, view, month, initialFilters, listRange)) ||
+        !peek<LedgerSummary>(summaryPath(bucket.id, listRange))
       );
-    if (view === "deleted") return !peek<Expense[]>(listPath(bucket.id, view, month, "", range));
+    if (view === "deleted")
+      return !peek<Expense[]>(listPath(bucket.id, view, month, initialFilters, listRange));
     if (view === "add-expense" && !refundOf)
       return !["accounts", "categories", "platforms", "members"].every((kind) =>
         peek(`buckets/${bucket.id}/${kind}`),
       );
     return true;
   });
+  const initialListLoaded = useRef(!loading);
+  const [listUpdating, setListUpdating] = useState(false);
+  const lastSearchCommit = useRef(0);
   const [expenses, setExpenses] = useState<Expense[]>(() =>
     view === "expenses" || view === "deleted"
       ? (savedSnapshot?.expenses ??
-        peek<Expense[]>(listPath(bucket.id, view, month, "", range))?.data ??
+        peek<Expense[]>(listPath(bucket.id, view, month, initialFilters, listRange))?.data ??
         [])
       : [],
   );
   const [summary, setSummary] = useState<LedgerSummary | null>(
-    () => peek<LedgerSummary>(summaryPath(bucket.id, range))?.data ?? null,
+    () => peek<LedgerSummary>(summaryPath(bucket.id, listRange))?.data ?? null,
   );
   const [expense, setExpense] = useState<Expense | null>(null);
   const [refundSource, setRefundSource] = useState<Expense | null>(null);
@@ -318,8 +335,8 @@ export function PhaseTwoScreen({
   } | null>(null);
   const expenseFormRef = useRef<HTMLFormElement>(null);
   const [query, setQuery] = useState(savedSnapshot?.query ?? "");
-  const [status, setStatus] = useState(savedSnapshot?.status ?? "all");
-  const [appliedFilters, setAppliedFilters] = useState(savedSnapshot?.appliedFilters ?? "");
+  const [status, setStatus] = useState(savedSnapshot?.status ?? initialStatus ?? "all");
+  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const [cursor, setCursor] = useState<string | null>(savedSnapshot?.cursor ?? null);
@@ -337,6 +354,9 @@ export function PhaseTwoScreen({
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [moveTarget, setMoveTarget] = useState<Expense | null>(null);
+  const [bulkMoveTargets, setBulkMoveTargets] = useState<{ id: string; revision: number }[] | null>(
+    null,
+  );
   const [commentDeleteTarget, setCommentDeleteTarget] = useState<Comment | null>(null);
   const [editingComment, setEditingComment] = useState<Comment | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState("");
@@ -356,6 +376,7 @@ export function PhaseTwoScreen({
     if (view !== "expenses" && view !== "deleted") return;
     const previous = ledgerSnapshots.current.get(snapshotKey);
     ledgerSnapshots.current.set(snapshotKey, {
+      loadedPath: loadedPath.current,
       query,
       status,
       appliedFilters,
@@ -395,54 +416,64 @@ export function PhaseTwoScreen({
   }, [loading, view]);
 
   const refresh = useCallback(async () => {
+    const token = ++requestToken.current;
+    const endpoint =
+      view === "expenses" || view === "deleted"
+        ? listPath(bucket.id, view, month, appliedFilters, listRange)
+        : "";
+    const saved = snapshots.get(snapshotKey);
+    const matchingSnapshot = saved?.loadedPath === endpoint;
     const hasSnapshot =
       view === "expenses"
-        ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters, range)) &&
-          !!peek<LedgerSummary>(summaryPath(bucket.id, range))
+        ? !!peek<Expense[]>(endpoint) && !!peek<LedgerSummary>(summaryPath(bucket.id, listRange))
         : view === "deleted"
-          ? !!peek<Expense[]>(listPath(bucket.id, view, month, appliedFilters, range))
+          ? !!peek<Expense[]>(endpoint)
           : view === "add-expense" && !refundOf
             ? ["accounts", "categories", "platforms", "members"].every((kind) =>
                 peek(`buckets/${bucket.id}/${kind}`),
               )
             : false;
-    if (!hasSnapshot && !snapshots.has(snapshotKey)) setLoading(true);
+    if (view === "expenses" || view === "deleted") {
+      if (initialListLoaded.current) setListUpdating(!hasSnapshot && !matchingSnapshot);
+      else if (!hasSnapshot && !matchingSnapshot) setLoading(true);
+    } else if (!hasSnapshot && !matchingSnapshot) setLoading(true);
     setError("");
     try {
       if (view === "expenses" || view === "deleted") {
-        const endpoint = listPath(bucket.id, view, month, appliedFilters, range);
-        const saved = snapshots.get(snapshotKey);
-        if (saved && peek(endpoint)) {
+        if (matchingSnapshot && saved && peek(endpoint)) {
           setExpenses(saved.expenses);
           setCursor(saved.cursor);
           if (view === "expenses")
-            setSummary(peek<LedgerSummary>(summaryPath(bucket.id, range))?.data ?? null);
+            setSummary(peek<LedgerSummary>(summaryPath(bucket.id, listRange))?.data ?? null);
           setLoading(false);
           return;
         }
         const [result, totals] = await Promise.all([
           read<Expense[]>(endpoint),
           view === "expenses"
-            ? read<LedgerSummary>(summaryPath(bucket.id, range))
+            ? read<LedgerSummary>(summaryPath(bucket.id, listRange))
             : Promise.resolve(null),
         ]);
+        if (token !== requestToken.current) return;
         const rows = [...result.data];
         let nextCursor = result.meta.nextCursor ?? null;
-        while (saved && rows.length < saved.expenses.length && nextCursor) {
+        while (matchingSnapshot && saved && rows.length < saved.expenses.length && nextCursor) {
           const params = new URLSearchParams(endpoint.split("?")[1]);
           params.set("cursor", nextCursor);
           const next = await api<Expense[]>(`buckets/${bucket.id}/expenses?${params}`);
           rows.push(...next.data);
           nextCursor = next.meta.nextCursor ?? null;
         }
+        if (token !== requestToken.current) return;
+        loadedPath.current = endpoint;
         setExpenses(rows);
         setCursor(nextCursor);
         if (totals) setSummary(totals.data);
         if (!appliedFilters) {
           await Promise.all([
-            read<Expense[]>(listPath(bucket.id, "expenses", month, "", range)),
-            read<LedgerSummary>(summaryPath(bucket.id, range)),
-            read<Expense[]>(listPath(bucket.id, "deleted", month, "", range)),
+            read<Expense[]>(listPath(bucket.id, "expenses", month, "", listRange)),
+            read<LedgerSummary>(summaryPath(bucket.id, listRange)),
+            read<Expense[]>(listPath(bucket.id, "deleted", month, "", listRange)),
             read<Option[]>(`buckets/${bucket.id}/accounts`),
             read<Option[]>(`buckets/${bucket.id}/categories`),
             read<Option[]>(`buckets/${bucket.id}/platforms`),
@@ -463,9 +494,9 @@ export function PhaseTwoScreen({
         });
         setMembers(people.data);
         await Promise.all([
-          read<Expense[]>(listPath(bucket.id, "expenses", month, "", range)),
-          read<LedgerSummary>(summaryPath(bucket.id, range)),
-          read<Expense[]>(listPath(bucket.id, "deleted", month, "", range)),
+          read<Expense[]>(listPath(bucket.id, "expenses", month, "", listRange)),
+          read<LedgerSummary>(summaryPath(bucket.id, listRange)),
+          read<Expense[]>(listPath(bucket.id, "deleted", month, "", listRange)),
         ]);
         if (refundOf) {
           const source = (await read<Expense>(`buckets/${bucket.id}/expenses/${refundOf}`)).data;
@@ -511,9 +542,13 @@ export function PhaseTwoScreen({
           setInvitations((await read<typeof invitations>(`buckets/${bucket.id}/invitations`)).data);
       }
     } catch (cause) {
-      setError(friendlyError(cause));
+      if (token === requestToken.current) setError(friendlyError(cause));
     } finally {
-      setLoading(false);
+      if (token === requestToken.current) {
+        setLoading(false);
+        setListUpdating(false);
+        if (view === "expenses" || view === "deleted") initialListLoaded.current = true;
+      }
     }
   }, [
     appliedFilters,
@@ -524,7 +559,7 @@ export function PhaseTwoScreen({
     month,
     peek,
     read,
-    range,
+    listRange,
     refundOf,
     snapshots,
     snapshotKey,
@@ -532,24 +567,27 @@ export function PhaseTwoScreen({
   ]);
 
   useEffect(() => {
-    const key = `${bucket.id}:${view}:${expenseId ?? ""}:${refundOf ?? ""}:${appliedFilters}:${range.from}:${range.toExclusive}`;
+    const key = `${bucket.id}:${view}:${expenseId ?? ""}:${refundOf ?? ""}:${appliedFilters}:${snapshotKey}`;
     if (loaded.current === key) return;
     loaded.current = key;
     queueMicrotask(() => {
       void refresh();
     });
-  }, [appliedFilters, bucket.id, view, expenseId, refundOf, range, refresh]);
+  }, [appliedFilters, bucket.id, view, expenseId, refundOf, snapshotKey, refresh]);
 
   useEffect(() => {
     if (view !== "expenses" && view !== "deleted") return;
+    const delay = Math.max(500, 800 - (Date.now() - lastSearchCommit.current));
     const timer = window.setTimeout(() => {
       setAppliedFilters((current) => {
         const next = new URLSearchParams(current);
         if (query.trim()) next.set("q", query.trim());
         else next.delete("q");
-        return next.toString() === current ? current : next.toString();
+        if (next.toString() === current) return current;
+        lastSearchCommit.current = Date.now();
+        return next.toString();
       });
-    }, 250);
+    }, delay);
     return () => window.clearTimeout(timer);
   }, [query, view]);
 
@@ -618,6 +656,11 @@ export function PhaseTwoScreen({
 
   const navigatePath = (url: string) => window.history.pushState(null, "", url);
   const navigate = (next: View, id?: string) => navigatePath(path(bucket.id, next, id));
+  const openLedgerItem = (item: Expense) => {
+    if (item.source?.kind === "recurring_projection")
+      navigatePath(`/workspace?bucket=${bucket.id}&view=scheduled&tab=recurring`);
+    else navigate("expense", item.id);
+  };
 
   async function mutation<T>(
     endpoint: string,
@@ -811,14 +854,23 @@ export function PhaseTwoScreen({
       navigate(act === "delete" ? "deleted" : "expenses");
   }
 
-  async function bulkExpenseAction() {
+  async function bulkExpenseAction(recurringScope: "payment" | "plan" = "payment") {
     const act = view === "deleted" ? "restore" : "delete";
     const targets = expenses.filter(
       (item) =>
         selectedExpenseIds.includes(item.id) &&
         (act === "delete" ? item.permissions.canDelete : item.permissions.canRestore),
     );
-    if (!targets.length) return;
+    const recurringTargets =
+      act === "delete"
+        ? expenses.filter(
+            (item) =>
+              selectedExpenseIds.includes(item.id) &&
+              item.source?.kind === "recurring_projection" &&
+              item.actualCreatorUserId === profile.id,
+          )
+        : [];
+    if (!targets.length && !recurringTargets.length) return;
     setBusy(true);
     setError("");
     const completed: string[] = [];
@@ -839,14 +891,51 @@ export function PhaseTwoScreen({
         if (!firstError) firstError = friendlyError(cause);
       }
     }
+    const planRevisions = new Map<string, number>();
+    const endedPlans = new Set<string>();
+    for (const item of recurringTargets) {
+      if (item.source?.kind !== "recurring_projection") continue;
+      const { planId, dueDate } = item.source;
+      if (recurringScope === "plan" && endedPlans.has(planId)) {
+        completed.push(item.id);
+        continue;
+      }
+      try {
+        const updated = await api<{ revision: number }>(
+          recurringScope === "plan"
+            ? `buckets/${bucket.id}/recurring-plans/${planId}`
+            : `buckets/${bucket.id}/recurring-plans/${planId}/occurrences/${dueDate}/skip`,
+          {
+            method: recurringScope === "plan" ? "PATCH" : "POST",
+            body: recurringScope === "plan" ? { state: "ended" } : {},
+            revision: planRevisions.get(planId) ?? item.revision,
+            key: crypto.randomUUID(),
+          },
+        );
+        planRevisions.set(planId, updated.data.revision);
+        if (recurringScope === "plan") endedPlans.add(planId);
+        completed.push(item.id);
+      } catch (cause) {
+        if (!firstError) firstError = friendlyError(cause);
+      }
+    }
     if (completed.length) {
       const changed = new Set(completed);
-      setExpenses((current) => current.filter((item) => !changed.has(item.id)));
-      setSelectedExpenseIds((current) => current.filter((id) => !changed.has(id)));
+      const removedIds = new Set(
+        expenses
+          .filter(
+            (item) =>
+              changed.has(item.id) ||
+              (item.source?.kind === "recurring_projection" && endedPlans.has(item.source.planId)),
+          )
+          .map((item) => item.id),
+      );
+      setExpenses((current) => current.filter((item) => !removedIds.has(item.id)));
+      setSelectedExpenseIds((current) => current.filter((id) => !removedIds.has(id)));
       invalidate(`buckets/${bucket.id}/`);
       if (view === "expenses") {
         try {
-          setSummary((await api<LedgerSummary>(summaryPath(bucket.id, range))).data);
+          setSummary((await api<LedgerSummary>(summaryPath(bucket.id, listRange))).data);
         } catch (cause) {
           summaryError = friendlyError(cause);
         }
@@ -876,16 +965,29 @@ export function PhaseTwoScreen({
     }
   }
 
-  const filtered = expenses.filter((item) => status === "all" || item.displayStatus === status);
+  // The API applies the committed search and status filters before pagination.
+  // Filtering only the loaded page here can hide matches on later pages.
+  const filtered = expenses;
   const selectable = filtered.filter((item) =>
-    view === "deleted" ? item.permissions.canRestore : item.permissions.canDelete,
+    view === "deleted"
+      ? item.permissions.canRestore
+      : item.permissions.canDelete ||
+        (item.source?.kind === "recurring_projection" && item.actualCreatorUserId === profile.id),
   );
+  const selectableIds = new Set(selectable.map((item) => item.id));
+  const selectedRecurring = expenses.filter(
+    (item) => selectedExpenseIds.includes(item.id) && item.source?.kind === "recurring_projection",
+  );
+  const selectedRecurringPlanCount = new Set(
+    selectedRecurring.map((item) =>
+      item.source?.kind === "recurring_projection" ? item.source.planId : "",
+    ),
+  ).size;
   const activeFilters = new URLSearchParams(appliedFilters);
+  const searching = listUpdating || query.trim() !== (activeFilters.get("q") ?? "");
 
   return (
-    <div
-      className={`mx-auto flex w-full flex-col gap-5 min-[768px]:max-[1199px]:gap-4 ${view === "add-expense" ? "max-w-[940px]" : view === "expense" ? "max-w-[1120px]" : "max-w-[1280px]"}`}
-    >
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 min-[768px]:max-[1199px]:gap-4">
       {error && <Notice>{error}</Notice>}
       {loading ? (
         <Pending layout="workspace" />
@@ -895,7 +997,9 @@ export function PhaseTwoScreen({
             <>
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <h1>{view === "deleted" ? "Deleted expenses" : "Expenses"}</h1>
+                  <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">
+                    {view === "deleted" ? "Deleted expenses" : "Expenses"}
+                  </h1>
                   <p className="text-sm text-[var(--muted)] max-[767px]:text-xs">
                     {view === "deleted"
                       ? "Restore eligible expenses within 30 days."
@@ -1003,6 +1107,12 @@ export function PhaseTwoScreen({
                       <span>{summary.scheduledCount} scheduled</span>
                       <span>{bucket.timezone}</span>
                     </div>
+                    {!!summary.scheduledUnconvertedCount && (
+                      <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                        {summary.scheduledUnconvertedCount} recurring payment(s) in another currency
+                        need conversion and are excluded from this estimate.
+                      </p>
+                    )}
                   </section>
                   <section
                     className={`${card} divide-y divide-[var(--line)] !p-0 min-[1025px]:hidden`}
@@ -1026,6 +1136,12 @@ export function PhaseTwoScreen({
                         <div className="mt-1 text-[11px] text-[var(--muted)]">
                           {summary.scheduledCount} upcoming
                         </div>
+                        {!!summary.scheduledUnconvertedCount && (
+                          <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                            {summary.scheduledUnconvertedCount} recurring payment(s) need
+                            conversion.
+                          </div>
+                        )}
                       </div>
                       <strong className="text-base tabular-nums">
                         {money(summary.scheduledTotal, summary.currency)}
@@ -1039,6 +1155,7 @@ export function PhaseTwoScreen({
                   <div className="flex flex-wrap items-center gap-3 max-[899px]:grid max-[899px]:grid-cols-[minmax(0,1fr)_auto_auto] max-[899px]:gap-2">
                     <SearchField
                       name="q"
+                      loading={searching}
                       containerClassName="max-[899px]:col-span-3 max-[899px]:w-full"
                       placeholder="Search expenses"
                       value={query}
@@ -1230,7 +1347,7 @@ export function PhaseTwoScreen({
                   {(appliedFilters || month || period !== "month") && (
                     <span className="mr-1 font-semibold uppercase tracking-wide">Active:</span>
                   )}
-                  {period !== "month" && (
+                  {!ledgerAllDates && period !== "month" && (
                     <span className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[var(--ink)]">
                       Period: {range.from} – {inclusiveEnd(range.toExclusive)}
                     </span>
@@ -1261,6 +1378,7 @@ export function PhaseTwoScreen({
                           onClick={() => {
                             const next = new URLSearchParams(appliedFilters);
                             next.delete(key);
+                            if (key === "status") setStatus("all");
                             setAppliedFilters(next.toString());
                           }}
                         >
@@ -1331,6 +1449,7 @@ export function PhaseTwoScreen({
                   </div>
                   <SearchField
                     placeholder="Search deleted items"
+                    loading={searching}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                   />
@@ -1356,6 +1475,34 @@ export function PhaseTwoScreen({
                   {selectedExpenseIds.length > 0 && (
                     <div className="flex items-center gap-2">
                       <span>{selectedExpenseIds.length} selected</span>
+                      {view === "expenses" && (
+                        <button
+                          type="button"
+                          className={action}
+                          disabled={
+                            busy ||
+                            !selectedExpenseIds.every((id) => {
+                              const item = expenses.find((expense) => expense.id === id);
+                              return (
+                                item &&
+                                item.actualCreatorUserId === profile.id &&
+                                (!item.source || item.source.kind === "manual") &&
+                                !item.refundOfExpenseId
+                              );
+                            })
+                          }
+                          title="Move selected manual expenses to another bucket"
+                          onClick={() =>
+                            setBulkMoveTargets(
+                              expenses
+                                .filter((item) => selectedExpenseIds.includes(item.id))
+                                .map((item) => ({ id: item.id, revision: item.revision })),
+                            )
+                          }
+                        >
+                          <ArrowRight size={15} /> Move selected
+                        </button>
+                      )}
                       <button
                         type="button"
                         className={action}
@@ -1377,7 +1524,9 @@ export function PhaseTwoScreen({
                           ? "Updating…"
                           : view === "deleted"
                             ? "Restore selected"
-                            : "Delete selected"}
+                            : selectedRecurring.length
+                              ? "Remove selected"
+                              : "Delete selected"}
                       </button>
                     </div>
                   )}
@@ -1389,9 +1538,7 @@ export function PhaseTwoScreen({
                     <div className="divide-y divide-[var(--line)] min-[768px]:hidden">
                       {filtered.map((item) => (
                         <article key={item.id} className="p-4">
-                          {(view === "deleted"
-                            ? item.permissions.canRestore
-                            : item.permissions.canDelete) && (
+                          {selectableIds.has(item.id) && (
                             <label className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--muted)]">
                               <input
                                 type="checkbox"
@@ -1410,7 +1557,7 @@ export function PhaseTwoScreen({
                           )}
                           <button
                             type="button"
-                            onClick={() => navigate("expense", item.id)}
+                            onClick={() => openLedgerItem(item)}
                             className="flex w-full min-w-0 items-start gap-3 text-left"
                           >
                             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sage)] text-[var(--green)]">
@@ -1425,7 +1572,9 @@ export function PhaseTwoScreen({
                                 {item.description}
                               </span>
                               <span className="mt-1 block truncate text-xs text-[var(--muted)]">
-                                {item.categoryName} · {item.paidByName}
+                                {item.source?.kind === "recurring_projection"
+                                  ? item.paidByName
+                                  : `${item.categoryName} · ${item.paidByName}`}
                               </span>
                             </span>
                             <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
@@ -1449,12 +1598,17 @@ export function PhaseTwoScreen({
                             <span>{item.platformName || item.accountName}</span>
                             {item.displayStatus !== "actual" && (
                               <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
-                                {item.displayStatus === "conversion_needed"
-                                  ? "Conversion needed"
-                                  : item.displayStatus === "scheduled"
-                                    ? "Scheduled"
-                                    : item.displayStatus.replaceAll("_", " ")}
+                                {item.source?.kind === "recurring_projection"
+                                  ? item.categoryName
+                                  : item.displayStatus === "conversion_needed"
+                                    ? "Conversion needed"
+                                    : item.displayStatus === "scheduled"
+                                      ? "Scheduled"
+                                      : item.displayStatus.replaceAll("_", " ")}
                               </span>
+                            )}
+                            {item.source?.kind === "recurring_projection" && (
+                              <span>Recurring commitment</span>
                             )}
                             {item.refundOfExpenseId && (
                               <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
@@ -1488,15 +1642,14 @@ export function PhaseTwoScreen({
                       ))}
                     </div>
                     <div className="overflow-x-auto max-[767px]:hidden">
-                      <table className="w-full min-w-[850px] text-left text-sm">
+                      <table className="w-full min-w-[780px] text-left text-sm">
                         <thead className="border-b border-[var(--line)] bg-[var(--canvas)] text-xs uppercase tracking-wide text-[var(--muted)]">
                           <tr>
                             <th className="w-10 px-3 py-3">
                               <span className="sr-only">Select</span>
                             </th>
                             <th className="px-4 py-3">Date</th>
-                            <th className="py-3">Description & platform</th>
-                            <th className="py-3">Category</th>
+                            <th className="py-3">Description & details</th>
                             <th className="py-3">Paid by</th>
                             <th className="py-3">
                               {view === "deleted" ? "Recovery deadline" : "Account & mode"}
@@ -1511,9 +1664,7 @@ export function PhaseTwoScreen({
                               className={`border-b border-[var(--line)] last:border-0 ${item.displayStatus === "conversion_needed" ? "bg-amber-50/60 dark:bg-amber-950/20" : item.displayStatus === "scheduled" ? "bg-[var(--soft)]/40" : "hover:bg-[var(--canvas)]"}`}
                             >
                               <td className="px-3 py-4">
-                                {(view === "deleted"
-                                  ? item.permissions.canRestore
-                                  : item.permissions.canDelete) && (
+                                {selectableIds.has(item.id) && (
                                   <input
                                     type="checkbox"
                                     checked={selectedExpenseIds.includes(item.id)}
@@ -1534,7 +1685,7 @@ export function PhaseTwoScreen({
                                   { day: "2-digit", month: "short", year: "numeric" },
                                 )}
                               </td>
-                              <td className="max-w-72 py-4 pr-3">
+                              <td className="py-4 pr-3">
                                 <div className="flex items-start gap-3">
                                   <span
                                     className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.displayStatus === "conversion_needed" ? "bg-amber-100 text-amber-800 dark:bg-amber-900" : item.refundOfExpenseId ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900" : "bg-[var(--sage)] text-[var(--green)]"}`}
@@ -1556,25 +1707,31 @@ export function PhaseTwoScreen({
                                   <div className="min-w-0">
                                     <button
                                       className="max-w-full truncate text-left font-semibold hover:text-[var(--green)]"
-                                      onClick={() => navigate("expense", item.id)}
+                                      onClick={() => openLedgerItem(item)}
                                     >
                                       {item.description}
                                     </button>
-                                    {item.refundOfExpenseId && (
-                                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                                        Refund
+                                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                                      <span className="rounded-md border border-[var(--line)] bg-[var(--sage)] px-2 py-0.5 text-[10px] font-semibold">
+                                        {item.categoryName}
                                       </span>
-                                    )}
-                                    {item.displayStatus === "conversion_needed" && (
-                                      <span className="mt-1 block w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
-                                        Conversion needed
-                                      </span>
-                                    )}
-                                    {item.displayStatus === "scheduled" && (
-                                      <span className="mt-1 block w-fit rounded bg-[var(--sage)] px-1.5 py-0.5 text-[10px] font-semibold">
-                                        Scheduled
-                                      </span>
-                                    )}
+                                      {item.refundOfExpenseId && (
+                                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                                          Refund
+                                        </span>
+                                      )}
+                                      {item.displayStatus === "conversion_needed" && (
+                                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
+                                          Conversion needed
+                                        </span>
+                                      )}
+                                      {item.displayStatus === "scheduled" &&
+                                        item.source?.kind !== "recurring_projection" && (
+                                          <span className="rounded bg-[var(--sage)] px-1.5 py-0.5 text-[10px] font-semibold">
+                                            Scheduled
+                                          </span>
+                                        )}
+                                    </div>
                                     <div className={muted}>
                                       {view === "deleted" && item.deletedAt
                                         ? `Deleted ${new Date(item.deletedAt).toLocaleDateString()} · `
@@ -1583,11 +1740,6 @@ export function PhaseTwoScreen({
                                     </div>
                                   </div>
                                 </div>
-                              </td>
-                              <td className="py-4">
-                                <span className="rounded-md border border-[var(--line)] bg-[var(--sage)] px-2 py-1 text-xs">
-                                  {item.categoryName}
-                                </span>
                               </td>
                               <td className="py-4">
                                 <span className="inline-flex items-center gap-2">
@@ -1628,7 +1780,9 @@ export function PhaseTwoScreen({
                                   </span>
                                 ) : item.displayStatus === "scheduled" ? (
                                   <span className="block text-xs font-normal text-[var(--muted)]">
-                                    Scheduled commitment
+                                    {item.source?.kind === "recurring_projection"
+                                      ? "Recurring commitment"
+                                      : "Scheduled commitment"}
                                   </span>
                                 ) : item.originalCurrency !== item.bucketCurrency ? (
                                   <span className={muted}>
@@ -1687,7 +1841,7 @@ export function PhaseTwoScreen({
                   disabled={busy}
                   onClick={async () => {
                     const endpoint = new URLSearchParams(
-                      listPath(bucket.id, view, month, appliedFilters, range).split("?")[1],
+                      listPath(bucket.id, view, month, appliedFilters, listRange).split("?")[1],
                     );
                     endpoint.set("cursor", cursor);
                     const result = await api<Expense[]>(
@@ -1712,7 +1866,9 @@ export function PhaseTwoScreen({
               </button>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h1>{refundSource ? "Record linked refund" : "Add expense"}</h1>
+                  <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">
+                    {refundSource ? "Record linked refund" : "Add expense"}
+                  </h1>
                   <p className="mt-1 text-sm">Record spending in {bucket.name}.</p>
                   <p className="mt-2 text-xs text-[var(--muted)]">
                     {bucket.primaryCurrency} base currency ·{" "}
@@ -2104,7 +2260,7 @@ export function PhaseTwoScreen({
               </button>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h1 className="mt-2">Expense details</h1>
+                  <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Expense details</h1>
                 </div>
                 <div className="flex gap-2">
                   {expense.permissions.canEdit && (
@@ -2425,7 +2581,7 @@ export function PhaseTwoScreen({
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h1 className="mt-2">Reference settings</h1>
+                  <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">Reference settings</h1>
                   <p className="!mt-1 max-w-2xl text-sm">
                     Manage your bucket’s payment accounts, categories, and merchants.
                   </p>
@@ -2670,7 +2826,9 @@ export function PhaseTwoScreen({
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h1 className="mt-2">Members & invitations</h1>
+                  <h1 className="mt-1 text-2xl font-bold text-[var(--ink)]">
+                    Members & invitations
+                  </h1>
                   <p className="!mt-1 max-w-2xl text-sm">
                     Manage this bucket’s members and invitation links.
                   </p>
@@ -2935,22 +3093,48 @@ export function PhaseTwoScreen({
       )}
       {confirmBulkDelete && (
         <Dialog
-          title={`Delete ${selectedExpenseIds.length} selected expenses?`}
-          subtitle="They will move into recovery for 30 days and can be restored by their creators."
+          title={
+            selectedRecurring.length
+              ? "Remove selected recurring commitments?"
+              : `Delete ${selectedExpenseIds.length} selected expenses?`
+          }
+          subtitle={
+            selectedRecurring.length
+              ? "Choose whether to skip only the selected payments or end their entire plans. Recorded expenses are kept."
+              : "They will move into recovery for 30 days and can be restored by their creators."
+          }
           onClose={() => setConfirmBulkDelete(false)}
         >
-          <div className="flex justify-end gap-2">
+          {selectedRecurring.length > 0 && selectedExpenseIds.length > selectedRecurring.length && (
+            <p className="mb-3 text-xs text-[var(--muted)]">
+              The selected saved expenses will move to recovery whichever option you choose.
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
             <button className={controls.secondary} onClick={() => setConfirmBulkDelete(false)}>
               Cancel
             </button>
+            {selectedRecurring.length > 0 && (
+              <button
+                className={controls.secondary}
+                onClick={() => {
+                  setConfirmBulkDelete(false);
+                  void bulkExpenseAction("payment");
+                }}
+              >
+                Skip selected payment{selectedRecurring.length === 1 ? "" : "s"}
+              </button>
+            )}
             <button
               className={controls.dangerAction}
               onClick={() => {
                 setConfirmBulkDelete(false);
-                void bulkExpenseAction();
+                void bulkExpenseAction(selectedRecurring.length ? "plan" : "payment");
               }}
             >
-              <Trash2 size={15} /> Delete selected
+              <Trash2 size={15} />
+              {selectedRecurring.length ? "End entire plan" : "Delete selected"}
+              {selectedRecurringPlanCount > 1 ? "s" : ""}
             </button>
           </div>
         </Dialog>
@@ -2965,6 +3149,45 @@ export function PhaseTwoScreen({
           onMoved={(targetId) => {
             setMoveTarget(null);
             navigatePath(path(targetId, "expense", moveTarget.id));
+          }}
+        />
+      )}
+      {bulkMoveTargets && bulkMoveTargets.length > 0 && (
+        <MoveRecordDialog
+          bucket={bucket}
+          kind="expense"
+          id={bulkMoveTargets[0].id}
+          revision={bulkMoveTargets[0].revision}
+          records={bulkMoveTargets}
+          onClose={() => setBulkMoveTargets(null)}
+          onMoved={(_targetId, movedIds, failedCount) => {
+            const removed = new Set(movedIds);
+            let changed = true;
+            while (changed) {
+              changed = false;
+              for (const item of expenses) {
+                if (
+                  item.refundOfExpenseId &&
+                  removed.has(item.refundOfExpenseId) &&
+                  !removed.has(item.id)
+                ) {
+                  removed.add(item.id);
+                  changed = true;
+                }
+              }
+            }
+            setExpenses((current) => current.filter((item) => !removed.has(item.id)));
+            setSelectedExpenseIds((current) => current.filter((id) => !removed.has(id)));
+            if (failedCount)
+              setError(
+                `${movedIds.length} expenses moved; ${failedCount} could not be moved. Please retry the remaining selection.`,
+              );
+            void api<LedgerSummary>(summaryPath(bucket.id, listRange))
+              .then((result) => setSummary(result.data))
+              .catch((cause) =>
+                setError(`Expenses moved, but totals could not refresh. ${friendlyError(cause)}`),
+              );
+            setBulkMoveTargets(null);
           }}
         />
       )}
