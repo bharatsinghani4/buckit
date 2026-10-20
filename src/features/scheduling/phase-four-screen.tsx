@@ -29,6 +29,7 @@ import { api, friendlyError } from "@/lib/api/client";
 import type { Installment, Plan } from "./contracts";
 import { RecurringPlans } from "./recurring-plans";
 import { MoveRecordDialog } from "@/features/buckets/move-record-dialog";
+import { usePaymentModes } from "@/features/expenses/use-payment-modes";
 
 type View = "emis" | "emi-plan" | "scheduled";
 type Scheduled = {
@@ -48,14 +49,6 @@ const card =
 const secondary = controls.secondary;
 const primary = controls.primary;
 const field = controls.input;
-const modes = [
-  { value: "upi", label: "UPI" },
-  { value: "cash", label: "Cash" },
-  { value: "neft", label: "NEFT" },
-  { value: "imps", label: "IMPS" },
-  { value: "credit_card", label: "Credit card" },
-  { value: "auto_debit", label: "Auto debit" },
-];
 
 function money(amount: string, currency: string) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(amount));
@@ -161,6 +154,7 @@ export function PhaseFourScreen({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { read, invalidate } = useWorkspaceData();
+  const modes = usePaymentModes(bucket.id).settings.modes;
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<Plan | null>(null);
   const [installments, setInstallments] = useState<Installment[]>([]);

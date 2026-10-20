@@ -22,6 +22,7 @@ import { Notice } from "@/components/ui";
 import { CalendarField } from "@/components/calendar-field";
 import type { Bucket } from "@/features/identity/contracts";
 import { api, ClientError, friendlyError } from "@/lib/api/client";
+import { usePaymentModes } from "@/features/expenses/use-payment-modes";
 import { quoteCsv } from "./codec";
 
 const columns = [
@@ -164,6 +165,7 @@ export function PhaseSixCsv({
 }
 
 function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string | null }) {
+  const paymentModes = usePaymentModes(bucket.id).settings.modes;
   const [fileName, setFileName] = useState("");
   const [session, setSession] = useState<ImportSession | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -256,11 +258,7 @@ function ImportScreen({ bucket, importId }: { bucket: Bucket; importId: string |
       return guidance.formerMembers.map((row) => ({ value: row.id, label: row.name }));
     if (field === "Added By")
       return guidance.formerMembers.map((row) => ({ value: row.id, label: row.name }));
-    if (field === "Payment Mode")
-      return ["upi", "cash", "neft", "imps", "credit_card", "auto_debit"].map((value) => ({
-        value,
-        label: value.replaceAll("_", " "),
-      }));
+    if (field === "Payment Mode") return paymentModes;
     const kind =
       field === "Category"
         ? "category"

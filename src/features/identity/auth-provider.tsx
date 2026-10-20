@@ -15,8 +15,16 @@ import { getPreference, setPreference } from "@/lib/browser-preferences";
 import { api, friendlyError, ClientError } from "@/lib/api/client";
 import type { Profile } from "./contracts";
 import { revokePushBeforeLogout } from "@/features/notifications/push-client";
+import {
+  readSolarThemeSchedule,
+  saveSolarThemeSchedule,
+  solarThemeAt,
+  solarThemeSchedule,
+  type ResolvedTheme,
+  type SolarThemeSchedule,
+} from "@/lib/solar-theme";
 
-type Theme = "light" | "dark" | "system";
+type Theme = Profile["theme"];
 type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
@@ -24,6 +32,8 @@ type AuthContextValue = {
   error: string;
   configured: boolean;
   theme: Theme;
+  resolvedTheme: ResolvedTheme;
+  autoLocationStatus: "checking" | "active" | "unavailable";
   setTheme: (theme: Theme) => void;
   syncProfile: (profile: Profile) => void;
   refresh: () => Promise<void>;
@@ -36,6 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [theme, setThemeState] = useState<Theme>("system");
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
+  const [autoLocationStatus, setAutoLocationStatus] = useState<
+    "checking" | "active" | "unavailable"
+  >("checking");
   const generation = useRef(0);
   const bootKeys = useRef(new Map<string, string>());
   const router = useRouter();
@@ -92,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [configured, load]);
   useEffect(() => {
     const saved = getPreference("buckit-theme");
-    if (saved === "light" || saved === "dark" || saved === "system")
+    if (saved === "light" || saved === "dark" || saved === "system" || saved === "auto")
       queueMicrotask(() => setThemeState(saved));
   }, []);
   useEffect(() => {
@@ -101,16 +115,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [profile]);
   useEffect(() => {
     const saved = getPreference("buckit-theme");
-    if ((saved === "light" || saved === "dark" || saved === "system") && saved !== theme) return;
+    if (
+      (saved === "light" || saved === "dark" || saved === "system" || saved === "auto") &&
+      saved !== theme
+    )
+      return;
     const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () =>
-      document.documentElement.setAttribute(
-        "data-theme",
-        theme === "system" ? (query.matches ? "dark" : "light") : theme,
+    let closed = false;
+    let timer: number | undefined;
+    let schedule: SolarThemeSchedule | null = null;
+    let coordinates: { latitude: number; longitude: number } | null = null;
+    let lastLocationCheck = 0;
+    const apply = (next: ResolvedTheme) => {
+      document.documentElement.setAttribute("data-theme", next);
+      queueMicrotask(() => {
+        if (!closed) setResolvedTheme(next);
+      });
+    };
+    const deviceTheme = (): ResolvedTheme => (query.matches ? "dark" : "light");
+    const updateAuto = () => {
+      window.clearTimeout(timer);
+      const now = Date.now();
+      if (schedule && !solarThemeAt(schedule, now) && coordinates) {
+        schedule = solarThemeSchedule(new Date(now), coordinates.latitude, coordinates.longitude);
+        saveSolarThemeSchedule(schedule);
+      }
+      apply((schedule && solarThemeAt(schedule, now)) || deviceTheme());
+      const next = schedule?.transitions.find((transition) => transition.at > now)?.at;
+      timer = window.setTimeout(
+        updateAuto,
+        Math.min(next ? next - now + 1_000 : 3_600_000, 3_600_000),
       );
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
+    };
+    const requestLocation = () => {
+      if (!navigator.geolocation) {
+        queueMicrotask(() => {
+          if (!closed) setAutoLocationStatus("unavailable");
+        });
+        return;
+      }
+      lastLocationCheck = Date.now();
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (closed) return;
+          coordinates = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          schedule = solarThemeSchedule(new Date(), coordinates.latitude, coordinates.longitude);
+          saveSolarThemeSchedule(schedule);
+          setAutoLocationStatus("active");
+          updateAuto();
+        },
+        () => {
+          if (closed) return;
+          schedule = null;
+          setAutoLocationStatus("unavailable");
+          updateAuto();
+        },
+        { enableHighAccuracy: false, maximumAge: 900_000, timeout: 10_000 },
+      );
+    };
+    const onDeviceChange = () => {
+      if (theme === "system" || (theme === "auto" && !schedule)) apply(deviceTheme());
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible" || theme !== "auto") return;
+      updateAuto();
+      if (Date.now() - lastLocationCheck > 3_600_000) requestLocation();
+    };
+    if (theme === "auto") {
+      schedule = readSolarThemeSchedule();
+      updateAuto();
+      requestLocation();
+    } else apply(theme === "system" ? deviceTheme() : theme);
+    query.addEventListener("change", onDeviceChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      closed = true;
+      window.clearTimeout(timer);
+      query.removeEventListener("change", onDeviceChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [theme]);
   const setTheme = useCallback((next: Theme) => {
     setPreference("buckit-theme", next);
@@ -145,6 +231,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         configured,
         theme,
+        resolvedTheme,
+        autoLocationStatus,
         setTheme,
         syncProfile,
         refresh,

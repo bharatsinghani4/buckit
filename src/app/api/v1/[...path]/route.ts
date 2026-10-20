@@ -19,6 +19,12 @@ import {
 import { currencies } from "@/features/identity/contracts";
 import { changeOption, createOption, listOptions } from "@/features/expenses/reference-service";
 import {
+  listPaymentModes,
+  paymentModePath,
+  renamePaymentMode,
+} from "@/features/expenses/payment-mode-service";
+import type { PaymentMode } from "@/features/expenses/payment-modes";
+import {
   changeComment,
   changeExpense,
   conversionPreview,
@@ -579,6 +585,8 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         path.split("/")[3] as OptionKind,
         url.searchParams.get("state"),
       );
+    else if (method === "GET" && /^buckets\/[a-f\d]{24}\/payment-modes$/i.test(path))
+      data = await listPaymentModes(identity, path.split("/")[1]);
     else if (/^buckets\/[a-f\d]{24}\/expenses$/i.test(path) && method === "GET") {
       const result = await listExpenses(identity, path.split("/")[1], url.searchParams);
       data = result.data;
@@ -649,6 +657,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
             ))) ||
         (method === "PATCH" &&
           (path === "me" ||
+            paymentModePath.test(path) ||
             /^buckets\/[a-f\d]{24}\/(budgets\/[a-f\d]{24}|emi-plans\/[a-f\d]{24}|recurring-plans\/[a-f\d]{24}|expenses\/[a-f\d]{24}|expenses\/[a-f\d]{24}\/comments\/[a-f\d]{24}|options\/(accounts|categories|platforms)\/[a-f\d]{24})$/i.test(
               path,
             ))) ||
@@ -674,6 +683,15 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
         result = await bootstrap(identity, body, key);
       else if (method === "PATCH" && path === "me")
         result = await updateProfile(identity, body, key, revision);
+      else if (method === "PATCH" && paymentModePath.test(path))
+        result = await renamePaymentMode(
+          identity,
+          bucketId,
+          parts[3] as PaymentMode,
+          body,
+          key,
+          revision,
+        );
       else if (method === "POST" && path === "buckets")
         result = await createBucket(identity, body, key);
       else if (method === "POST" && /^buckets\/[a-f\d]{24}\/invitations$/i.test(path))

@@ -17,7 +17,7 @@ const userSchema = new Schema(
     displayName: { type: String, required: true },
     avatarDataUrl: { type: String, default: null },
     timezone: { type: String, default: "UTC" },
-    theme: { type: String, enum: ["light", "dark", "system"], default: "system" },
+    theme: { type: String, enum: ["light", "dark", "system", "auto"], default: "system" },
     lastBucketId: { type: Schema.Types.ObjectId, default: null },
     tour: {
       version: { type: Number, default: 1 },
@@ -61,6 +61,8 @@ const bucketSchema = new Schema(
     writeRevision: { type: Number, default: 0 },
     exportRevision: { type: Number, default: 0 },
     financialRevision: { type: Number, default: 0 },
+    paymentModeLabels: { type: Map, of: String, default: {} },
+    paymentModeRevision: { type: Number, default: 0 },
   },
   common,
 );

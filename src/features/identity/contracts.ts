@@ -46,7 +46,7 @@ export const profileSchema = z
     displayName: displayNameSchema.optional(),
     avatarDataUrl: avatarDataUrlSchema.nullable().optional(),
     timezone: timezoneSchema.optional(),
-    theme: z.enum(["light", "dark", "system"]).optional(),
+    theme: z.enum(["light", "dark", "system", "auto"]).optional(),
     lastBucketId: z
       .string()
       .regex(/^[a-f\d]{24}$/i)
@@ -76,7 +76,7 @@ export type Profile = {
   email: string;
   emailVerified: boolean;
   timezone: string;
-  theme: "light" | "dark" | "system";
+  theme: "light" | "dark" | "system" | "auto";
   lastBucketId: string | null;
   tour: Tour;
   revision: number;

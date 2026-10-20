@@ -74,6 +74,87 @@ afterAll(async () => {
   delete process.env.PUSH_TOKEN_ENCRYPTION_KEY;
 });
 
+describe("Reference renames", () => {
+  it("updates historical expense labels and editable payment mode names", async () => {
+    const actor = "reference-rename-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "buckets", actor, {
+      name: "Renaming",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const userId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const category = await request("POST", `${root}/options/categories`, actor, {
+      name: "Old food",
+    });
+    const account = await request("POST", `${root}/options/accounts`, actor, { name: "Old bank" });
+    const platform = await request("POST", `${root}/options/platforms`, actor, {
+      name: "Old shop",
+    });
+    const expense = await request("POST", `${root}/expenses`, actor, {
+      expenseDate: new Date().toISOString().slice(0, 10),
+      description: "Lunch",
+      paidByUserId: userId,
+      categoryId: category.payload.data.id,
+      accountId: account.payload.data.id,
+      platformId: platform.payload.data.id,
+      paymentMode: "upi",
+      originalAmount: "10.00",
+    });
+    expect(expense.response.status, JSON.stringify(expense.payload)).toBe(201);
+    for (const [kind, option, name] of [
+      ["categories", category, "New food"],
+      ["accounts", account, "New bank"],
+      ["platforms", platform, "New shop"],
+    ] as const) {
+      const updated = await request(
+        "PATCH",
+        `${root}/options/${kind}/${option.payload.data.id}`,
+        actor,
+        { name },
+        { "If-Match": `"r${option.payload.data.revision}"` },
+      );
+      expect(updated.response.status, JSON.stringify(updated.payload)).toBe(200);
+    }
+    const refreshed = await request("GET", `${root}/expenses/${expense.payload.data.id}`, actor);
+    expect(refreshed.payload.data).toMatchObject({
+      categoryName: "New food",
+      accountName: "New bank",
+      platformName: "New shop",
+      paymentMode: "upi",
+    });
+    const settings = await request("GET", `${root}/payment-modes`, actor);
+    expect(settings.payload.data.revision).toBe(0);
+    const renamed = await request(
+      "PATCH",
+      `${root}/payment-modes/upi`,
+      actor,
+      { name: "Instant pay" },
+      { "If-Match": '"r0"' },
+    );
+    expect(renamed.response.status, JSON.stringify(renamed.payload)).toBe(200);
+    expect(
+      renamed.payload.data.modes.find((mode: { value: string }) => mode.value === "upi").label,
+    ).toBe("Instant pay");
+    expect(
+      (await request("GET", `${root}/expenses/${expense.payload.data.id}`, actor)).payload.data
+        .paymentMode,
+    ).toBe("upi");
+    expect(
+      (
+        await request(
+          "PATCH",
+          `${root}/payment-modes/upi`,
+          actor,
+          { name: "Again" },
+          { "If-Match": '"r0"' },
+        )
+      ).response.status,
+    ).toBe(412);
+  });
+});
+
 describe("Phase 7 lifecycle", () => {
   it("archives atomically, preserves read access, and requires creator review after restoration", async () => {
     const actor = "phase7archiveowner";
@@ -2289,6 +2370,20 @@ describe("Phase 1 HTTP API flows", () => {
         )
       ).payload.data.theme,
     ).toBe("light");
+    const afterLight = await request("GET", "me", "owner");
+    expect(
+      (
+        await request(
+          "PATCH",
+          "me",
+          "owner",
+          { theme: "auto" },
+          {
+            "If-Match": afterLight.response.headers.get("ETag")!,
+          },
+        )
+      ).payload.data.theme,
+    ).toBe("auto");
     expect((await request("GET", `buckets/${id}`)).payload.data.name).toBe("Shared Living");
     expect((await request("GET", "buckets")).payload.data).toHaveLength(1);
     expect((await request("GET", "capabilities")).payload.data.phase).toBe(7);
