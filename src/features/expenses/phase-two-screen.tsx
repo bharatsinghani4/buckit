@@ -158,8 +158,8 @@ function applyOptionResult(
       "deleted" in result
         ? remaining
         : [...remaining, result].sort((a, b) =>
-            a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-          ),
+          a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+        ),
   };
 }
 
@@ -258,9 +258,9 @@ export function PhaseTwoScreen({
     savedSnapshot?.appliedFilters ?? (initialStatus ? `status=${initialStatus}` : "");
   const loadedPath = useRef(
     savedSnapshot?.loadedPath ??
-      (view === "expenses" || view === "deleted"
-        ? listPath(bucket.id, view, month, initialFilters, listRange)
-        : ""),
+    (view === "expenses" || view === "deleted"
+      ? listPath(bucket.id, view, month, initialFilters, listRange)
+      : ""),
   );
   const requestToken = useRef(0);
   const initialSnapshot = useRef(savedSnapshot);
@@ -432,8 +432,8 @@ export function PhaseTwoScreen({
           ? !!peek<Expense[]>(endpoint)
           : view === "add-expense" && !refundOf
             ? ["accounts", "categories", "platforms", "members"].every((kind) =>
-                peek(`buckets/${bucket.id}/${kind}`),
-              )
+              peek(`buckets/${bucket.id}/${kind}`),
+            )
             : false;
     if (view === "expenses" || view === "deleted") {
       if (initialListLoaded.current) setListUpdating(!hasSnapshot && !matchingSnapshot);
@@ -930,11 +930,11 @@ export function PhaseTwoScreen({
     const recurringTargets =
       act === "delete"
         ? expenses.filter(
-            (item) =>
-              selectedExpenseIds.includes(item.id) &&
-              item.source?.kind === "recurring_projection" &&
-              item.actualCreatorUserId === profile.id,
-          )
+          (item) =>
+            selectedExpenseIds.includes(item.id) &&
+            item.source?.kind === "recurring_projection" &&
+            item.actualCreatorUserId === profile.id,
+        )
         : [];
     if (!targets.length && !recurringTargets.length) return;
     setBusy(true);
@@ -1038,7 +1038,7 @@ export function PhaseTwoScreen({
     view === "deleted"
       ? item.permissions.canRestore
       : item.permissions.canDelete ||
-        (item.source?.kind === "recurring_projection" && item.actualCreatorUserId === profile.id),
+      (item.source?.kind === "recurring_projection" && item.actualCreatorUserId === profile.id),
   );
   const selectableIds = new Set(selectable.map((item) => item.id));
   const selectedRecurring = expenses.filter(
@@ -1127,11 +1127,11 @@ export function PhaseTwoScreen({
                     <div className="mt-3 break-words text-3xl font-bold tabular-nums text-amber-900 min-[768px]:max-[1199px]:text-2xl max-[767px]:text-xl dark:text-amber-200">
                       {expenses.find((item) => item.displayStatus === "conversion_needed")
                         ? money(
-                            expenses.find((item) => item.displayStatus === "conversion_needed")!
-                              .originalAmount,
-                            expenses.find((item) => item.displayStatus === "conversion_needed")!
-                              .originalCurrency,
-                          )
+                          expenses.find((item) => item.displayStatus === "conversion_needed")!
+                            .originalAmount,
+                          expenses.find((item) => item.displayStatus === "conversion_needed")!
+                            .originalCurrency,
+                        )
                         : summary.conversionNeededCount}
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2 border-t border-amber-200 pt-3 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-300">
@@ -1144,17 +1144,17 @@ export function PhaseTwoScreen({
                         (item) =>
                           item.displayStatus === "conversion_needed" && item.permissions.canEdit,
                       ) && (
-                        <button
-                          className="font-semibold underline"
-                          onClick={() =>
-                            navigatePath(
-                              `${path(bucket.id, "expense", expenses.find((item) => item.displayStatus === "conversion_needed" && item.permissions.canEdit)!.id)}&resolve=1`,
-                            )
-                          }
-                        >
-                          Resolve
-                        </button>
-                      )}
+                          <button
+                            className="font-semibold underline"
+                            onClick={() =>
+                              navigatePath(
+                                `${path(bucket.id, "expense", expenses.find((item) => item.displayStatus === "conversion_needed" && item.permissions.canEdit)!.id)}&resolve=1`,
+                              )
+                            }
+                          >
+                            Resolve
+                          </button>
+                        )}
                     </div>
                   </section>
                   <section
@@ -1521,385 +1521,387 @@ export function PhaseTwoScreen({
                   />
                 </div>
               )}
-              {selectable.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={selectable.every((item) => selectedExpenseIds.includes(item.id))}
-                      onChange={(event) =>
-                        setSelectedExpenseIds((current) =>
-                          event.target.checked
-                            ? [...new Set([...current, ...selectable.map((item) => item.id)])]
-                            : current.filter((id) => !selectable.some((item) => item.id === id)),
-                        )
-                      }
-                      aria-label="Select all loaded expenses"
-                    />
-                    Select loaded ({selectable.length})
-                  </label>
-                  {selectedExpenseIds.length > 0 && (
+              <div className="space-y-2">
+                {selectable.length > 0 && (
+                  <div className="flex items-center gap-2 justify-between text-xs">
+                    <span>{selectedExpenseIds.length} selected</span>
                     <div className="flex items-center gap-2">
-                      <span>{selectedExpenseIds.length} selected</span>
-                      {view === "expenses" && (
-                        <button
-                          type="button"
-                          className={action}
-                          disabled={
-                            busy ||
-                            !selectedExpenseIds.every((id) => {
-                              const item = expenses.find((expense) => expense.id === id);
-                              return (
-                                item &&
-                                item.actualCreatorUserId === profile.id &&
-                                (!item.source || item.source.kind === "manual") &&
-                                !item.refundOfExpenseId
-                              );
-                            })
-                          }
-                          title="Move selected manual expenses to another bucket"
-                          onClick={() =>
-                            setBulkMoveTargets(
-                              expenses
-                                .filter((item) => selectedExpenseIds.includes(item.id))
-                                .map((item) => ({ id: item.id, revision: item.revision })),
-                            )
-                          }
-                        >
-                          <ArrowRight size={15} /> Move selected
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className={action}
-                        onClick={() => setSelectedExpenseIds([])}
-                      >
-                        Clear
-                      </button>
-                      <button
-                        type="button"
-                        className={view === "deleted" ? controls.primary : controls.dangerAction}
-                        disabled={busy}
-                        onClick={() => {
-                          if (view === "deleted") void bulkExpenseAction();
-                          else setConfirmBulkDelete(true);
-                        }}
-                      >
-                        {view === "deleted" ? <RotateCcw size={15} /> : <Trash2 size={15} />}
-                        {busy
-                          ? "Updating…"
-                          : view === "deleted"
-                            ? "Restore selected"
-                            : selectedRecurring.length
-                              ? "Remove selected"
-                              : "Delete selected"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className={`${card} overflow-hidden p-0`}>
-                {filtered.length ? (
-                  <div>
-                    <div className="divide-y divide-[var(--line)] min-[768px]:hidden">
-                      {filtered.map((item) => (
-                        <article key={item.id} className="p-4">
-                          {selectableIds.has(item.id) && (
-                            <label className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--muted)]">
-                              <input
-                                type="checkbox"
-                                checked={selectedExpenseIds.includes(item.id)}
-                                onChange={(event) =>
-                                  setSelectedExpenseIds((current) =>
-                                    event.target.checked
-                                      ? [...current, item.id]
-                                      : current.filter((id) => id !== item.id),
-                                  )
-                                }
-                                aria-label={`Select ${item.description}`}
-                              />
-                              Select
-                            </label>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => openLedgerItem(item)}
-                            className="flex w-full min-w-0 items-start gap-3 text-left"
-                          >
-                            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sage)] text-[var(--green)]">
-                              <ReferenceGlyph
-                                kind="categories"
-                                name={item.categoryName}
-                                size={19}
-                              />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-semibold text-[var(--ink)]">
-                                {item.description}
-                              </span>
-                              <span className="mt-1 block truncate text-xs text-[var(--muted)]">
-                                {item.source?.kind === "recurring_projection"
-                                  ? item.paidByName
-                                  : `${item.categoryName} · ${item.paidByName}`}
-                              </span>
-                            </span>
-                            <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
-                              {money(item.originalAmount, item.originalCurrency)}
-                              {item.originalCurrency !== item.bucketCurrency &&
-                                item.displayStatus !== "conversion_needed" && (
-                                  <span className="block text-[11px] font-normal text-[var(--muted)]">
-                                    {money(item.convertedAmount, item.bucketCurrency)}
-                                  </span>
-                                )}
-                            </span>
-                          </button>
-                          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[52px] text-[11px] text-[var(--muted)]">
-                            <span>
-                              {new Date(`${item.expenseDate}T12:00:00`).toLocaleDateString(
-                                undefined,
-                                { day: "2-digit", month: "short", year: "numeric" },
-                              )}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span>{item.platformName || item.accountName}</span>
-                            {item.displayStatus !== "actual" && (
-                              <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
-                                {item.source?.kind === "recurring_projection"
-                                  ? item.categoryName
-                                  : item.displayStatus === "conversion_needed"
-                                    ? "Conversion needed"
-                                    : item.displayStatus === "scheduled"
-                                      ? "Scheduled"
-                                      : item.displayStatus.replaceAll("_", " ")}
-                              </span>
-                            )}
-                            {item.source?.kind === "recurring_projection" && (
-                              <span>Recurring commitment</span>
-                            )}
-                            {item.refundOfExpenseId && (
-                              <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
-                                Refund
-                              </span>
-                            )}
-                          </div>
-                          {view === "deleted" && item.permissions.canRestore && (
-                            <button
-                              type="button"
-                              className="mt-3 ml-[52px] inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--green)] px-3 text-xs font-semibold text-[var(--surface)]"
-                              onClick={() => expenseAction(item, "restore")}
-                              disabled={busy}
-                            >
-                              <RotateCcw size={14} /> Restore to ledger
-                            </button>
-                          )}
-                          {item.displayStatus === "conversion_needed" &&
-                            item.permissions.canEdit && (
+                      {selectedExpenseIds.length > 0 && (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {view === "expenses" && (
                               <button
                                 type="button"
-                                className="mt-3 ml-[52px] inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--ink)] px-3 text-xs font-semibold text-[var(--surface)]"
+                                className={action}
+                                disabled={
+                                  busy ||
+                                  !selectedExpenseIds.every((id) => {
+                                    const item = expenses.find((expense) => expense.id === id);
+                                    return (
+                                      item &&
+                                      item.actualCreatorUserId === profile.id &&
+                                      (!item.source || item.source.kind === "manual") &&
+                                      !item.refundOfExpenseId
+                                    );
+                                  })
+                                }
+                                title="Move selected manual expenses to another bucket"
                                 onClick={() =>
-                                  navigatePath(`${path(bucket.id, "expense", item.id)}&resolve=1`)
+                                  setBulkMoveTargets(
+                                    expenses
+                                      .filter((item) => selectedExpenseIds.includes(item.id))
+                                      .map((item) => ({ id: item.id, revision: item.revision })),
+                                  )
                                 }
                               >
-                                <RotateCcw size={14} /> Resolve conversion
+                                <ArrowRight size={15} /> Move selected
                               </button>
                             )}
-                        </article>
-                      ))}
+                          </div>
+                          <button
+                            type="button"
+                            className={action}
+                            onClick={() => setSelectedExpenseIds([])}
+                          >
+                            Clear
+                          </button>
+                          <button
+                            type="button"
+                            className={view === "deleted" ? controls.primary : controls.dangerAction}
+                            disabled={busy}
+                            onClick={() => {
+                              if (view === "deleted") void bulkExpenseAction();
+                              else setConfirmBulkDelete(true);
+                            }}
+                          >
+                            {view === "deleted" ? <RotateCcw size={15} /> : <Trash2 size={15} />}
+                            {busy
+                              ? "Updating…"
+                              : view === "deleted"
+                                ? "Restore selected"
+                                : selectedRecurring.length
+                                  ? "Remove selected"
+                                  : "Delete selected"}
+                          </button>
+                        </>
+                      )}
                     </div>
-                    <div className="overflow-x-auto max-[767px]:hidden">
-                      <table className="w-full min-w-[780px] text-left text-sm">
-                        <thead className="border-b border-[var(--line)] bg-[var(--canvas)] text-xs uppercase tracking-wide text-[var(--muted)]">
-                          <tr>
-                            <th className="w-10 px-3 py-3">
-                              <span className="sr-only">Select</span>
-                            </th>
-                            <th className="px-4 py-3">Date</th>
-                            <th className="py-3">Description & details</th>
-                            <th className="py-3">Paid by</th>
-                            <th className="py-3">
-                              {view === "deleted" ? "Recovery deadline" : "Account & mode"}
-                            </th>
-                            <th className="py-3 pr-4 text-right">Amount & actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filtered.map((item) => (
-                            <tr
-                              key={item.id}
-                              className={`border-b border-[var(--line)] last:border-0 ${item.displayStatus === "conversion_needed" ? "bg-amber-50/60 dark:bg-amber-950/20" : item.displayStatus === "scheduled" ? "bg-[var(--soft)]/40" : "hover:bg-[var(--canvas)]"}`}
+                  </div>
+                )}
+                <div className={`${card} overflow-hidden !p-0`}>
+                  {filtered.length ? (
+                    <div>
+                      <div className="divide-y divide-[var(--line)] min-[768px]:hidden">
+                        {filtered.map((item) => (
+                          <article key={item.id} className="p-4">
+                            {selectableIds.has(item.id) && (
+                              <label className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--muted)]">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedExpenseIds.includes(item.id)}
+                                  onChange={(event) =>
+                                    setSelectedExpenseIds((current) =>
+                                      event.target.checked
+                                        ? [...current, item.id]
+                                        : current.filter((id) => id !== item.id),
+                                    )
+                                  }
+                                  aria-label={`Select ${item.description}`}
+                                />
+                                Select
+                              </label>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openLedgerItem(item)}
+                              className="flex w-full min-w-0 items-start gap-3 text-left"
                             >
-                              <td className="px-3 py-4">
-                                {selectableIds.has(item.id) && (
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedExpenseIds.includes(item.id)}
-                                    onChange={(event) =>
-                                      setSelectedExpenseIds((current) =>
-                                        event.target.checked
-                                          ? [...current, item.id]
-                                          : current.filter((id) => id !== item.id),
-                                      )
-                                    }
-                                    aria-label={`Select ${item.description}`}
-                                  />
-                                )}
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-4 text-xs text-[var(--muted)]">
+                              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--sage)] text-[var(--green)]">
+                                <ReferenceGlyph
+                                  kind="categories"
+                                  name={item.categoryName}
+                                  size={19}
+                                />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold text-[var(--ink)]">
+                                  {item.description}
+                                </span>
+                                <span className="mt-1 block truncate text-xs text-[var(--muted)]">
+                                  {item.source?.kind === "recurring_projection"
+                                    ? item.paidByName
+                                    : `${item.categoryName} · ${item.paidByName}`}
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
+                                {money(item.originalAmount, item.originalCurrency)}
+                                {item.originalCurrency !== item.bucketCurrency &&
+                                  item.displayStatus !== "conversion_needed" && (
+                                    <span className="block text-[11px] font-normal text-[var(--muted)]">
+                                      {money(item.convertedAmount, item.bucketCurrency)}
+                                    </span>
+                                  )}
+                              </span>
+                            </button>
+                            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[52px] text-[11px] text-[var(--muted)]">
+                              <span>
                                 {new Date(`${item.expenseDate}T12:00:00`).toLocaleDateString(
                                   undefined,
                                   { day: "2-digit", month: "short", year: "numeric" },
                                 )}
-                              </td>
-                              <td className="py-4 pr-3">
-                                <div className="flex items-start gap-3">
-                                  <span
-                                    className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.displayStatus === "conversion_needed" ? "bg-amber-100 text-amber-800 dark:bg-amber-900" : item.refundOfExpenseId ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900" : "bg-[var(--sage)] text-[var(--green)]"}`}
-                                  >
-                                    {item.displayStatus === "conversion_needed" ? (
-                                      <RotateCcw size={17} />
-                                    ) : item.refundOfExpenseId ? (
-                                      <History size={17} />
-                                    ) : item.displayStatus === "scheduled" ? (
-                                      <Clock3 size={17} />
-                                    ) : (
-                                      <ReferenceGlyph
-                                        kind="categories"
-                                        name={item.categoryName}
-                                        size={17}
-                                      />
-                                    )}
-                                  </span>
-                                  <div className="min-w-0">
-                                    <button
-                                      className="max-w-full truncate text-left font-semibold hover:text-[var(--green)]"
-                                      onClick={() => openLedgerItem(item)}
-                                    >
-                                      {item.description}
-                                    </button>
-                                    <div className="mt-1 flex flex-wrap items-center gap-1">
-                                      <span className="rounded-md border border-[var(--line)] bg-[var(--sage)] px-2 py-0.5 text-[10px] font-semibold">
-                                        {item.categoryName}
-                                      </span>
-                                      {item.refundOfExpenseId && (
-                                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                                          Refund
-                                        </span>
-                                      )}
-                                      {item.displayStatus === "conversion_needed" && (
-                                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
-                                          Conversion needed
-                                        </span>
-                                      )}
-                                      {item.displayStatus === "scheduled" &&
-                                        item.source?.kind !== "recurring_projection" && (
-                                          <span className="rounded bg-[var(--sage)] px-1.5 py-0.5 text-[10px] font-semibold">
-                                            Scheduled
-                                          </span>
-                                        )}
-                                    </div>
-                                    <div className={muted}>
-                                      {view === "deleted" && item.deletedAt
-                                        ? `Deleted ${new Date(item.deletedAt).toLocaleDateString()} · `
-                                        : ""}
-                                      {item.platformName}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-4">
-                                <span className="inline-flex items-center gap-2">
-                                  <span className="grid size-7 place-items-center rounded-full bg-[var(--sage)] text-xs font-bold">
-                                    {item.paidByName.charAt(0)}
-                                  </span>
-                                  <span className="max-w-28 truncate text-xs">
-                                    {item.paidByName}
-                                  </span>
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span>{item.platformName || item.accountName}</span>
+                              {item.displayStatus !== "actual" && (
+                                <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
+                                  {item.source?.kind === "recurring_projection"
+                                    ? item.categoryName
+                                    : item.displayStatus === "conversion_needed"
+                                      ? "Conversion needed"
+                                      : item.displayStatus === "scheduled"
+                                        ? "Scheduled"
+                                        : item.displayStatus.replaceAll("_", " ")}
                                 </span>
-                              </td>
-                              <td className="py-4 text-xs">
-                                <span className="block font-medium">
-                                  {view === "deleted"
-                                    ? item.restoreUntil
-                                      ? new Date(item.restoreUntil).toLocaleDateString()
-                                      : "Expired"
-                                    : item.accountName}
+                              )}
+                              {item.source?.kind === "recurring_projection" && (
+                                <span>Recurring commitment</span>
+                              )}
+                              {item.refundOfExpenseId && (
+                                <span className="rounded-full bg-[var(--sage)] px-2 py-0.5 font-semibold text-[var(--green)]">
+                                  Refund
                                 </span>
-                                <span className="text-[var(--muted)]">
-                                  {view === "deleted"
-                                    ? item.restoreUntil
-                                      ? `${Math.max(0, Math.ceil((new Date(item.restoreUntil).getTime() - renderTime) / 86_400_000))} days remaining`
-                                      : "Recovery unavailable"
-                                    : (paymentModes.find((mode) => mode.value === item.paymentMode)
-                                        ?.label ?? item.paymentMode)}
-                                </span>
-                              </td>
-                              <td className="py-4 pr-4 text-right font-semibold tabular-nums">
-                                <span
-                                  className={item.refundOfExpenseId ? "text-[var(--green)]" : ""}
+                              )}
+                            </div>
+                            {view === "deleted" && item.permissions.canRestore && (
+                              <button
+                                type="button"
+                                className="mt-3 ml-[52px] inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--green)] px-3 text-xs font-semibold text-[var(--surface)]"
+                                onClick={() => expenseAction(item, "restore")}
+                                disabled={busy}
+                              >
+                                <RotateCcw size={14} /> Restore to ledger
+                              </button>
+                            )}
+                            {item.displayStatus === "conversion_needed" &&
+                              item.permissions.canEdit && (
+                                <button
+                                  type="button"
+                                  className="mt-3 ml-[52px] inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--ink)] px-3 text-xs font-semibold text-[var(--surface)]"
+                                  onClick={() =>
+                                    navigatePath(`${path(bucket.id, "expense", item.id)}&resolve=1`)
+                                  }
                                 >
-                                  {money(item.originalAmount, item.originalCurrency)}
-                                </span>
-                                {item.displayStatus === "conversion_needed" ? (
-                                  <span className="block text-xs font-normal italic text-amber-800 dark:text-amber-300">
-                                    Excluded from actual spending total
-                                  </span>
-                                ) : item.displayStatus === "scheduled" ? (
-                                  <span className="block text-xs font-normal text-[var(--muted)]">
-                                    {item.source?.kind === "recurring_projection"
-                                      ? "Recurring commitment"
-                                      : "Scheduled commitment"}
-                                  </span>
-                                ) : item.originalCurrency !== item.bucketCurrency ? (
-                                  <span className={muted}>
-                                    {money(item.convertedAmount, item.bucketCurrency)}
-                                  </span>
-                                ) : null}
-                                {item.displayStatus === "conversion_needed" &&
-                                  item.permissions.canEdit && (
-                                    <button
-                                      className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--ink)] px-2 py-1 text-[11px] text-[var(--surface)]"
-                                      onClick={() =>
-                                        navigatePath(
-                                          `${path(bucket.id, "expense", item.id)}&resolve=1`,
+                                  <RotateCcw size={14} /> Resolve conversion
+                                </button>
+                              )}
+                          </article>
+                        ))}
+                      </div>
+                      <div className="overflow-x-auto max-[767px]:hidden">
+                        <table className="w-full min-w-[780px] text-left text-sm">
+                          <thead className="border-b border-[var(--line)] bg-[var(--canvas)] text-xs uppercase tracking-wide text-[var(--muted)]">
+                            <tr>
+                              <th className="w-10 px-3 py-3">
+                                <input
+                                  type="checkbox"
+                                  checked={selectable.every((item) => selectedExpenseIds.includes(item.id))}
+                                  onChange={(event) =>
+                                    setSelectedExpenseIds((current) =>
+                                      event.target.checked
+                                        ? [...new Set([...current, ...selectable.map((item) => item.id)])]
+                                        : current.filter((id) => !selectable.some((item) => item.id === id)),
+                                    )
+                                  }
+                                  aria-label="Select all loaded expenses"
+                                />
+                              </th>
+                              <th className="px-4 py-3">Date</th>
+                              <th className="py-3">Description & details</th>
+                              <th className="py-3">Paid by</th>
+                              <th className="py-3">
+                                {view === "deleted" ? "Recovery deadline" : "Account & mode"}
+                              </th>
+                              <th className="py-3 pr-4 text-right">Amount & actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map((item) => (
+                              <tr
+                                key={item.id}
+                                className={`border-b border-[var(--line)] last:border-0 ${item.displayStatus === "conversion_needed" ? "bg-amber-50/60 dark:bg-amber-950/20" : item.displayStatus === "scheduled" ? "bg-[var(--soft)]/40" : "hover:bg-[var(--canvas)]"}`}
+                              >
+                                <td className="px-3 py-4">
+                                  {selectableIds.has(item.id) && (
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedExpenseIds.includes(item.id)}
+                                      onChange={(event) =>
+                                        setSelectedExpenseIds((current) =>
+                                          event.target.checked
+                                            ? [...current, item.id]
+                                            : current.filter((id) => id !== item.id),
                                         )
                                       }
+                                      aria-label={`Select ${item.description}`}
+                                    />
+                                  )}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-4 text-xs text-[var(--muted)]">
+                                  {new Date(`${item.expenseDate}T12:00:00`).toLocaleDateString(
+                                    undefined,
+                                    { day: "2-digit", month: "short", year: "numeric" },
+                                  )}
+                                </td>
+                                <td className="py-4 pr-3">
+                                  <div className="flex items-start gap-3">
+                                    <span
+                                      className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.displayStatus === "conversion_needed" ? "bg-amber-100 text-amber-800 dark:bg-amber-900" : item.refundOfExpenseId ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900" : "bg-[var(--sage)] text-[var(--green)]"}`}
                                     >
-                                      <RotateCcw size={12} /> Resolve conversion
+                                      {item.displayStatus === "conversion_needed" ? (
+                                        <RotateCcw size={17} />
+                                      ) : item.refundOfExpenseId ? (
+                                        <History size={17} />
+                                      ) : item.displayStatus === "scheduled" ? (
+                                        <Clock3 size={17} />
+                                      ) : (
+                                        <ReferenceGlyph
+                                          kind="categories"
+                                          name={item.categoryName}
+                                          size={17}
+                                        />
+                                      )}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <button
+                                        className="max-w-full truncate text-left font-semibold hover:text-[var(--green)]"
+                                        onClick={() => openLedgerItem(item)}
+                                      >
+                                        {item.description}
+                                      </button>
+                                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                                        <span className="rounded-md border border-[var(--line)] bg-[var(--sage)] px-2 py-0.5 text-[10px] font-semibold">
+                                          {item.categoryName}
+                                        </span>
+                                        {item.refundOfExpenseId && (
+                                          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                                            Refund
+                                          </span>
+                                        )}
+                                        {item.displayStatus === "conversion_needed" && (
+                                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:bg-amber-900 dark:text-amber-200">
+                                            Conversion needed
+                                          </span>
+                                        )}
+                                        {item.displayStatus === "scheduled" &&
+                                          item.source?.kind !== "recurring_projection" && (
+                                            <span className="rounded bg-[var(--sage)] px-1.5 py-0.5 text-[10px] font-semibold">
+                                              Scheduled
+                                            </span>
+                                          )}
+                                      </div>
+                                      <div className={muted}>
+                                        {view === "deleted" && item.deletedAt
+                                          ? `Deleted ${new Date(item.deletedAt).toLocaleDateString()} · `
+                                          : ""}
+                                        {item.platformName}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-4">
+                                  <span className="inline-flex items-center gap-2">
+                                    <span className="grid size-7 place-items-center rounded-full bg-[var(--sage)] text-xs font-bold">
+                                      {item.paidByName.charAt(0)}
+                                    </span>
+                                    <span className="max-w-28 truncate text-xs">
+                                      {item.paidByName}
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="py-4 text-xs">
+                                  <span className="block font-medium">
+                                    {view === "deleted"
+                                      ? item.restoreUntil
+                                        ? new Date(item.restoreUntil).toLocaleDateString()
+                                        : "Expired"
+                                      : item.accountName}
+                                  </span>
+                                  <span className="text-[var(--muted)]">
+                                    {view === "deleted"
+                                      ? item.restoreUntil
+                                        ? `${Math.max(0, Math.ceil((new Date(item.restoreUntil).getTime() - renderTime) / 86_400_000))} days remaining`
+                                        : "Recovery unavailable"
+                                      : (paymentModes.find((mode) => mode.value === item.paymentMode)
+                                        ?.label ?? item.paymentMode)}
+                                  </span>
+                                </td>
+                                <td className="py-4 pr-4 text-right font-semibold tabular-nums">
+                                  <span
+                                    className={item.refundOfExpenseId ? "text-[var(--green)]" : ""}
+                                  >
+                                    {money(item.originalAmount, item.originalCurrency)}
+                                  </span>
+                                  {item.displayStatus === "conversion_needed" ? (
+                                    <span className="block text-xs font-normal italic text-amber-800 dark:text-amber-300">
+                                      Excluded from actual spending total
+                                    </span>
+                                  ) : item.displayStatus === "scheduled" ? (
+                                    <span className="block text-xs font-normal text-[var(--muted)]">
+                                      {item.source?.kind === "recurring_projection"
+                                        ? "Recurring commitment"
+                                        : "Scheduled commitment"}
+                                    </span>
+                                  ) : item.originalCurrency !== item.bucketCurrency ? (
+                                    <span className={muted}>
+                                      {money(item.convertedAmount, item.bucketCurrency)}
+                                    </span>
+                                  ) : null}
+                                  {item.displayStatus === "conversion_needed" &&
+                                    item.permissions.canEdit && (
+                                      <button
+                                        className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--ink)] px-2 py-1 text-[11px] text-[var(--surface)]"
+                                        onClick={() =>
+                                          navigatePath(
+                                            `${path(bucket.id, "expense", item.id)}&resolve=1`,
+                                          )
+                                        }
+                                      >
+                                        <RotateCcw size={12} /> Resolve conversion
+                                      </button>
+                                    )}
+                                  {view === "deleted" && item.permissions.canRestore && (
+                                    <button
+                                      className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--green)] px-2 py-1 text-[11px] text-[var(--surface)]"
+                                      onClick={() => expenseAction(item, "restore")}
+                                      disabled={busy}
+                                    >
+                                      <RotateCcw size={12} /> Restore to ledger
                                     </button>
                                   )}
-                                {view === "deleted" && item.permissions.canRestore && (
-                                  <button
-                                    className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--green)] px-2 py-1 text-[11px] text-[var(--surface)]"
-                                    onClick={() => expenseAction(item, "restore")}
-                                    disabled={busy}
-                                  >
-                                    <RotateCcw size={12} /> Restore to ledger
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="border-t border-[var(--line)] bg-[var(--canvas)] px-4 py-3 text-xs text-[var(--muted)]">
+                        Showing {filtered.length} entries
+                        {month && view === "expenses"
+                          ? ` for ${new Date(`${month}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`
+                          : ""}
+                      </div>
                     </div>
-                    <div className="border-t border-[var(--line)] bg-[var(--canvas)] px-4 py-3 text-xs text-[var(--muted)]">
-                      Showing {filtered.length} entries
-                      {month && view === "expenses"
-                        ? ` for ${new Date(`${month}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`
-                        : ""}
+                  ) : (
+                    <div className="py-14 text-center">
+                      <h2>{view === "deleted" ? "Nothing to restore" : "No expenses yet"}</h2>
+                      <p className="text-sm">
+                        {view === "deleted"
+                          ? "Deleted expenses will appear here for 30 days."
+                          : "Add your first expense to start your ledger."}
+                      </p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="py-14 text-center">
-                    <h2>{view === "deleted" ? "Nothing to restore" : "No expenses yet"}</h2>
-                    <p className="text-sm">
-                      {view === "deleted"
-                        ? "Deleted expenses will appear here for 30 days."
-                        : "Add your first expense to start your ledger."}
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               {cursor && (
                 <button
@@ -2045,7 +2047,7 @@ export function PhaseTwoScreen({
                         setCurrencyValue(
                           checked
                             ? (currencies.find((item) => item.code !== bucket.primaryCurrency)
-                                ?.code ?? bucket.primaryCurrency)
+                              ?.code ?? bucket.primaryCurrency)
                             : bucket.primaryCurrency,
                         );
                       }}
@@ -2455,7 +2457,7 @@ export function PhaseTwoScreen({
                       [
                         "Payment mode",
                         paymentModes.find((mode) => mode.value === expense.paymentMode)?.label ??
-                          expense.paymentMode,
+                        expense.paymentMode,
                       ],
                       [
                         "Currency & conversion",

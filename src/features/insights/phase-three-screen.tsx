@@ -277,7 +277,7 @@ function MonthlySpendingChart({
             setSelection(value);
             setActive(null);
           }}
-          className="!w-[150px]"
+          className="!w-[130px]"
           options={[
             { value: "current", label: "This month" },
             { value: "1", label: "Last 1 month" },
