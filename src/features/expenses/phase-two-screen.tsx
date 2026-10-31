@@ -158,8 +158,8 @@ function applyOptionResult(
       "deleted" in result
         ? remaining
         : [...remaining, result].sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-        ),
+            a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+          ),
   };
 }
 
@@ -258,9 +258,9 @@ export function PhaseTwoScreen({
     savedSnapshot?.appliedFilters ?? (initialStatus ? `status=${initialStatus}` : "");
   const loadedPath = useRef(
     savedSnapshot?.loadedPath ??
-    (view === "expenses" || view === "deleted"
-      ? listPath(bucket.id, view, month, initialFilters, listRange)
-      : ""),
+      (view === "expenses" || view === "deleted"
+        ? listPath(bucket.id, view, month, initialFilters, listRange)
+        : ""),
   );
   const requestToken = useRef(0);
   const initialSnapshot = useRef(savedSnapshot);
@@ -432,8 +432,8 @@ export function PhaseTwoScreen({
           ? !!peek<Expense[]>(endpoint)
           : view === "add-expense" && !refundOf
             ? ["accounts", "categories", "platforms", "members"].every((kind) =>
-              peek(`buckets/${bucket.id}/${kind}`),
-            )
+                peek(`buckets/${bucket.id}/${kind}`),
+              )
             : false;
     if (view === "expenses" || view === "deleted") {
       if (initialListLoaded.current) setListUpdating(!hasSnapshot && !matchingSnapshot);
@@ -930,11 +930,11 @@ export function PhaseTwoScreen({
     const recurringTargets =
       act === "delete"
         ? expenses.filter(
-          (item) =>
-            selectedExpenseIds.includes(item.id) &&
-            item.source?.kind === "recurring_projection" &&
-            item.actualCreatorUserId === profile.id,
-        )
+            (item) =>
+              selectedExpenseIds.includes(item.id) &&
+              item.source?.kind === "recurring_projection" &&
+              item.actualCreatorUserId === profile.id,
+          )
         : [];
     if (!targets.length && !recurringTargets.length) return;
     setBusy(true);
@@ -1038,7 +1038,7 @@ export function PhaseTwoScreen({
     view === "deleted"
       ? item.permissions.canRestore
       : item.permissions.canDelete ||
-      (item.source?.kind === "recurring_projection" && item.actualCreatorUserId === profile.id),
+        (item.source?.kind === "recurring_projection" && item.actualCreatorUserId === profile.id),
   );
   const selectableIds = new Set(selectable.map((item) => item.id));
   const selectedRecurring = expenses.filter(
@@ -1127,11 +1127,11 @@ export function PhaseTwoScreen({
                     <div className="mt-3 break-words text-3xl font-bold tabular-nums text-amber-900 min-[768px]:max-[1199px]:text-2xl max-[767px]:text-xl dark:text-amber-200">
                       {expenses.find((item) => item.displayStatus === "conversion_needed")
                         ? money(
-                          expenses.find((item) => item.displayStatus === "conversion_needed")!
-                            .originalAmount,
-                          expenses.find((item) => item.displayStatus === "conversion_needed")!
-                            .originalCurrency,
-                        )
+                            expenses.find((item) => item.displayStatus === "conversion_needed")!
+                              .originalAmount,
+                            expenses.find((item) => item.displayStatus === "conversion_needed")!
+                              .originalCurrency,
+                          )
                         : summary.conversionNeededCount}
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2 border-t border-amber-200 pt-3 text-xs text-amber-800 dark:border-amber-800 dark:text-amber-300">
@@ -1144,17 +1144,17 @@ export function PhaseTwoScreen({
                         (item) =>
                           item.displayStatus === "conversion_needed" && item.permissions.canEdit,
                       ) && (
-                          <button
-                            className="font-semibold underline"
-                            onClick={() =>
-                              navigatePath(
-                                `${path(bucket.id, "expense", expenses.find((item) => item.displayStatus === "conversion_needed" && item.permissions.canEdit)!.id)}&resolve=1`,
-                              )
-                            }
-                          >
-                            Resolve
-                          </button>
-                        )}
+                        <button
+                          className="font-semibold underline"
+                          onClick={() =>
+                            navigatePath(
+                              `${path(bucket.id, "expense", expenses.find((item) => item.displayStatus === "conversion_needed" && item.permissions.canEdit)!.id)}&resolve=1`,
+                            )
+                          }
+                        >
+                          Resolve
+                        </button>
+                      )}
                     </div>
                   </section>
                   <section
@@ -1567,7 +1567,9 @@ export function PhaseTwoScreen({
                           </button>
                           <button
                             type="button"
-                            className={view === "deleted" ? controls.primary : controls.dangerAction}
+                            className={
+                              view === "deleted" ? controls.primary : controls.dangerAction
+                            }
                             disabled={busy}
                             onClick={() => {
                               if (view === "deleted") void bulkExpenseAction();
@@ -1704,12 +1706,21 @@ export function PhaseTwoScreen({
                               <th className="w-10 px-3 py-3">
                                 <input
                                   type="checkbox"
-                                  checked={selectable.every((item) => selectedExpenseIds.includes(item.id))}
+                                  checked={selectable.every((item) =>
+                                    selectedExpenseIds.includes(item.id),
+                                  )}
                                   onChange={(event) =>
                                     setSelectedExpenseIds((current) =>
                                       event.target.checked
-                                        ? [...new Set([...current, ...selectable.map((item) => item.id)])]
-                                        : current.filter((id) => !selectable.some((item) => item.id === id)),
+                                        ? [
+                                            ...new Set([
+                                              ...current,
+                                              ...selectable.map((item) => item.id),
+                                            ]),
+                                          ]
+                                        : current.filter(
+                                            (id) => !selectable.some((item) => item.id === id),
+                                          ),
                                     )
                                   }
                                   aria-label="Select all loaded expenses"
@@ -1831,8 +1842,9 @@ export function PhaseTwoScreen({
                                       ? item.restoreUntil
                                         ? `${Math.max(0, Math.ceil((new Date(item.restoreUntil).getTime() - renderTime) / 86_400_000))} days remaining`
                                         : "Recovery unavailable"
-                                      : (paymentModes.find((mode) => mode.value === item.paymentMode)
-                                        ?.label ?? item.paymentMode)}
+                                      : (paymentModes.find(
+                                          (mode) => mode.value === item.paymentMode,
+                                        )?.label ?? item.paymentMode)}
                                   </span>
                                 </td>
                                 <td className="py-4 pr-4 text-right font-semibold tabular-nums">
@@ -2047,7 +2059,7 @@ export function PhaseTwoScreen({
                         setCurrencyValue(
                           checked
                             ? (currencies.find((item) => item.code !== bucket.primaryCurrency)
-                              ?.code ?? bucket.primaryCurrency)
+                                ?.code ?? bucket.primaryCurrency)
                             : bucket.primaryCurrency,
                         );
                       }}
@@ -2457,7 +2469,7 @@ export function PhaseTwoScreen({
                       [
                         "Payment mode",
                         paymentModes.find((mode) => mode.value === expense.paymentMode)?.label ??
-                        expense.paymentMode,
+                          expense.paymentMode,
                       ],
                       [
                         "Currency & conversion",

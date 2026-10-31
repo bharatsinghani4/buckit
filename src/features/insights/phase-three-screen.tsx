@@ -34,6 +34,13 @@ import type { Budget, BudgetUsage, SpendingGroup, SpendingReport } from "./contr
 type View = "dashboard" | "reports" | "budgets" | "budget" | "budget-form";
 type BudgetEntry = { budget: Budget; usage: BudgetUsage };
 type Dashboard = SpendingReport & {
+  monthlyAverage: {
+    from: string | null;
+    through: string;
+    months: number;
+    all: string;
+    accounts: { id: string; name: string; amount: string }[];
+  };
   comparable: { from: string; toExclusive: string; totalAmount: string };
   categories: SpendingGroup[];
   members: SpendingGroup[];
@@ -474,6 +481,7 @@ export function PhaseThreeScreen({
   }>({ categories: [], accounts: [], platforms: [], members: [] });
   const [budgetTab, setBudgetTab] = useState("all");
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [averageSelection, setAverageSelection] = useState({ bucketId: bucket.id, id: "all" });
   const [report, setReport] = useState<SpendingReport | null>(null);
   const [budgets, setBudgets] = useState<BudgetEntry[]>([]);
   const [budgetLoaded, setBudgetLoaded] = useState(false);
@@ -717,6 +725,11 @@ export function PhaseThreeScreen({
   const actual = Number(dashboard?.totalAmount ?? "0");
   const previous = Number(dashboard?.comparable.totalAmount ?? "0");
   const change = previous ? ((actual - previous) / Math.abs(previous)) * 100 : null;
+  const averageAccountId = averageSelection.bucketId === bucket.id ? averageSelection.id : "all";
+  const selectedAverage =
+    dashboard?.monthlyAverage.accounts.find((account) => account.id === averageAccountId)?.amount ??
+    dashboard?.monthlyAverage.all ??
+    "0";
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-5 min-[768px]:max-[1199px]:space-y-4">
@@ -891,6 +904,51 @@ export function PhaseThreeScreen({
               </Link>
             </div>
           </div>
+          <section
+            className={`${card} flex min-w-0 flex-col gap-4 border-l-[3px] border-l-[var(--green)] sm:flex-row sm:items-center sm:justify-between`}
+            aria-labelledby="monthly-average-title"
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="inline-grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--soft)] text-[var(--green)]">
+                <Wallet size={20} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h2 id="monthly-average-title" className="text-sm font-bold text-[var(--ink)]">
+                  Average monthly expenditure
+                </h2>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  {dashboard.monthlyAverage.months
+                    ? `${dashboard.monthlyAverage.months} calendar ${dashboard.monthlyAverage.months === 1 ? "month" : "months"} since ${new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${dashboard.monthlyAverage.from}-01T00:00:00Z`))}`
+                    : "No posted expenses yet"}
+                </p>
+                <p className="mt-3 text-2xl font-bold leading-tight tabular-nums text-[var(--ink)] sm:text-3xl">
+                  {money(selectedAverage, currency)}
+                  <span className="ml-1 text-xs font-medium text-[var(--muted)]">/ month</span>
+                </p>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Posted spending and refunds · scheduled entries excluded
+                </p>
+              </div>
+            </div>
+            <div className="w-full shrink-0 sm:w-[min(100%,230px)]">
+              <label htmlFor="average-account" className="mb-1 block text-xs text-[var(--muted)]">
+                Account
+              </label>
+              <Dropdown
+                id="average-account"
+                value={averageAccountId}
+                onValueChange={(id) => setAverageSelection({ bucketId: bucket.id, id })}
+                options={[
+                  { value: "all", label: "All accounts" },
+                  ...dashboard.monthlyAverage.accounts.map((account) => ({
+                    value: account.id,
+                    label: account.name,
+                  })),
+                ]}
+                className="w-full"
+              />
+            </div>
+          </section>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
             <section className={card}>
               <div className="mb-4 flex items-start justify-between gap-3">
@@ -1383,7 +1441,7 @@ export function PhaseThreeScreen({
               incomplete until they are resolved.
             </Notice>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 min-[1100px]:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
+          <div className="grid gap-3 sm:grid-cols-3 min-[1100px]:grid-cols-3 min-[768px]:max-[1024px]:!grid-cols-1">
             <div className={card}>
               <p className="text-xs text-[var(--muted)]">Allocated limit</p>
               <p className="mt-2 text-2xl font-bold">

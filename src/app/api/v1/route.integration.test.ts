@@ -74,6 +74,58 @@ afterAll(async () => {
   delete process.env.PUSH_TOKEN_ENCRYPTION_KEY;
 });
 
+describe("Overview monthly average", () => {
+  it("uses all elapsed calendar months and keeps All equal to account averages", async () => {
+    const actor = "monthly-average-owner";
+    await request("POST", "me/bootstrap", actor, {});
+    const created = await request("POST", "buckets", actor, {
+      name: "Monthly average",
+      primaryCurrency: "INR",
+      timezone: "UTC",
+    });
+    const root = `buckets/${created.payload.data.id}`;
+    const userId = String((await UserModel.findOne({ firebaseUid: actor }))!._id);
+    const category = await request("POST", `${root}/options/categories`, actor, { name: "Food" });
+    const main = await request("POST", `${root}/options/accounts`, actor, { name: "Main" });
+    const card = await request("POST", `${root}/options/accounts`, actor, { name: "Card" });
+    const empty = await request("GET", `${root}/dashboard`, actor);
+    expect(empty.payload.data.monthlyAverage).toMatchObject({ months: 0, all: "0.00" });
+
+    const today = localDate(new Date(), "UTC");
+    const prior = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+    prior.setUTCMonth(prior.getUTCMonth() - 2);
+    const firstDate = `${prior.toISOString().slice(0, 7)}-15`;
+    for (const [expenseDate, accountId, amount] of [
+      [firstDate, main.payload.data.id, "120.00"],
+      [today, main.payload.data.id, "30.00"],
+      [today, card.payload.data.id, "60.00"],
+    ]) {
+      const expense = await request("POST", `${root}/expenses`, actor, {
+        expenseDate,
+        description: `Expense ${amount}`,
+        paidByUserId: userId,
+        categoryId: category.payload.data.id,
+        accountId,
+        paymentMode: "upi",
+        originalAmount: amount,
+      });
+      expect(expense.response.status, JSON.stringify(expense.payload)).toBe(201);
+    }
+    const overview = await request("GET", `${root}/dashboard`, actor);
+    expect(overview.response.status, JSON.stringify(overview.payload)).toBe(200);
+    expect(overview.payload.data.monthlyAverage).toMatchObject({
+      from: firstDate.slice(0, 7),
+      through: today.slice(0, 7),
+      months: 3,
+      all: "70.00",
+      accounts: expect.arrayContaining([
+        { id: main.payload.data.id, name: "Main", amount: "50.00" },
+        { id: card.payload.data.id, name: "Card", amount: "20.00" },
+      ]),
+    });
+  });
+});
+
 describe("Reference renames", () => {
   it("updates historical expense labels and editable payment mode names", async () => {
     const actor = "reference-rename-owner";

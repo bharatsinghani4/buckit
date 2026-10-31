@@ -56,6 +56,7 @@ import { PhaseSixCsv } from "@/features/csv/phase-six-csv";
 import { PhaseSevenScreen } from "@/features/lifecycle/phase-seven-screen";
 import { WorkspaceDataProvider, useWorkspaceData } from "./workspace-data-context";
 import { LedgerMonthPicker } from "./ledger-month-picker";
+import { APP_VERSION } from "@/lib/app-version";
 import { BucketSelector } from "./bucket-selector";
 import { WorkspacePeriodProvider, useWorkspacePeriod } from "./workspace-period-context";
 
@@ -937,6 +938,9 @@ function Workspace() {
                         <LogOut size={17} /> Sign out
                       </button>
                     </div>
+                    <p className="px-2 pt-2 text-[11px] text-[var(--muted)]">
+                      Buckit v{APP_VERSION}
+                    </p>
                   </div>
                 )}
               </div>

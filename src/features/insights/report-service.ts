@@ -1,5 +1,5 @@
 import "server-only";
-import type mongoose from "mongoose";
+import mongoose from "mongoose";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { ApiError } from "@/lib/api/errors";
 import {
@@ -7,6 +7,7 @@ import {
   EmiInstallmentModel,
   EmiPlanModel,
   ExpenseModel,
+  OptionModel,
   UserModel,
 } from "@/lib/db/models";
 import { activeUser, bucketForUser } from "@/features/identity/service";
@@ -53,6 +54,103 @@ function parseRange(params: URLSearchParams, today: string) {
   } catch {
     throw new ApiError(422, "INVALID_DATE", "Choose a valid reporting period.");
   }
+}
+
+function roundedAverage(total: bigint, months: number) {
+  if (!months) return 0n;
+  const divisor = BigInt(months);
+  const half = divisor / 2n;
+  return total < 0n ? -((-total + half) / divisor) : (total + half) / divisor;
+}
+
+async function averageMonthlySpending(
+  bucketId: string,
+  currency: string,
+  today: string,
+  livePlanIds: mongoose.Types.ObjectId[],
+) {
+  const [accounts, spendingByAccount] = await Promise.all([
+    OptionModel.find({ bucketId, kind: "account" }).select("_id name state").lean(),
+    ExpenseModel.aggregate<{
+      _id: mongoose.Types.ObjectId;
+      firstDate: string;
+      amount: mongoose.Types.Decimal128;
+      fallbackName?: string;
+    }>([
+      {
+        $match: {
+          bucketId: new mongoose.Types.ObjectId(bucketId),
+          deletedAt: null,
+          postingState: "posted",
+          "conversion.status": "final",
+          expenseDate: { $lte: today },
+          $and: [visibleExpenseFilter(livePlanIds)],
+        },
+      },
+      {
+        $group: {
+          _id: "$accountId",
+          firstDate: { $min: "$expenseDate" },
+          amount: { $sum: "$conversion.convertedAmount" },
+          fallbackName: { $first: "$referenceLabels.account" },
+        },
+      },
+    ]),
+  ]);
+  const totals = new Map(
+    accounts.map((account) => [
+      String(account._id),
+      { name: account.name, state: account.state, amount: 0n },
+    ]),
+  );
+  let firstMonth: string | null = null;
+  for (const group of spendingByAccount) {
+    const month = group.firstDate.slice(0, 7);
+    if (firstMonth === null || month < firstMonth) firstMonth = month;
+    const amount = units(group.amount.toString(), currency);
+    const id = String(group._id);
+    const account = totals.get(id) ?? {
+      name: group.fallbackName ?? "Former account",
+      state: "archived",
+      amount: 0n,
+    };
+    account.amount += amount;
+    totals.set(id, account);
+  }
+  const through = today.slice(0, 7);
+  const months = firstMonth
+    ? (Number(through.slice(0, 4)) - Number(firstMonth.slice(0, 4))) * 12 +
+      Number(through.slice(5, 7)) -
+      Number(firstMonth.slice(5, 7)) +
+      1
+    : 0;
+  const averageAccounts = [...totals]
+    .sort((a, b) =>
+      a[1].state === b[1].state
+        ? a[1].name.localeCompare(b[1].name)
+        : a[1].state === "active"
+          ? -1
+          : 1,
+    )
+    .map(([id, account]) => ({
+      id,
+      name: account.name,
+      average: roundedAverage(account.amount, months),
+    }));
+  return {
+    from: firstMonth,
+    through,
+    months,
+    all: fromMinor(
+      averageAccounts.reduce((sum, account) => sum + account.average, 0n),
+      currency,
+    ),
+    accounts: averageAccounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+      amount: fromMinor(account.average, currency),
+    })),
+  };
 }
 
 async function spending(
@@ -261,6 +359,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
     upcomingInstallments,
     unpaidInstallments,
     nextInstallment,
+    monthlyAverage,
   ] = await Promise.all([
     spending(
       bucketId,
@@ -329,6 +428,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
     EmiInstallmentModel.findOne({ bucketId, planId: { $in: planIds }, state: "scheduled" })
       .sort({ scheduledDate: 1 })
       .select("scheduledDate"),
+    averageMonthlySpending(bucketId, bucket.primaryCurrency, today, planIds),
   ]);
   const latest = await BucketModel.findById(bucketId).select("financialRevision writeRevision");
   const recentReferenceNames = await currentReferenceNames(bucketId, recent);
@@ -343,6 +443,7 @@ async function dashboardOnce(identity: DecodedIdToken, bucketId: string, params:
     categories: category.groups,
     members: member.groups,
     trend: trend.groups,
+    monthlyAverage,
     budgetCount: budgets.filter((entry) => entry.budget.state === "active").length,
     emi: {
       activePlans: activeEmiPlans,

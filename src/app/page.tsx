@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { controls } from "@/components/control-styles";
+import { APP_VERSION } from "@/lib/app-version";
 import { ArrowRight, BookOpen, FolderOpen, Users, Home, Coffee, Sun, Check } from "lucide-react";
 import { Brand, Wordmark } from "@/components/brand";
 import { GuestHome } from "@/features/identity/guest-home";
@@ -253,7 +254,9 @@ export default function HomePage() {
       <footer className="site-footer [max-width:1280px] m-auto flex items-center justify-between [padding:32px_48px] text-[var(--muted)] text-xs [&_.wordmark]:[font-size:23px] min-[768px]:max-[1199px]:[padding:24px_32px] max-[767px]:[padding:28px_24px] max-[767px]:[&_>_span:nth-child(2)]:hidden">
         <Wordmark />
         <span>Made for everyday life.</span>
-        <span>© {new Date().getFullYear()} Buckit</span>
+        <span>
+          © {new Date().getFullYear()} Buckit · v{APP_VERSION}
+        </span>
       </footer>
     </GuestHome>
   );

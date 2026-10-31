@@ -1,10 +1,12 @@
 # Buckit progress
 
-Updated: 20 October 2026.
+Updated: 31 October 2026.
 
 Update this file with each development phase or significant fix. Record what changed, the checks actually run, and any work still unverified before finishing the task. Keep prior verification distinct from checks run for the latest change.
 
 ## Completed
+
+- Monthly spending average and v1.0 release (31 October 2026): The Overview now has a responsive, full-width average monthly expenditure tile with an account selector defaulting to All accounts. It includes posted, finalized expenses and refunds from the first recorded expense month through the current bucket-local month, including months with no spending; scheduled commitments are excluded. All accounts is the sum of account averages, and switching accounts uses the dashboard data already loaded. The public footer and signed-in profile menu show the package version, now 1.0.0 to mark the completed Phase 1–7 foundation. The route integration test covers empty data, a three-month span, per-account values, and the All value. `npm run check` passed formatting, lint, TypeScript, and 99 tests; `npm run build -- --webpack` passed. The standard Turbopack build panicked while launching a child process for font CSS in this environment; the Webpack build completed.
 
 - Dev branch update (20 October 2026): committed the Auto-theme save fix, current reference labels, custom payment modes, Reference Settings card/status refinements, and related integration coverage as `265b2bc`, then pushed `dev` to origin. `npm run check` passed formatting, lint, TypeScript, and all 98 tests before the push. The earlier Webpack production build also passed. `main` was not changed or deployed.
 
